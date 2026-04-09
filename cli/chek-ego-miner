@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+PYTHON_BIN="${CHEK_EGO_MINER_PYTHON:-python3}"
+
+export PYTHONPATH="${REPO_ROOT}/cli:${REPO_ROOT}${PYTHONPATH:+:${PYTHONPATH}}"
+exec "${PYTHON_BIN}" -m chek_ego_miner.main "$@"
