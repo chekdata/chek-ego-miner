@@ -50,4 +50,4 @@
   - [x] Dataset portal
 - [x] 完成 first external-user walkthrough
 - [x] 完成 first agent-guided walkthrough
-- [ ] 准备首个 public tag
+- [x] 准备首个 public tag
