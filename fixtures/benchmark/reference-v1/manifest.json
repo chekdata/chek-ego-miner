@@ -1,0 +1,10 @@
+{
+  "schema_version": "1.0.0",
+  "session_id": "fixture-edge-accuracy-reference-v1",
+  "trip_id": "fixture-trip-edge-accuracy-reference-v1",
+  "created_unix_ms": 1775606400000,
+  "recorder_state": {
+    "fixture_source": "reference-v1",
+    "profile_hint": "professional"
+  }
+}

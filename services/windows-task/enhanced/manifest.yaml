@@ -1,0 +1,9 @@
+profile: enhanced
+manager: windows-task
+summary: Enhanced Windows nodes can auto-start the stereo-capable local runtime through Task Scheduler wrappers.
+supported_backends:
+  - windows
+templates:
+  - chek-edge-enhanced.cmd
+legacy_source:
+  - scripts/teleop_local_stack.cmd

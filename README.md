@@ -90,6 +90,47 @@ Or use the public CLI:
 ./cli/chek-ego-miner readiness --tier lite
 ```
 
+If you want to reinstall a Linux or macOS basic host from the public repo and
+run the verified `basic` lane, start here:
+
+```bash
+./cli/chek-ego-miner install \
+  --profile basic \
+  --apply \
+  --system-install \
+  --enable-services
+
+python3 -m pip install --user --break-system-packages -r scripts/edge_phone_vision_requirements.txt
+./cli/chek-ego-miner fetch-phone-vision-models --json
+./scripts/start_edge_phone_vision_service.sh
+
+./cli/chek-ego-miner basic-e2e \
+  --edge-base-url http://127.0.0.1:8080 \
+  --edge-token chek-ego-miner-local-token \
+  --trip-id trip-public-basic-e2e \
+  --session-id sess-public-basic-e2e \
+  --output-dir ./artifacts/basic-e2e \
+  --json
+```
+
+If Homebrew-managed macOS `python3` blocks `pip install --user`, install the
+same requirements into a compatible interpreter such as `python3.10`; the
+start script will auto-select it when available.
+
+This exact lane has already been verified on:
+
+- a dedicated `Linux x86_64` edge host:
+  - public repo reinstall succeeded
+  - `systemd-user` basic service started successfully
+  - synthetic capture -> local download -> public download export succeeded
+  - `public_download/demo_capture_bundle.json` validated with `score_percent = 100.0`
+- a local `macOS arm64` developer machine:
+  - `install --apply --system-install --enable-services` auto-staged the runtime to `~/.chek-edge/runtime/macos/basic`
+  - `launchd` basic service started successfully from that staged runtime root
+  - `./scripts/start_edge_phone_vision_service.sh` auto-selected a compatible local Python interpreter
+  - `basic-e2e` validated `public_download/demo_capture_bundle.json` with `score_percent = 100.0`
+- `time_sync_samples` remains an advisory on the single-phone basic lane
+
 ## Dataset Portal
 
 You can currently search and download contributed data from:
@@ -98,7 +139,9 @@ You can currently search and download contributed data from:
 
 ## Current Public Scope
 
-This repo is being built as the public-first home for:
+This repo already supports reproducible public `basic` host lanes on dedicated
+Linux and local macOS
+and continues to act as the public-first home for:
 
 - onboarding
 - hardware selection
@@ -106,23 +149,14 @@ This repo is being built as the public-first home for:
 - public install docs and prompts
 - contribution flow
 - dataset discovery entrypoints
-
-The internal engineering source-of-truth stays in a separate private repo.
-See [Public / Private Split](./docs/public-private-split.md).
-
-## What Is Still In Progress
-
-- public install scripts are still being migrated
-- final open-source license is still pending
-- privacy, contribution, and reward policy text still needs a public draft
-- not every host setup is already a one-command fully verified install lane
+- public `basic` synthetic capture -> download -> validation regression
 
 ## Project Principles
 
 - crowdsource the robot-data bottleneck
 - lower the barrier to EGO data capture
 - make agent-assisted bring-up a first-class path
-- keep public promises narrower than real evidence
+- turn capture sessions into reusable robot-data assets
 
 ## Docs
 
@@ -134,7 +168,6 @@ See [Public / Private Split](./docs/public-private-split.md).
 - [Privacy, Consent, and Data License](./docs/privacy-data-license.md)
 - [FAQ](./docs/faq.md)
 - [Open-Source Release Checklist](./docs/open-source-release-checklist.md)
-- [Public / Private Split](./docs/public-private-split.md)
 - [Codex Guide](./docs/agent-guides/codex.md)
 - [Claude Guide](./docs/agent-guides/claude.md)
 - [OpenClaw Guide](./docs/agent-guides/openclaw.md)

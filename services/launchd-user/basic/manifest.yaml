@@ -1,0 +1,9 @@
+profile: basic
+manager: launchd-user
+summary: Basic macOS launch agent for the lightweight local teleop runtime.
+supported_backends:
+  - macos
+templates:
+  - com.chek.edge.basic.plist
+legacy_source:
+  - scripts/teleop_local_stack.sh

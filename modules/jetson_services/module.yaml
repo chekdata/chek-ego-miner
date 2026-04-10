@@ -1,0 +1,11 @@
+name: jetson_services
+display_name: Jetson Services
+stage: v0.4
+summary: Jetson-specific service wrappers, AP setup, and runtime autostart glue.
+owners:
+  - chek-edge-runtime
+references:
+  - services/systemd/professional
+  - services/systemd-user/professional
+  - legacy/wrappers
+status: planned

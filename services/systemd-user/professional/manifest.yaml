@@ -1,0 +1,12 @@
+profile: professional
+manager: systemd-user
+summary: Professional user-scoped services for phone vision, adapter, and workstation-side Wi-Fi helpers.
+supported_backends:
+  - jetson
+templates:
+  - chek-edge-phone-vision.service
+  - chek-teleop-adapter.service
+  - chek-edge-wifi-sensing.service
+  - chek-edge-wifi-bridge.service
+legacy_source:
+  - chek-edge-debug/systemd-user

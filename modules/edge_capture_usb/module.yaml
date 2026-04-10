@@ -1,0 +1,7 @@
+name: edge_capture_usb
+display_name: Edge Capture USB
+stage: v0.3
+summary: Standard webcam and basic capture adapters for low-barrier nodes.
+owners:
+  - chek-edge-runtime
+status: planned

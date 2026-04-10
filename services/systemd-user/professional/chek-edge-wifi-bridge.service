@@ -1,0 +1,19 @@
+[Unit]
+Description=CHEK Edge Wi-Fi Pose Bridge (User)
+After=network-online.target
+Wants=network-online.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+WorkingDirectory=%h/chek-edge-runtime
+Environment=PATH=%h/.local/bin:%h/.cargo/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/usr/bin/env bash %h/chek-edge-runtime/chek-edge-debug/scripts/edge_wifi_bridge_autostart.sh
+Restart=always
+RestartSec=5
+TimeoutStopSec=15
+KillMode=mixed
+
+[Install]
+WantedBy=default.target

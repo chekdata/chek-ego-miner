@@ -1,0 +1,22 @@
+[Unit]
+Description=CHEK Edge Phone Vision Worker
+After=network-online.target
+Wants=network-online.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+WorkingDirectory=%h/chek-edge-runtime
+Environment=ISAAC_SIM_ROOT=%h/isaacsim
+Environment=EDGE_PHONE_VISION_HOST=0.0.0.0
+Environment=EDGE_PHONE_VISION_PORT=3031
+Environment=PATH=%h/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/usr/bin/env bash %h/chek-edge-runtime/chek-edge-debug/scripts/start_edge_phone_vision_service.sh
+Restart=always
+RestartSec=2
+TimeoutStopSec=15
+KillMode=mixed
+
+[Install]
+WantedBy=default.target

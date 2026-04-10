@@ -1,0 +1,9 @@
+name: edge_capture_stereo
+display_name: Edge Capture Stereo
+stage: v0.3
+summary: Stereo camera probe, calibration, and capture flows for enhanced nodes.
+owners:
+  - chek-edge-runtime
+references:
+  - scripts/stereo_pose_producer.py
+status: planned

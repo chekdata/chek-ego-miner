@@ -51,3 +51,20 @@
 - [x] 完成 first external-user walkthrough
 - [x] 完成 first agent-guided walkthrough
 - [x] 准备首个 public tag
+
+## Phase 6: Public basic E2E hardening
+
+- [x] 把 dedicated Linux x86_64 边缘机按 public 仓重装跑通
+- [x] 补 public `basic-e2e` synthetic capture -> download -> validation lane
+- [x] 补 public phone-vision sidecar 启动脚本、依赖说明与模型拉取
+- [x] 让 public download 子集通过 `score_percent = 100.0`
+- [x] 把单手机 `basic` lane 的 `time_sync_samples` 降级为 advisory
+
+## Phase 7: Multi-host live evidence
+
+- [x] 补 macOS `basic` install-driven `launchd` live evidence
+- [x] 补 macOS `basic-e2e` synthetic capture -> download -> validation lane
+- [x] 让 `start_edge_phone_vision_service.sh` 自动选择兼容 Python
+- [ ] 补 Windows public live evidence（外部宿主需恢复在线并提供管理员权限）
+- [ ] 补 Jetson public live evidence（外部共享宿主需允许重装与验收）
+- [ ] 补 `Stereo / Pro` 真机 acceptance evidence（外部双目/边缘机硬件）

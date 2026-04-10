@@ -1,0 +1,10 @@
+name: device_health
+display_name: Device Health
+stage: v0.2
+summary: Node health, benchmark, and readiness diagnostics for edge bring-up.
+owners:
+  - chek-edge-runtime
+references:
+  - scripts/run_real_device_benchmark.py
+  - scripts/run_workstation_active_session_acceptance.py
+status: skeleton

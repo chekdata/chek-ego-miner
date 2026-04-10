@@ -1,0 +1,10 @@
+name: local_ui
+display_name: Local UI
+stage: v0.4
+summary: RuView and local operator surfaces for professional edge kits.
+owners:
+  - chek-edge-runtime
+references:
+  - RuView/ui-react
+  - RuView/ui
+status: planned

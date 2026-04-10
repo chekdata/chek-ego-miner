@@ -1,0 +1,27 @@
+name: professional
+display_name: Professional
+summary: 平台标准边缘机 / Jetson 的专业数据采集节点。
+supported_platforms:
+  - linux-arm64
+required_modules:
+  - edge_core
+  - edge_auth_binding
+  - edge_upload_agent
+  - edge_preview_packager
+  - edge_capture_stereo
+  - edge_pro_extensions
+  - local_ui
+  - jetson_services
+capture_modules:
+  - edge_capture_usb
+  - edge_capture_stereo
+preview_modules:
+  - edge_preview_packager
+optional_modules:
+  - device_health
+service_mode: systemd
+install_backend_preference:
+  - jetson
+notes:
+  - 兼容现有 Jetson bring-up 与 systemd 自启动。
+  - 保留 RuView、bridge、Wi-Fi sensing 和平台设备专有能力。

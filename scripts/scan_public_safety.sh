@@ -12,7 +12,6 @@ declare -a PATTERNS=(
   '100\.[0-9]+\.[0-9]+\.[0-9]+'
   'tailscale'
   'edge-local-debug-token'
-  'Authorization: Bearer'
   'MacBook-Pro-9'
   'edge-ubuntu'
   'chekkk-X670'

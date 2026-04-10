@@ -1,0 +1,11 @@
+name: edge_pro_extensions
+display_name: Edge Pro Extensions
+stage: v0.4
+summary: Jetson-specific Wi-Fi sensing, RuView UI, and bridge-stack capabilities.
+owners:
+  - chek-edge-runtime
+references:
+  - RuView
+  - ruview-leap-bridge
+  - ruview-unitree-bridge
+status: planned

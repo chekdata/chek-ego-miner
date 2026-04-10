@@ -1,0 +1,46 @@
+# ruview-leap-bridge 默认配置（MVP）
+
+# 连接 edge-orchestrator 的 teleop WS（为空则进入本地 demo 模式；可选加 `?format=cbor` 使用二进制帧）
+edge_teleop_ws_url = ""
+
+# 对应 PRD 2.2 的最小鉴权（若 edge 侧启用了 EDGE_TOKEN）
+edge_token = ""
+
+# 回传给 edge 的 bridge_id（edge 侧用 `contains(\"leap\")` 识别 LEAP）
+bridge_id = "leap-bridge-01"
+
+# 发布主循环频率（建议 50~100Hz）
+publish_hz = 100
+
+# 双手配对窗口（默认 <=20ms）
+pairing_window_ms = 20
+
+# 单手短时失联：<200ms 采取 hold 策略
+hold_timeout_ms = 200
+
+# 单手长时失联：>=200ms 进入 freeze（默认与 hold 相同阈值，便于先跑通闭环）
+freeze_timeout_ms = 200
+
+# gate keepalive 超时（默认 200ms）
+keepalive_timeout_ms = 200
+
+# 关节限幅（若数组为空则按输入长度自动扩展为 [-pi, pi]）
+joint_min = []
+joint_max = []
+
+# 默认按当前主链路强制校验 16 维手部目标；若要兼容旧版 5 指 curl，可显式改为 5；填 0 则关闭长度校验
+expected_joint_len = 16
+
+# 左手/右手 retarget 标定（bridge 内执行，作用于 16 维 LEAP 命令：cmd = raw * scale + offset）
+# 顺序：thumb_yaw, thumb_pitch, thumb_mcp, thumb_ip, index/middle/ring/pinky 的 mcp/pip/dip
+# 为空表示不启用该侧标定；若填写，长度必须为 16。
+left_joint_scale = []
+left_joint_offset = []
+right_joint_scale = []
+right_joint_offset = []
+
+# 过温阈值（摄氏度）
+max_temperature_c = 70.0
+
+# 本地健康/指标端口（MVP）
+http_addr = "0.0.0.0:8090"

@@ -10,3 +10,5 @@ build/
 *.tmp
 __pycache__/
 *.pyc
+.chek-edge/
+artifacts/

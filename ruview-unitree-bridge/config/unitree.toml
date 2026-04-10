@@ -1,0 +1,31 @@
+# ruview-unitree-bridge 默认配置（MVP）
+
+# 连接 edge-orchestrator 的 teleop WS（为空则进入本地 demo 模式；可选加 `?format=cbor` 使用二进制帧）
+edge_teleop_ws_url = ""
+
+# 对应 PRD 2.2 的最小鉴权（若 edge 侧启用了 EDGE_TOKEN）
+edge_token = ""
+
+# 回传给 edge 的 bridge_id
+bridge_id = "unitree-bridge-01"
+
+# 发布主循环频率（建议 50~100Hz）
+publish_hz = 100
+
+# gate keepalive 超时（默认 200ms）
+keepalive_timeout_ms = 200
+
+# 若设置则强制校验 arm_q_target/arm_tauff_target 维度；为空则允许任意长度
+expected_arm_joint_len = 0
+
+# 若设置则强制校验 Dex 手部 target 维度；为空则允许任意长度
+expected_dex_joint_len = 0
+
+# 关节限幅（MVP：若数组为空则默认按 [-pi, pi]）
+arm_joint_min = []
+arm_joint_max = []
+dex_joint_min = []
+dex_joint_max = []
+
+# 本地健康/指标端口（MVP）
+http_addr = "0.0.0.0:8091"

@@ -1,0 +1,11 @@
+profile: professional
+manager: systemd
+summary: Professional edge-machine system services migrated out of chek-edge-debug.
+supported_backends:
+  - jetson
+templates:
+  - chek-edge-stack.service
+  - chek-edge-stereo.service
+  - chek-edge-wifi-sensing.service
+legacy_source:
+  - chek-edge-debug/systemd

@@ -1,0 +1,10 @@
+name: edge_upload_agent
+display_name: Edge Upload Agent
+stage: v0.2
+summary: Session bundle, artifact, and receipt upload orchestration.
+owners:
+  - chek-edge-runtime
+contracts:
+  - backend-crowd-data-saas session / artifact / receipt
+  - crowd-data-worker upload sink compatibility
+status: skeleton

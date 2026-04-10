@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>__SERVICE_LABEL__</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/bash</string>
+    <string>__EDGE_ROOT__/scripts/teleop_local_launch_agent.sh</string>
+  </array>
+  <key>WorkingDirectory</key>
+  <string>__EDGE_ROOT__</string>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>CHEK_EDGE_ROOT</key>
+    <string>__EDGE_ROOT__</string>
+    <key>EDGE_RUNTIME_PROFILE</key>
+    <string>__EDGE_RUNTIME_PROFILE__</string>
+    <key>EDGE_CONTROL_ENABLED</key>
+    <string>__EDGE_CONTROL_ENABLED__</string>
+    <key>EDGE_SIM_ENABLED</key>
+    <string>__EDGE_SIM_ENABLED__</string>
+    <key>STACK_BIND_HOST</key>
+    <string>__STACK_BIND_HOST__</string>
+    <key>STACK_CHECK_HOST</key>
+    <string>__STACK_BIND_HOST__</string>
+    <key>STACK_PUBLIC_HOST</key>
+    <string>__STACK_PUBLIC_HOST__</string>
+  </dict>
+  <key>StandardOutPath</key>
+  <string>__LOG_DIR__/__SERVICE_LABEL__.out.log</string>
+  <key>StandardErrorPath</key>
+  <string>__LOG_DIR__/__SERVICE_LABEL__.err.log</string>
+  <key>ProcessType</key>
+  <string>Interactive</string>
+</dict>
+</plist>

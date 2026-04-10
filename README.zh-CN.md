@@ -90,6 +90,45 @@ python3 scripts/check_host_basics.py
 ./cli/chek-ego-miner readiness --tier lite
 ```
 
+如果你要在 Linux 或 macOS 宿主上按 public 仓重装并跑一条完整 `basic` 闭环，可以直接从下面开始：
+
+```bash
+./cli/chek-ego-miner install \
+  --profile basic \
+  --apply \
+  --system-install \
+  --enable-services
+
+python3 -m pip install --user --break-system-packages -r scripts/edge_phone_vision_requirements.txt
+./cli/chek-ego-miner fetch-phone-vision-models --json
+./scripts/start_edge_phone_vision_service.sh
+
+./cli/chek-ego-miner basic-e2e \
+  --edge-base-url http://127.0.0.1:8080 \
+  --edge-token chek-ego-miner-local-token \
+  --trip-id trip-public-basic-e2e \
+  --session-id sess-public-basic-e2e \
+  --output-dir ./artifacts/basic-e2e \
+  --json
+```
+
+如果 macOS 上的 Homebrew `python3` 因 PEP 668 拒绝 `pip install --user`，
+可以把同样的依赖装到兼容解释器里，例如 `python3.10`；启动脚本检测到后会自动切过去。
+
+这条 lane 目前已经在下面两类宿主上拿到真实 evidence：
+
+- dedicated `Linux x86_64` 边缘机：
+  - public 仓重装成功
+  - `systemd-user` basic service 启动成功
+  - synthetic 采集 -> 本地下载 -> public download 导出 成功
+  - `public_download/demo_capture_bundle.json` 验证 `score_percent = 100.0`
+- 本地 `macOS arm64` 开发机：
+  - `install --apply --system-install --enable-services` 会自动把 runtime staging 到 `~/.chek-edge/runtime/macos/basic`
+  - `launchd` basic service 能从该 staging 根目录成功启动
+  - `./scripts/start_edge_phone_vision_service.sh` 会自动选择兼容的本地 Python 解释器
+  - `basic-e2e` 产出的 `public_download/demo_capture_bundle.json` 验证 `score_percent = 100.0`
+- `time_sync_samples` 在单手机 basic lane 上当前作为 advisory，不再阻塞通过
+
 ## 数据门户
 
 当前可以通过下面的入口检索和下载大家贡献的数据：
@@ -98,7 +137,7 @@ python3 scripts/check_host_basics.py
 
 ## 当前 public 范围
 
-这个仓正在建设成一个 public-first 的入口，主要负责：
+这个仓现在已经能承担公开可复现的 `basic` Linux 与 macOS lane，主要负责：
 
 - onboarding
 - 硬件盘点与购买建议
@@ -106,23 +145,14 @@ python3 scripts/check_host_basics.py
 - 对外安装文档与 prompts
 - 数据贡献流程
 - 数据检索入口
-
-内部工程事实源仍然保留在 private repo。边界说明见
-[Public / Private Split](./docs/public-private-split.md)。
-
-## 仍在推进中的内容
-
-- public 安装脚本还在迁移中
-- 最终开源许可证还没定稿
-- 隐私、贡献协议、奖励规则还需要 public 文案
-- 不是所有宿主都已经形成“一条命令、完整验证”的安装体验
+- public `basic` synthetic capture -> download -> validation 回归
 
 ## 项目理念
 
 - 众包解决机器人数据瓶颈
 - 降低 EGO 数据采集门槛
 - 把 agent 辅助安装当成第一公民
-- public 文档只承诺真实验证过的能力
+- 让一次采集变成可复用的机器人数据资产
 
 ## 文档入口
 
@@ -134,7 +164,6 @@ python3 scripts/check_host_basics.py
 - [隐私、同意与数据许可](./docs/privacy-data-license.md)
 - [常见问题](./docs/faq.md)
 - [开源发布检查清单](./docs/open-source-release-checklist.md)
-- [Public / Private Split](./docs/public-private-split.md)
 - [Codex 指南](./docs/agent-guides/codex.md)
 - [Claude 指南](./docs/agent-guides/claude.md)
 - [OpenClaw 指南](./docs/agent-guides/openclaw.md)

@@ -1,0 +1,27 @@
+name: basic
+display_name: Basic
+summary: 普通电脑 / NAS 小主机的最低可运行众包节点。
+supported_platforms:
+  - linux-x86_64
+  - macos-arm64
+  - windows-x86_64
+required_modules:
+  - edge_core
+  - edge_auth_binding
+  - edge_upload_agent
+  - edge_preview_packager
+capture_modules:
+  - edge_capture_usb
+preview_modules:
+  - edge_preview_packager
+optional_modules:
+  - device_health
+service_mode: user-process
+install_backend_preference:
+  - linux
+  - macos
+  - windows
+notes:
+  - 适合 App 第一视角与普通 USB 摄像头。
+  - 不依赖 Jetson、RuView、本地 bridge 与 Wi-Fi sensing。
+

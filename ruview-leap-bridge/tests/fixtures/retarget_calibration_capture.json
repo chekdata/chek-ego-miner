@@ -1,0 +1,110 @@
+{
+  "schema_version": "1.0.0",
+  "captured_at": "2026-03-07T18:10:00",
+  "source": {
+    "type": "edge_teleop_stream",
+    "ws_url": "ws://127.0.0.1:8765/stream/teleop?token=chek-ego-miner-local-token"
+  },
+  "poses": {
+    "open_palm": {
+      "name": "open_palm",
+      "edge_time_ns": 1741342200000000000,
+      "hand_joint_layout": "anatomical_joint_16",
+      "hand_target_layout": "anatomical_target_16",
+      "left": {
+        "source": "left_hand_target",
+        "sample_count": 12,
+        "mean_vector": [
+          0.220000,
+          0.080000,
+          0.050000,
+          0.030000,
+          0.070000,
+          0.050000,
+          0.030000,
+          0.060000,
+          0.040000,
+          0.030000,
+          0.070000,
+          0.050000,
+          0.030000,
+          0.060000,
+          0.040000,
+          0.030000
+        ]
+      },
+      "right": {
+        "source": "right_hand_target",
+        "sample_count": 12,
+        "mean_vector": [
+          0.180000,
+          0.070000,
+          0.040000,
+          0.030000,
+          0.060000,
+          0.040000,
+          0.020000,
+          0.050000,
+          0.040000,
+          0.020000,
+          0.060000,
+          0.040000,
+          0.020000,
+          0.050000,
+          0.040000,
+          0.020000
+        ]
+      }
+    },
+    "closed_fist": {
+      "name": "closed_fist",
+      "edge_time_ns": 1741342202500000000,
+      "hand_joint_layout": "anatomical_joint_16",
+      "hand_target_layout": "anatomical_target_16",
+      "left": {
+        "source": "left_hand_target",
+        "sample_count": 12,
+        "mean_vector": [
+          0.350000,
+          0.720000,
+          0.880000,
+          0.780000,
+          0.710000,
+          0.900000,
+          0.680000,
+          0.750000,
+          0.950000,
+          0.700000,
+          0.720000,
+          0.900000,
+          0.670000,
+          0.680000,
+          0.860000,
+          0.650000
+        ]
+      },
+      "right": {
+        "source": "right_hand_target",
+        "sample_count": 12,
+        "mean_vector": [
+          0.320000,
+          0.690000,
+          0.850000,
+          0.760000,
+          0.660000,
+          0.860000,
+          0.620000,
+          0.710000,
+          0.920000,
+          0.660000,
+          0.690000,
+          0.880000,
+          0.610000,
+          0.640000,
+          0.820000,
+          0.600000
+        ]
+      }
+    }
+  }
+}

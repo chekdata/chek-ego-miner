@@ -1,0 +1,77 @@
+{
+  "schema_version": "1.0.0",
+  "notes": [
+    "该矩阵定义 basic / enhanced / professional 三档边缘节点在精度与稳定性验收中的能力边界。",
+    "它用于 fixture replay、run->report 编排和后续冻结门槛，不直接替代真实 dedicated host 验收。"
+  ],
+  "profiles": [
+    {
+      "id": "basic",
+      "title": "Basic",
+      "default_scenario_id": "basic-phone-hand-core-v1",
+      "supported_scenarios": [
+        "basic-phone-hand-core-v1"
+      ],
+      "required_sources": [
+        "iphone_capture"
+      ],
+      "focus": [
+        "hand"
+      ],
+      "service_manager": "systemd-user",
+      "service_catalog": "services/systemd-user/basic/manifest.yaml",
+      "acceptance_notes": [
+        "基础节点不要求 stereo_pose / wifi_pose。",
+        "验收重点是 iPhone / App 采集、preview、upload 和手部稳定性。"
+      ]
+    },
+    {
+      "id": "enhanced",
+      "title": "Enhanced",
+      "default_scenario_id": "enhanced-stereo-body-hand-v1",
+      "supported_scenarios": [
+        "enhanced-stereo-body-hand-v1",
+        "hand-close-occlusion-v1"
+      ],
+      "required_sources": [
+        "iphone_capture",
+        "stereo_pose"
+      ],
+      "focus": [
+        "body",
+        "hand"
+      ],
+      "service_manager": "systemd-user",
+      "service_catalog": "services/systemd-user/enhanced/manifest.yaml",
+      "acceptance_notes": [
+        "增强节点要求双目链路 ready，但不强制 Wi‑Fi sensing。",
+        "验收重点是 stereo 标定、人体/手部覆盖率和上传稳定性。"
+      ]
+    },
+    {
+      "id": "professional",
+      "title": "Professional",
+      "default_scenario_id": "body-hand-core-v1",
+      "supported_scenarios": [
+        "body-hand-core-v1",
+        "body-turning-midrange-v1",
+        "fast-reach-dynamic-v1"
+      ],
+      "required_sources": [
+        "iphone_capture",
+        "stereo_pose",
+        "wifi_pose"
+      ],
+      "focus": [
+        "body",
+        "hand"
+      ],
+      "service_manager": "systemd",
+      "service_catalog": "services/systemd/professional/manifest.yaml",
+      "acceptance_notes": [
+        "专业节点必须验证双目、Wi‑Fi sensing、fusion 和完整系统指标。",
+        "不能用 professional 的结果替代 basic / enhanced 的分层验收。"
+      ]
+    }
+  ]
+}

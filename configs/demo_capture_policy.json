@@ -1,0 +1,48 @@
+{
+  "schema_version": "1.0.0",
+  "edge_primary_truth_source": true,
+  "allowed_prefixes": [
+    "manifest.json",
+    "demo_capture_bundle.json",
+    "labels/",
+    "fused/",
+    "teleop/",
+    "chunks/",
+    "sync/",
+    "calibration/",
+    "qa/local_quality_report.json",
+    "preview/preview_manifest.json",
+    "preview/keyframes/",
+    "preview/clips/",
+    "raw/iphone/capture_pose.jsonl",
+    "raw/iphone/wide/kpts_depth.jsonl",
+    "raw/iphone/wide/pose_imu.jsonl",
+    "raw/iphone/wide/depth/index.jsonl",
+    "raw/iphone/wide/media_index.jsonl",
+    "raw/stereo/pose3d.jsonl",
+    "raw/wifi/pose3d.jsonl",
+    "raw/iphone/media_index.jsonl",
+    "raw/iphone/fisheye/media_index.jsonl",
+    "raw/stereo/media_index.jsonl",
+    "raw/robot/state.jsonl"
+  ],
+  "blocked_prefixes": [
+    "raw/iphone/chunks/",
+    "raw/stereo/chunks/",
+    "raw/csi/"
+  ],
+  "sensitive_fields": [
+    "operator_id",
+    "user_id",
+    "phone",
+    "device_id",
+    "location",
+    "gps",
+    "lat",
+    "lng",
+    "lon",
+    "audio_url",
+    "voice_url"
+  ],
+  "audit_log_relpath": "audit/access_audit.jsonl"
+}

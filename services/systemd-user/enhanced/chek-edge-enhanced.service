@@ -1,0 +1,25 @@
+[Unit]
+Description=CHEK Edge Enhanced Teleop Stack (User)
+After=network-online.target
+Wants=network-online.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+WorkingDirectory=__EDGE_ROOT__
+Environment=CHEK_EDGE_ROOT=__CHEK_EDGE_ROOT__
+Environment=EDGE_RUNTIME_PROFILE=__EDGE_RUNTIME_PROFILE__
+Environment=EDGE_CONTROL_ENABLED=__EDGE_CONTROL_ENABLED__
+Environment=EDGE_SIM_ENABLED=__EDGE_SIM_ENABLED__
+Environment=STACK_BIND_HOST=__STACK_BIND_HOST__
+Environment=STACK_CHECK_HOST=__STACK_BIND_HOST__
+Environment=STACK_PUBLIC_HOST=__STACK_PUBLIC_HOST__
+Environment=PATH=%h/.local/bin:%h/.cargo/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+ExecStart=/usr/bin/env bash __EDGE_ROOT__/scripts/teleop_local_launch_agent.sh
+Restart=always
+RestartSec=5
+TimeoutStopSec=20
+KillMode=mixed
+
+[Install]
+WantedBy=default.target

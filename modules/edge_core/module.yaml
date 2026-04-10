@@ -1,0 +1,12 @@
+name: edge_core
+display_name: Edge Core
+stage: v0.1
+summary: Device metadata, runtime state, and session lifecycle coordination.
+owners:
+  - chek-edge-runtime
+entrypoints:
+  - cli/chek_edge/main.py
+references:
+  - edge-orchestrator
+  - teleop-protocol
+status: skeleton

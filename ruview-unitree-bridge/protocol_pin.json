@@ -1,0 +1,7 @@
+{
+  "name": "teleop-protocol",
+  "version": "1.13.0",
+  "schema_sha256": "f113babe35cf08781b032b2d459b5d60561331dba2cab874472ccee5ca895e27",
+  "compat_min": "1.12.0",
+  "compat_max": "1.13.0"
+}

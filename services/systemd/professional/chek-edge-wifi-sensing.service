@@ -1,0 +1,13 @@
+[Unit]
+Description=CHEK Edge Wi-Fi DensePose Sensing Server
+After=chek-edge-stack.service
+Wants=chek-edge-stack.service
+
+[Service]
+Type=simple
+ExecStart=/usr/local/sbin/edge_wifi_sensing_autostart.sh
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,7 @@
+/target
+/.venv
+/.idea
+/.vscode
+*.log
+.DS_Store
+

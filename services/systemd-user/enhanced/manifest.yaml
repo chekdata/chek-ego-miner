@@ -1,0 +1,11 @@
+profile: enhanced
+manager: systemd-user
+summary: Enhanced workstation services for stereo pose readiness and repeated body/hand benchmark runs.
+supported_backends:
+  - linux
+templates:
+  - chek-edge-enhanced.service
+  - chek-edge-stereo.service
+legacy_source:
+  - scripts/teleop_local_launch_agent.sh
+  - chek-edge-debug/scripts/edge_stereo_autostart.sh

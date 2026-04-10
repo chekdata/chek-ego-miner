@@ -1,0 +1,180 @@
+{
+  "schema_version": "1.0.0",
+  "default_scenario_id": "body-hand-core-v1",
+  "notes": [
+    "场景定义只约束真机 benchmark 的采集脚本与验收语义，不直接代表高精度门槛。",
+    "若场景、动作或 ground truth 方案变化，需要重新冻结报告版本。"
+  ],
+  "scenarios": [
+    {
+      "id": "basic-phone-hand-core-v1",
+      "title": "基础节点手部采集基线",
+      "focus": [
+        "hand"
+      ],
+      "duration_seconds": 90,
+      "required_sources": [
+        "iphone_capture"
+      ],
+      "environment": {
+        "lighting": "室内均匀光",
+        "distance_m": "0.25-0.6",
+        "occlusion": "低中",
+        "operator_pose": "双手位于胸前和桌面上方"
+      },
+      "actions": [
+        "双手张开 / 握拳 / 捏合各 5 次",
+        "单手抓取小物体并放回原位 5 次",
+        "双手交替前伸 / 回收各 5 次"
+      ],
+      "acceptance_focus": [
+        "验证基础节点仅依赖 iPhone / App 采集时的手部覆盖率",
+        "验证 preview / upload 与 session bundle 的最小闭环"
+      ]
+    },
+    {
+      "id": "enhanced-stereo-body-hand-v1",
+      "title": "增强节点双目 body-hand 基线",
+      "focus": [
+        "body",
+        "hand"
+      ],
+      "duration_seconds": 150,
+      "required_sources": [
+        "iphone_capture",
+        "stereo_pose"
+      ],
+      "environment": {
+        "lighting": "室内均匀光",
+        "distance_m": "0.5-1.2",
+        "occlusion": "低中",
+        "operator_pose": "正对操作区"
+      },
+      "actions": [
+        "双臂自然抬起并保持 3 秒",
+        "左右腕前伸 / 回收各 5 次",
+        "双手张开 / 握拳 / 捏合各 5 次",
+        "连续执行 reach / grasp / place 各 3 次"
+      ],
+      "acceptance_focus": [
+        "验证增强节点的双目人体和手部 3D 覆盖率",
+        "验证 stereo 标定和连续采集稳定性"
+      ]
+    },
+    {
+      "id": "body-hand-core-v1",
+      "title": "标准双臂操作区基线",
+      "focus": [
+        "body",
+        "hand"
+      ],
+      "duration_seconds": 180,
+      "required_sources": [
+        "iphone_capture",
+        "stereo_pose",
+        "wifi_pose"
+      ],
+      "environment": {
+        "lighting": "室内均匀光",
+        "distance_m": "0.6-1.2",
+        "occlusion": "低",
+        "operator_pose": "正对操作区"
+      },
+      "actions": [
+        "双臂自然抬起并保持 3 秒",
+        "左右腕前伸 / 回收各 5 次",
+        "双手张开 / 握拳 / 捏合各 5 次",
+        "连续执行 reach / grasp / place 各 3 次"
+      ],
+      "acceptance_focus": [
+        "验证 iPhone + 双目 + Wi‑Fi 全部进入主链路",
+        "验证 body / hand 3D 全点覆盖率",
+        "作为后续 ground truth 对照的标准基线"
+      ]
+    },
+    {
+      "id": "hand-close-occlusion-v1",
+      "title": "近距手部遮挡与自遮挡",
+      "focus": [
+        "hand"
+      ],
+      "duration_seconds": 120,
+      "required_sources": [
+        "iphone_capture",
+        "stereo_pose"
+      ],
+      "environment": {
+        "lighting": "室内均匀光",
+        "distance_m": "0.25-0.5",
+        "occlusion": "中高",
+        "operator_pose": "双手靠近胸前/面前"
+      },
+      "actions": [
+        "拇指与四指依次捏合各 5 次",
+        "双手交叉遮挡后做开合 5 次",
+        "单手握持小物体并缓慢旋转 3 圈"
+      ],
+      "acceptance_focus": [
+        "验证 fingertip 与 pinch 误差",
+        "验证自遮挡时 LiDAR + 手部模型链路稳定性"
+      ]
+    },
+    {
+      "id": "body-turning-midrange-v1",
+      "title": "躯干转身与侧身中距场景",
+      "focus": [
+        "body"
+      ],
+      "duration_seconds": 180,
+      "required_sources": [
+        "iphone_capture",
+        "stereo_pose",
+        "wifi_pose"
+      ],
+      "environment": {
+        "lighting": "室内均匀光",
+        "distance_m": "1.0-2.0",
+        "occlusion": "中",
+        "operator_pose": "正身 / 侧身 / 背身切换"
+      },
+      "actions": [
+        "正身、左侧身、右侧身、背身各保持 5 秒",
+        "左右手交替抬臂至肩高各 5 次",
+        "上肢交叉动作 5 次"
+      ],
+      "acceptance_focus": [
+        "验证 body MPJPE / wrist drift",
+        "验证 Wi‑Fi 在视觉视角恶化时是否提供有效补充"
+      ]
+    },
+    {
+      "id": "fast-reach-dynamic-v1",
+      "title": "快速 reach 动态场景",
+      "focus": [
+        "body",
+        "hand"
+      ],
+      "duration_seconds": 120,
+      "required_sources": [
+        "iphone_capture",
+        "stereo_pose",
+        "wifi_pose"
+      ],
+      "environment": {
+        "lighting": "室内均匀光",
+        "distance_m": "0.6-1.2",
+        "occlusion": "低中",
+        "operator_pose": "正对操作区"
+      },
+      "actions": [
+        "左右臂快速前伸 / 回收各 10 次",
+        "快速张手 / 握拳各 10 次",
+        "快节奏抓取-放置循环 10 次"
+      ],
+      "acceptance_focus": [
+        "验证动态 jitter、source switch、tracking coverage",
+        "验证高速动作下 body/hand 3D 完整性"
+      ]
+    }
+  ]
+}

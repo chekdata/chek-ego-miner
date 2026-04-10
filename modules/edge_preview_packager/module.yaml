@@ -1,0 +1,10 @@
+name: edge_preview_packager
+display_name: Edge Preview Packager
+stage: v0.2
+summary: Local preview frame, gif, replay, and manifest generation for public catalog use.
+owners:
+  - chek-edge-runtime
+references:
+  - scripts/demo_capture_replay_server.py
+  - configs/demo_capture_policy.json
+status: skeleton

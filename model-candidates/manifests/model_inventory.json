@@ -1,0 +1,123 @@
+{
+  "generated_at": "2026-03-08",
+  "teachnet": {
+    "status": "not_found",
+    "official_download_url": "https://tams.informatik.uni-hamburg.de/people/sli/data/TeachNet_model/",
+    "notes": [
+      "official URL currently returns 404",
+      "public GitHub repos do not include weights or releases"
+    ]
+  },
+  "downloaded_models": [
+    {
+      "name": "MediaPipe Hand Landmarker",
+      "path": "model-candidates/mediapipe/hand_landmarker.task",
+      "size_bytes": 7819105,
+      "sha256": "fbc2a30080c3c557093b5ddfc334698132eb341044ccee322ccf8bcf3607cde1",
+      "source_url": "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/latest/hand_landmarker.task",
+      "recommended_for": [
+        "iphone_hand_2d_replacement",
+        "fast_on_device_baseline"
+      ]
+    },
+    {
+      "name": "MediaPipe Pose Landmarker Heavy",
+      "path": "model-candidates/mediapipe/pose_landmarker_heavy.task",
+      "size_bytes": 30664242,
+      "sha256": "64437af838a65d18e5ba7a0d39b465540069bc8aae8308de3e318aad31fcbc7b",
+      "source_url": "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_heavy/float16/latest/pose_landmarker_heavy.task",
+      "recommended_for": [
+        "body_detection_baseline"
+      ]
+    },
+    {
+      "name": "RTMPose-m COCO-WholeBody-Hand 256x256",
+      "path": "model-candidates/mmpose/rtmpose-m_coco-wholebody-hand_256x256.pth",
+      "size_bytes": 55284614,
+      "sha256": "26b87183517457d78a1266fb5ed1127207b51a9a9c9ec6c431ec35b7a3f0ce73",
+      "source_url": "https://download.openmmlab.com/mmpose/v1/projects/rtmposev1/rtmpose-m_simcc-coco-wholebody-hand_pt-aic-coco_210e-256x256-99477206_20230228.pth",
+      "metrics": {
+        "pck@0.2": 0.815,
+        "auc": 0.837,
+        "epe": 4.51
+      },
+      "recommended_for": [
+        "high_precision_hand_2d"
+      ]
+    },
+    {
+      "name": "RTMPose-m Hand ONNX",
+      "path": "model-candidates/rtmlib/rtmpose-m-hand.onnx",
+      "size_bytes": 55080248,
+      "sha256": "39e858936bca0f94c09847d4e70b68a51d6c0adac61f36b457fcadb54621cd29",
+      "source_url": "https://github.com/Tau-J/rtmlib-models/releases/download/v0.0.1/rtmpose-m-hand.onnx",
+      "recommended_for": [
+        "local_hand_benchmark",
+        "rtmlib_onnx_runtime"
+      ]
+    },
+    {
+      "name": "InterNet ResNet-50 InterHand3D 256x256",
+      "path": "model-candidates/mmpose/internet_res50_interhand3d_256x256.pth",
+      "size_bytes": 189524999,
+      "sha256": "d6ff20d61b163847fc8167e3fd1074ad22029b2a7bb5ac80e35593d120e71e2c",
+      "source_url": "https://download.openmmlab.com/mmpose/v1/hand_3d_keypoint/internet/interhand3d/internet_res50_interhand3d-d6ff20d6_20230913.pth",
+      "metrics": {
+        "mpjpe_all": 11.86,
+        "mrrpe": 29.27,
+        "aph": 0.99
+      },
+      "recommended_for": [
+        "high_precision_hand_3d"
+      ]
+    },
+    {
+      "name": "RTMW-x Cocktail14 384x288",
+      "path": "model-candidates/mmpose/rtmw-x_cocktail14_384x288.pth",
+      "size_bytes": 369720404,
+      "sha256": "f840f2044fe46cb3821b7cea86be83e1f6cba406ccd28f5475ac010412dcda95",
+      "source_url": "https://download.openmmlab.com/mmpose/v1/projects/rtmw/rtmw-x_simcc-cocktail14_pt-ucoco_270e-384x288-f840f204_20231122.pth",
+      "metrics": {
+        "whole_ap": 0.702,
+        "hand_ap": 0.664,
+        "face_ap": 0.884,
+        "body_ap": 0.763
+      },
+      "recommended_for": [
+        "third_view_whole_body_baseline"
+      ]
+    }
+  ],
+  "local_ruview_wifi_models": [
+    {
+      "name": "trained-pretrain-20260302_173607",
+      "path": "RuView/rust-port/wifi-densepose-rs/data/models/trained-pretrain-20260302_173607.rvf",
+      "description": "WiFi DensePose pretrain model (linear, 588 features, 51 targets)",
+      "version": "0.3.0",
+      "metrics": {
+        "best_pck": 0.05,
+        "best_oks": 0.044
+      },
+      "assessment": "not_high_precision"
+    },
+    {
+      "name": "trained-supervised-20260302_165735",
+      "path": "RuView/rust-port/wifi-densepose-rs/data/models/trained-supervised-20260302_165735.rvf",
+      "description": "WiFi DensePose supervised model (simulated)",
+      "version": "0.3.0",
+      "metrics": {
+        "best_pck": 0.30610823934490206,
+        "best_oks": 0.2693752506235138,
+        "simulated": true
+      },
+      "assessment": "candidate_only"
+    },
+    {
+      "name": "wifi-densepose-v1",
+      "path": "RuView/docker/wifi-densepose-v1.rvf",
+      "description": "RvfModelBuilder output",
+      "version": "1.0.0",
+      "assessment": "packaged_output_not_proven_high_precision"
+    }
+  ]
+}

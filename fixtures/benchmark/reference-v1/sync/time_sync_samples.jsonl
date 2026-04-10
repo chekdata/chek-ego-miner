@@ -1,0 +1,15 @@
+{"source_kind": "iphone_capture", "clock_domain": "iphone_capture-clock", "device_id": "iphone-15-pro-001", "rtt_ns": 6000000, "clock_offset_ns": 1500000}
+{"source_kind": "iphone_capture", "clock_domain": "iphone_capture-clock", "device_id": "iphone-15-pro-001", "rtt_ns": 6250000, "clock_offset_ns": 1600000}
+{"source_kind": "iphone_capture", "clock_domain": "iphone_capture-clock", "device_id": "iphone-15-pro-001", "rtt_ns": 6500000, "clock_offset_ns": 1700000}
+{"source_kind": "iphone_capture", "clock_domain": "iphone_capture-clock", "device_id": "iphone-15-pro-001", "rtt_ns": 6750000, "clock_offset_ns": 1800000}
+{"source_kind": "iphone_capture", "clock_domain": "iphone_capture-clock", "device_id": "iphone-15-pro-001", "rtt_ns": 7000000, "clock_offset_ns": 1900000}
+{"source_kind": "stereo_pose", "clock_domain": "stereo_pose-clock", "device_id": "stereo-rig-001", "rtt_ns": 6500000, "clock_offset_ns": 1700000}
+{"source_kind": "stereo_pose", "clock_domain": "stereo_pose-clock", "device_id": "stereo-rig-001", "rtt_ns": 6750000, "clock_offset_ns": 1800000}
+{"source_kind": "stereo_pose", "clock_domain": "stereo_pose-clock", "device_id": "stereo-rig-001", "rtt_ns": 7000000, "clock_offset_ns": 1900000}
+{"source_kind": "stereo_pose", "clock_domain": "stereo_pose-clock", "device_id": "stereo-rig-001", "rtt_ns": 7250000, "clock_offset_ns": 2000000}
+{"source_kind": "stereo_pose", "clock_domain": "stereo_pose-clock", "device_id": "stereo-rig-001", "rtt_ns": 7500000, "clock_offset_ns": 2100000}
+{"source_kind": "wifi_pose", "clock_domain": "wifi_pose-clock", "device_id": "wifi-array-001", "rtt_ns": 7000000, "clock_offset_ns": 1900000}
+{"source_kind": "wifi_pose", "clock_domain": "wifi_pose-clock", "device_id": "wifi-array-001", "rtt_ns": 7250000, "clock_offset_ns": 2000000}
+{"source_kind": "wifi_pose", "clock_domain": "wifi_pose-clock", "device_id": "wifi-array-001", "rtt_ns": 7500000, "clock_offset_ns": 2100000}
+{"source_kind": "wifi_pose", "clock_domain": "wifi_pose-clock", "device_id": "wifi-array-001", "rtt_ns": 7750000, "clock_offset_ns": 2200000}
+{"source_kind": "wifi_pose", "clock_domain": "wifi_pose-clock", "device_id": "wifi-array-001", "rtt_ns": 8000000, "clock_offset_ns": 2300000}

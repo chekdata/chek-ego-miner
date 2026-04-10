@@ -1,0 +1,9 @@
+profile: basic
+manager: systemd-user
+summary: Basic nodes run mostly on-demand CLI probes and do not require always-on daemons by default.
+supported_backends:
+  - linux
+templates:
+  - chek-edge-basic.service
+legacy_source:
+  - scripts/teleop_local_launch_agent.sh

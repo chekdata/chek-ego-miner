@@ -1,0 +1,10 @@
+name: edge_auth_binding
+display_name: Edge Auth Binding
+stage: v0.2
+summary: Device binding, token refresh, and upload-scope handoff to cloud control-plane.
+owners:
+  - chek-edge-runtime
+contracts:
+  - backend-auth-saas device binding
+  - backend-crowd-data-saas upload scope
+status: skeleton

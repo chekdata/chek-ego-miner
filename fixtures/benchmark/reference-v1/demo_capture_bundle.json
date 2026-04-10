@@ -1,0 +1,17 @@
+{
+  "schema_version": "1.0.0",
+  "session_id": "fixture-edge-accuracy-reference-v1",
+  "trip_id": "fixture-trip-edge-accuracy-reference-v1",
+  "artifacts": {
+    "capture_pose": "raw/iphone/capture_pose.jsonl",
+    "stereo_pose": "raw/stereo/pose3d.jsonl",
+    "wifi_pose": "raw/wifi/pose3d.jsonl",
+    "human_demo_pose": "fused/human_demo_pose.jsonl",
+    "time_sync_samples": "sync/time_sync_samples.jsonl",
+    "iphone_fisheye_media_index": "raw/iphone/fisheye/media_index.jsonl"
+  },
+  "notes": [
+    "该 fixture 用于 run_real_device_benchmark report / replay，不等同于 dedicated host 真机验收结论。",
+    "profile suite 应基于 edge_accuracy_profile_matrix.json 选择场景，不要直接拿这份 fixture 宣称高精度上线。"
+  ]
+}

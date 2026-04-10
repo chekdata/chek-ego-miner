@@ -1,0 +1,22 @@
+[Unit]
+Description=CHEK Edge Stereo Pose Producer (User)
+After=chek-edge-enhanced.service network-online.target
+Wants=network-online.target
+Requires=chek-edge-enhanced.service
+PartOf=chek-edge-enhanced.service
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+WorkingDirectory=__EDGE_ROOT__
+Environment=CHEK_EDGE_ROOT=__CHEK_EDGE_ROOT__
+Environment=PATH=%h/.local/bin:%h/.cargo/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/usr/bin/env bash __EDGE_ROOT__/chek-edge-debug/scripts/edge_stereo_autostart.sh
+Restart=always
+RestartSec=5
+TimeoutStopSec=15
+KillMode=mixed
+
+[Install]
+WantedBy=default.target

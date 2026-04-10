@@ -1,0 +1,16 @@
+[Unit]
+Description=CHEK Edge Teleop Stack
+After=chek-edge-ap.service network-online.target
+Wants=network-online.target
+Requires=chek-edge-ap.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/sbin/edge_stack_autostart.sh start
+ExecStop=/usr/local/sbin/edge_stack_autostart.sh stop
+TimeoutStartSec=180
+TimeoutStopSec=60
+
+[Install]
+WantedBy=multi-user.target

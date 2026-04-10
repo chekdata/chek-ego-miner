@@ -1,0 +1,9 @@
+profile: basic
+manager: windows-task
+summary: Basic Windows nodes can auto-start the local user-process runtime through Task Scheduler wrappers.
+supported_backends:
+  - windows
+templates:
+  - chek-edge-basic.cmd
+legacy_source:
+  - scripts/teleop_local_stack.cmd

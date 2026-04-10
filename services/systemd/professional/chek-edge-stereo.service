@@ -1,0 +1,14 @@
+[Unit]
+Description=CHEK Edge Stereo Pose Producer
+After=chek-edge-stack.service
+Requires=chek-edge-stack.service
+PartOf=chek-edge-stack.service
+
+[Service]
+Type=simple
+ExecStart=/usr/local/sbin/edge_stereo_autostart.sh
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
