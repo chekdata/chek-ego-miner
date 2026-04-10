@@ -9,7 +9,7 @@
 - [x] verify dataset portal link still works
 - [x] verify no internal-only rollout docs were copied into the repo
 - [x] verify no internal hostnames, IPs, or tokens remain
-- [x] review and clear initial open dependency security alerts on the default branch
+- [ ] verify GitHub Dependabot alerts have refreshed after the initial dependency patch
 - [x] verify `AGENTS.md`, hardware guide, and prompts are present
 - [x] verify `CONTRIBUTING.md`, `SECURITY.md`, and `CODE_OF_CONDUCT.md` are present
 - [x] perform one external-user walkthrough
@@ -19,11 +19,12 @@
 
 - source code license: `Apache-2.0`
 - public links last checked: `2026-04-10`
-- default-branch dependency alerts reviewed and patched: `2026-04-10`
+- default-branch vulnerable lockfile entries patched locally and pushed: `2026-04-10`
 - public host lanes with live evidence:
   - dedicated `Linux x86_64` basic lane
   - local `macOS arm64` basic lane
 - current external blockers:
+  - GitHub Dependabot alerts still need to refresh against the patched default branch
   - Windows public live evidence
   - Jetson public live evidence
   - `Stereo / Pro` true-hardware acceptance
