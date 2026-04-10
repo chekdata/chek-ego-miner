@@ -164,6 +164,7 @@ and continues to act as the public-first home for:
 - [Hardware Guide](./docs/hardware.md)
 - [Launch Announcement](./docs/launch-announcement.md)
 - [Public Roadmap](./docs/roadmap.md)
+- [v0.1.0 Release Notes](./docs/releases/v0.1.0.md)
 - [Quickstart](./docs/quickstart.md)
 - [Hardware/Profile Mapping](./docs/profile-mapping.md)
 - [Diagnostics](./docs/diagnostics.md)

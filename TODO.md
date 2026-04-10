@@ -68,6 +68,10 @@
 - [x] 让 `start_edge_phone_vision_service.sh` 自动选择兼容 Python
 - [x] 补首发公告文案与 public roadmap
 - [x] 为第一视角支架补充中国区购买链接示例
+- [x] 打开 GitHub issues，并补 issue / PR templates
+- [x] 打开 GitHub automated security fixes
+- [x] 建立 GitHub Release：`v0.1.0`
+- [x] 将剩余外部 blocker 挂成公开 issues：`#1` 到 `#4`
 - [ ] 等 GitHub Dependabot 自动刷新关闭已修复告警
 - [ ] 补 Windows public live evidence（外部宿主需恢复在线并提供管理员权限）
 - [ ] 补 Jetson public live evidence（外部共享宿主需允许重装与验收）

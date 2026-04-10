@@ -159,6 +159,7 @@ python3 -m pip install --user --break-system-packages -r scripts/edge_phone_visi
 - [硬件指南](./docs/hardware.md)
 - [首发公告](./docs/launch-announcement.zh-CN.md)
 - [公开路线图](./docs/roadmap.zh-CN.md)
+- [v0.1.0 发布说明](./docs/releases/v0.1.0.md)
 - [Quickstart](./docs/quickstart.md)
 - [硬件与内部 profile 映射](./docs/profile-mapping.md)
 - [诊断工具](./docs/diagnostics.md)
