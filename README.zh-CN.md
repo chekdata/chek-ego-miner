@@ -145,12 +145,25 @@ python3 -m pip install --user -r scripts/edge_vlm_requirements.txt
 ./cli/chek-ego-miner vlm-start
 ```
 
+如果目标 Jetson 已经有现成的 GPU VLM venv 和本地模型目录，也可以直接把它们接进
+public 仓的标准布局，再由 `systemd-user` 启 sidecar：
+
+```bash
+./cli/chek-ego-miner jetson-vlm-bootstrap -- --force
+./cli/chek-ego-miner service-install \
+  --profile professional \
+  --service chek-edge-vlm-sidecar \
+  --enable \
+  --runtime-edge-root "$PWD"
+```
+
 现在 public 仓里的 VLM 交付已经包含：
 
 - 仓内自带的 `edge_vlm_sidecar.py`
 - 面向 `SmolVLM2-500M` 和 `SmolVLM2-256M` 的公开 Hugging Face 模型下载器
 - `professional` profile 的 `systemd-user` `chek-edge-vlm-sidecar.service` 模板
 - 一条已经真实跑通的本地 smoke：`SmolVLM2-256M` 下载成功，并通过 `/infer` 返回了真实 caption
+- 一条已经真实跑通的 Jetson `professional` smoke：public `readiness --tier pro` 通过，`jetson-vlm-bootstrap` 成功接入 GPU venv 与模型目录，`chek-edge-vlm-sidecar.service` 成功启动，并在 `/infer` 返回真实结果
 
 ## 数据门户
 

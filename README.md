@@ -148,12 +148,26 @@ python3 -m pip install --user -r scripts/edge_vlm_requirements.txt
 ./cli/chek-ego-miner vlm-start
 ```
 
+If the target Jetson already has a working GPU VLM venv and local model cache,
+you can wire those assets into the public repo layout and then enable the
+sidecar through `systemd-user`:
+
+```bash
+./cli/chek-ego-miner jetson-vlm-bootstrap -- --force
+./cli/chek-ego-miner service-install \
+  --profile professional \
+  --service chek-edge-vlm-sidecar \
+  --enable \
+  --runtime-edge-root "$PWD"
+```
+
 The public VLM delivery path now includes:
 
 - a repo-shipped `edge_vlm_sidecar.py`
 - a public Hugging Face model fetcher for `SmolVLM2-500M` and `SmolVLM2-256M`
 - a systemd-user `chek-edge-vlm-sidecar.service` template for the `professional` profile
 - a verified local smoke where `SmolVLM2-256M` downloaded successfully and returned a real caption from `/infer`
+- a verified Jetson `professional` smoke where public `readiness --tier pro` passed, `jetson-vlm-bootstrap` wired in the GPU venv plus model dirs, `chek-edge-vlm-sidecar.service` started successfully, and `/infer` returned a real result
 
 ## Dataset Portal
 

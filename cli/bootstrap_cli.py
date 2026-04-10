@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -35,12 +36,17 @@ def _venv_python_path(venv_dir: Path) -> Path:
 
 
 def _python_with_cli_imports(python_executable: Path) -> bool:
-    result = subprocess.run(
-        [str(python_executable), "-c", "import typer, yaml"],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
+    if not python_executable.exists():
+        return False
+    try:
+        result = subprocess.run(
+            [str(python_executable), "-c", "import typer, yaml"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except FileNotFoundError:
+        return False
     return result.returncode == 0
 
 
@@ -86,6 +92,8 @@ def _ensure_cli_venv(current_python: Path) -> Path:
     venv_dir = _resolved_cli_venv_dir()
     venv_python = _venv_python_path(venv_dir)
     if not venv_python.exists():
+        if venv_dir.exists():
+            shutil.rmtree(venv_dir, ignore_errors=True)
         venv_dir.parent.mkdir(parents=True, exist_ok=True)
         create_default = subprocess.run(
             [str(current_python), "-m", "venv", str(venv_dir)],

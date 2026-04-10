@@ -14,6 +14,7 @@ PRIMARY_MODEL_PATH="${EDGE_VLM_PRIMARY_MODEL_PATH:-${DEFAULT_PRIMARY_MODEL_PATH}
 FALLBACK_MODEL_PATH="${EDGE_VLM_FALLBACK_MODEL_PATH:-${DEFAULT_FALLBACK_MODEL_PATH}}"
 SERVICE_BASE="${EDGE_VLM_SIDECAR_BASE:-http://127.0.0.1:3032}"
 RUNTIME_DEVICE="${EDGE_VLM_RUNTIME_DEVICE:-auto}"
+REPO_VENV_PYTHON="${ROOT_DIR}/runtime/vlm-venv/bin/python"
 
 resolve_python_bin() {
   local candidate="$1"
@@ -35,6 +36,7 @@ select_python_bin() {
   local candidate resolved
   for candidate in \
     "${PYTHON_BIN}" \
+    "${REPO_VENV_PYTHON}" \
     python3.10 \
     python3.11 \
     python3.12 \

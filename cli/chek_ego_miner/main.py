@@ -108,6 +108,12 @@ def build_parser() -> argparse.ArgumentParser:
     fetch_vlm_models.add_argument("--json", action="store_true")
     fetch_vlm_models.add_argument("--report-path")
 
+    jetson_vlm_bootstrap = subparsers.add_parser(
+        "jetson-vlm-bootstrap",
+        help="Wire an existing Jetson VLM runtime into the public repo layout.",
+    )
+    jetson_vlm_bootstrap.add_argument("bootstrap_args", nargs=argparse.REMAINDER)
+
     validate = subparsers.add_parser(
         "validate-bundle",
         help="Validate a downloaded capture bundle against tier requirements.",
@@ -308,6 +314,12 @@ def main(argv: list[str] | None = None) -> int:
         if args.report_path:
             extra.extend(["--report-path", args.report_path])
         return run_python("fetch_vlm_models.py", extra)
+
+    if args.command == "jetson-vlm-bootstrap":
+        return run_shell(
+            "bootstrap_jetson_vlm_runtime.sh",
+            normalize_passthrough(args.bootstrap_args),
+        )
 
     if args.command == "validate-bundle":
         extra = ["--bundle", args.bundle, "--tier", args.tier]

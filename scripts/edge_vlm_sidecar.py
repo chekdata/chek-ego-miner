@@ -7,6 +7,7 @@ import gc
 import json
 import os
 import re
+import sys
 import threading
 import time
 from dataclasses import dataclass, field
@@ -60,7 +61,9 @@ def ensure_torchvision_import_compat(torch_module: Any) -> None:
 
         return
     except Exception:
-        pass
+        for module_name in list(sys.modules):
+            if module_name == "torchvision" or module_name.startswith("torchvision."):
+                sys.modules.pop(module_name, None)
     try:
         torch_module._C._dispatch_has_kernel_for_dispatch_key("torchvision::nms", "Meta")
         return

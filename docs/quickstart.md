@@ -99,8 +99,21 @@ python3 -m pip install --user -r scripts/edge_vlm_requirements.txt
 ./cli/chek-ego-miner vlm-start
 ```
 
+If your Jetson already has a working GPU VLM venv and local SmolVLM model
+cache, wire them into the public repo layout instead of downloading again:
+
+```bash
+./cli/chek-ego-miner jetson-vlm-bootstrap -- --force
+./cli/chek-ego-miner service-install \
+  --profile professional \
+  --service chek-edge-vlm-sidecar \
+  --enable \
+  --runtime-edge-root "$PWD"
+```
+
 Notes:
 
 - `fetch-vlm-models` downloads the core Hugging Face files only, not the extra ONNX variants.
 - `vlm-start` auto-selects a compatible Python interpreter and looks for `SmolVLM2-500M` plus `SmolVLM2-256M` under `model-candidates/huggingface/`.
 - The repo now ships `edge_vlm_sidecar.py` directly as a public runtime asset.
+- The Jetson bootstrap path now also has a live acceptance pass: `readiness --tier pro`, `jetson-vlm-bootstrap`, `service-install --enable` for `chek-edge-vlm-sidecar`, and a real `/infer` response on the Jetson host.
