@@ -21,6 +21,7 @@
 - [x] 增加 `CODE_OF_CONDUCT.md`
 - [x] 建立 public secret / internal-host 扫描基线
 - [x] 建立 release checklist
+- [x] 清掉 public 默认分支上的首批依赖安全告警
 
 ## Phase 3: Public content quality
 
