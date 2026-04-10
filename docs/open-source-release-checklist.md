@@ -18,13 +18,15 @@
 ## Current release baseline
 
 - source code license: `Apache-2.0`
-- public links last checked: `2026-04-10`
+- public links last checked: `2026-04-11`
 - default-branch vulnerable lockfile entries patched locally and pushed: `2026-04-10`
+- GitHub Dependabot rechecked: `2026-04-11`
+- GitHub dependency graph SBOM already reports `quinn-proto 0.11.14` and `rustls-webpki 0.103.10`: `2026-04-11`
 - public host lanes with live evidence:
   - dedicated `Linux x86_64` basic lane
   - local `macOS arm64` basic lane
 - current external blockers:
-  - GitHub Dependabot alerts still need to refresh against the patched default branch
+  - GitHub Dependabot still shows 6 open alerts while the patched default-branch lockfiles wait for refresh
   - Windows public live evidence
   - Jetson public live evidence
   - `Stereo / Pro` true-hardware acceptance

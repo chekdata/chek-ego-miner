@@ -49,7 +49,7 @@ flowchart LR
 | `Pro` | 边缘机 + 双目摄像头 | 想做专用采集与更高吞吐的人 |
 
 此外还建议准备一个第一视角手机支架。购买思路、选型标准和搜索关键词见
-[硬件指南](./docs/hardware.md)。
+[硬件指南](./docs/hardware.md)，其中也包含新增的淘宝和抖音购买链接示例。
 
 ## Agent 手把手安装
 
@@ -157,6 +157,8 @@ python3 -m pip install --user --break-system-packages -r scripts/edge_phone_visi
 ## 文档入口
 
 - [硬件指南](./docs/hardware.md)
+- [首发公告](./docs/launch-announcement.zh-CN.md)
+- [公开路线图](./docs/roadmap.zh-CN.md)
 - [Quickstart](./docs/quickstart.md)
 - [硬件与内部 profile 映射](./docs/profile-mapping.md)
 - [诊断工具](./docs/diagnostics.md)

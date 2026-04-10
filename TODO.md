@@ -66,6 +66,9 @@
 - [x] 补 macOS `basic` install-driven `launchd` live evidence
 - [x] 补 macOS `basic-e2e` synthetic capture -> download -> validation lane
 - [x] 让 `start_edge_phone_vision_service.sh` 自动选择兼容 Python
+- [x] 补首发公告文案与 public roadmap
+- [x] 为第一视角支架补充中国区购买链接示例
+- [ ] 等 GitHub Dependabot 自动刷新关闭已修复告警
 - [ ] 补 Windows public live evidence（外部宿主需恢复在线并提供管理员权限）
 - [ ] 补 Jetson public live evidence（外部共享宿主需允许重装与验收）
 - [ ] 补 `Stereo / Pro` 真机 acceptance evidence（外部双目/边缘机硬件）

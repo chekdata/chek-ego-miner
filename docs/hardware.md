@@ -29,6 +29,11 @@ Example products to anchor your search:
   - <https://www.ulanzi.com/collections/ulanzi-for-gopro/products/chest-mount-harness-c021gbb1>
 - PGYTECH CapLock magnetic smartphone neck mount:
   - <https://www.pgytechbag.com/product/pgytech-caplock-magnetic-smartphone-neck-mount-max/>
+- Mainland China marketplace examples:
+  - Taobao share link:
+    - <https://e.tb.cn/h.iMtThciXXQuNjjk?tk=GrlR5fHlibQ>
+  - Douyin product link:
+    - <https://v.douyin.com/tnlIBM5XOWk/>
 
 ## Tier 1: Lite
 
@@ -153,4 +158,5 @@ If you plan to run a dedicated capture station, choose `Pro`.
 
 - These example SKUs are meant to anchor your search, not lock you into one vendor.
 - Verify local availability, shipping, and operating-system compatibility before purchase.
-- The example product links in this document were link-checked on 2026-04-10.
+- Some marketplace links may redirect to region-specific or app-specific detail pages.
+- The example product links in this document were link-checked on 2026-04-11.

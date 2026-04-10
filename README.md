@@ -49,7 +49,8 @@ flowchart LR
 | `Pro` | edge machine + stereo camera | dedicated capture and higher throughput |
 
 You will also need a first-person phone mount. See [Hardware Guide](./docs/hardware.md)
-for buying criteria, setup tradeoffs, and search keywords.
+for buying criteria, setup tradeoffs, search keywords, and direct purchase
+examples including China marketplace links.
 
 ## Agent-Guided Setup
 
@@ -161,6 +162,8 @@ and continues to act as the public-first home for:
 ## Docs
 
 - [Hardware Guide](./docs/hardware.md)
+- [Launch Announcement](./docs/launch-announcement.md)
+- [Public Roadmap](./docs/roadmap.md)
 - [Quickstart](./docs/quickstart.md)
 - [Hardware/Profile Mapping](./docs/profile-mapping.md)
 - [Diagnostics](./docs/diagnostics.md)
