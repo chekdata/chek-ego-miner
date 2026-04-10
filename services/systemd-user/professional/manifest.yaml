@@ -5,6 +5,7 @@ supported_backends:
   - jetson
 templates:
   - chek-edge-phone-vision.service
+  - chek-edge-vlm-sidecar.service
   - chek-teleop-adapter.service
   - chek-edge-wifi-sensing.service
   - chek-edge-wifi-bridge.service

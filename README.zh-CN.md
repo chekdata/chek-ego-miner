@@ -88,6 +88,7 @@ python3 scripts/check_host_basics.py
 ```bash
 ./cli/chek-ego-miner doctor
 ./cli/chek-ego-miner readiness --tier lite
+./cli/chek-ego-miner readiness --tier pro
 ```
 
 如果你要在 Linux 或 macOS 宿主上按 public 仓重装并跑一条完整 `basic` 闭环，可以直接从下面开始：
@@ -129,6 +130,28 @@ python3 -m pip install --user --break-system-packages -r scripts/edge_phone_visi
   - `basic-e2e` 产出的 `public_download/demo_capture_bundle.json` 验证 `score_percent = 100.0`
 - `time_sync_samples` 在单手机 basic lane 上当前作为 advisory，不再阻塞通过
 
+如果你要走 public `Pro` Jetson 的 VLM 交付路径，可以直接使用仓里自带的
+VLM sidecar 与模型下载链：
+
+```bash
+./cli/chek-ego-miner install \
+  --profile professional \
+  --apply \
+  --system-install \
+  --enable-services
+
+python3 -m pip install --user -r scripts/edge_vlm_requirements.txt
+./cli/chek-ego-miner fetch-vlm-models --json
+./cli/chek-ego-miner vlm-start
+```
+
+现在 public 仓里的 VLM 交付已经包含：
+
+- 仓内自带的 `edge_vlm_sidecar.py`
+- 面向 `SmolVLM2-500M` 和 `SmolVLM2-256M` 的公开 Hugging Face 模型下载器
+- `professional` profile 的 `systemd-user` `chek-edge-vlm-sidecar.service` 模板
+- 一条已经真实跑通的本地 smoke：`SmolVLM2-256M` 下载成功，并通过 `/infer` 返回了真实 caption
+
 ## 数据门户
 
 当前可以通过下面的入口检索和下载大家贡献的数据：
@@ -146,6 +169,7 @@ python3 -m pip install --user --break-system-packages -r scripts/edge_phone_visi
 - 数据贡献流程
 - 数据检索入口
 - public `basic` synthetic capture -> download -> validation 回归
+- public `professional` Jetson VLM sidecar 与模型交付
 
 ## 项目理念
 
@@ -157,20 +181,15 @@ python3 -m pip install --user --break-system-packages -r scripts/edge_phone_visi
 ## 文档入口
 
 - [硬件指南](./docs/hardware.md)
-- [首发公告](./docs/launch-announcement.zh-CN.md)
-- [公开路线图](./docs/roadmap.zh-CN.md)
-- [v0.1.0 发布说明](./docs/releases/v0.1.0.md)
 - [Quickstart](./docs/quickstart.md)
 - [硬件与内部 profile 映射](./docs/profile-mapping.md)
 - [诊断工具](./docs/diagnostics.md)
 - [Token 奖励说明](./docs/token-rewards.md)
 - [隐私、同意与数据许可](./docs/privacy-data-license.md)
 - [常见问题](./docs/faq.md)
-- [开源发布检查清单](./docs/open-source-release-checklist.md)
 - [Codex 指南](./docs/agent-guides/codex.md)
 - [Claude 指南](./docs/agent-guides/claude.md)
 - [OpenClaw 指南](./docs/agent-guides/openclaw.md)
-- [TODO](./TODO.md)
 
 ## 贡献方式
 

@@ -5,7 +5,9 @@ Wants=chek-edge-stack.service
 
 [Service]
 Type=simple
-ExecStart=/usr/local/sbin/edge_wifi_sensing_autostart.sh
+WorkingDirectory=__EDGE_ROOT__
+Environment=CHEK_EDGE_ROOT=__CHEK_EDGE_ROOT__
+ExecStart=/usr/bin/env bash __EDGE_ROOT__/scripts/edge_wifi_sensing_autostart.sh
 Restart=always
 RestartSec=5
 

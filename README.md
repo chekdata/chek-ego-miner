@@ -89,6 +89,7 @@ Or use the public CLI:
 ```bash
 ./cli/chek-ego-miner doctor
 ./cli/chek-ego-miner readiness --tier lite
+./cli/chek-ego-miner readiness --tier pro
 ```
 
 If you want to reinstall a Linux or macOS basic host from the public repo and
@@ -132,6 +133,28 @@ This exact lane has already been verified on:
   - `basic-e2e` validated `public_download/demo_capture_bundle.json` with `score_percent = 100.0`
 - `time_sync_samples` remains an advisory on the single-phone basic lane
 
+If you want to deliver the public `Pro` Jetson VLM path, use the repo-shipped
+VLM sidecar and model fetch flow:
+
+```bash
+./cli/chek-ego-miner install \
+  --profile professional \
+  --apply \
+  --system-install \
+  --enable-services
+
+python3 -m pip install --user -r scripts/edge_vlm_requirements.txt
+./cli/chek-ego-miner fetch-vlm-models --json
+./cli/chek-ego-miner vlm-start
+```
+
+The public VLM delivery path now includes:
+
+- a repo-shipped `edge_vlm_sidecar.py`
+- a public Hugging Face model fetcher for `SmolVLM2-500M` and `SmolVLM2-256M`
+- a systemd-user `chek-edge-vlm-sidecar.service` template for the `professional` profile
+- a verified local smoke where `SmolVLM2-256M` downloaded successfully and returned a real caption from `/infer`
+
 ## Dataset Portal
 
 You can currently search and download contributed data from:
@@ -151,6 +174,7 @@ and continues to act as the public-first home for:
 - contribution flow
 - dataset discovery entrypoints
 - public `basic` synthetic capture -> download -> validation regression
+- public `professional` Jetson VLM sidecar and model delivery
 
 ## Project Principles
 
@@ -162,20 +186,15 @@ and continues to act as the public-first home for:
 ## Docs
 
 - [Hardware Guide](./docs/hardware.md)
-- [Launch Announcement](./docs/launch-announcement.md)
-- [Public Roadmap](./docs/roadmap.md)
-- [v0.1.0 Release Notes](./docs/releases/v0.1.0.md)
 - [Quickstart](./docs/quickstart.md)
 - [Hardware/Profile Mapping](./docs/profile-mapping.md)
 - [Diagnostics](./docs/diagnostics.md)
 - [Token Rewards](./docs/token-rewards.md)
 - [Privacy, Consent, and Data License](./docs/privacy-data-license.md)
 - [FAQ](./docs/faq.md)
-- [Open-Source Release Checklist](./docs/open-source-release-checklist.md)
 - [Codex Guide](./docs/agent-guides/codex.md)
 - [Claude Guide](./docs/agent-guides/claude.md)
 - [OpenClaw Guide](./docs/agent-guides/openclaw.md)
-- [TODO](./TODO.md)
 
 ## Contributing
 

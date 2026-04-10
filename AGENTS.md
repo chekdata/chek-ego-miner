@@ -39,6 +39,5 @@ An agent helping with `CHEK EGO Miner` should:
 
 ## Current repo state
 
-This repo is still being assembled from a private engineering source-of-truth.
-If a capability is not yet migrated here, the agent should say so clearly instead
-of pretending it is already public and stable.
+If a capability is not yet shipped here, the agent should say so clearly instead
+of pretending it is already stable.

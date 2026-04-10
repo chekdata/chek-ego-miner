@@ -12,6 +12,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[1]
 MODEL_MANIFEST = REPO_ROOT / "model-candidates" / "manifests" / "model_inventory.json"
 REQUIRED_MODEL_PATHS = {
+    "model-candidates/rtmlib/rtmpose-m-hand.onnx",
     "model-candidates/mediapipe/pose_landmarker_heavy.task",
 }
 

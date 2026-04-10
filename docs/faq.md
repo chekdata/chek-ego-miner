@@ -26,8 +26,8 @@ each setup. Start with the public `doctor` and `readiness` checks.
 
 ## Is every host already a one-command install?
 
-No. The public repo is being built toward that goal, but public promises stay
-narrower than the full private engineering matrix.
+Not yet. Check the README and quickstart for the lanes that have already been
+verified in this public repo.
 
 ## Where do I download contributed datasets?
 

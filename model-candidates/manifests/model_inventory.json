@@ -88,6 +88,44 @@
       ]
     }
   ],
+  "vlm_models": [
+    {
+      "alias": "SmolVLM2-500M",
+      "name": "SmolVLM2 500M Video Instruct",
+      "repo_id": "HuggingFaceTB/SmolVLM2-500M-Video-Instruct",
+      "path": "SmolVLM2-500M-Video-Instruct",
+      "estimated_core_download_bytes": 2029990624,
+      "source_url": "https://huggingface.co/HuggingFaceTB/SmolVLM2-500M-Video-Instruct",
+      "allow_patterns": [
+        "*.json",
+        "*.txt",
+        "*.model",
+        "*.safetensors"
+      ],
+      "recommended_for": [
+        "jetson_pro_primary_vlm",
+        "edge_semantic_indexing"
+      ]
+    },
+    {
+      "alias": "SmolVLM2-256M",
+      "name": "SmolVLM2 256M Video Instruct",
+      "repo_id": "HuggingFaceTB/SmolVLM2-256M-Video-Instruct",
+      "path": "SmolVLM2-256M-Video-Instruct",
+      "estimated_core_download_bytes": 1025998224,
+      "source_url": "https://huggingface.co/HuggingFaceTB/SmolVLM2-256M-Video-Instruct",
+      "allow_patterns": [
+        "*.json",
+        "*.txt",
+        "*.model",
+        "*.safetensors"
+      ],
+      "recommended_for": [
+        "jetson_pro_fallback_vlm",
+        "edge_semantic_indexing"
+      ]
+    }
+  ],
   "local_ruview_wifi_models": [
     {
       "name": "trained-pretrain-20260302_173607",

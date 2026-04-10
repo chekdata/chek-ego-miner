@@ -6,10 +6,11 @@ StartLimitIntervalSec=0
 
 [Service]
 Type=simple
-WorkingDirectory=%h/chek-edge-runtime
+WorkingDirectory=__EDGE_ROOT__
+Environment=CHEK_EDGE_ROOT=__CHEK_EDGE_ROOT__
 Environment=PATH=%h/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 Environment=PYTHONUNBUFFERED=1
-ExecStart=/usr/bin/env bash %h/chek-edge-runtime/chek-edge-debug/scripts/start_isaac_host_adapter.sh
+ExecStart=/usr/bin/env bash __EDGE_ROOT__/scripts/start_isaac_host_adapter.sh
 Restart=always
 RestartSec=2
 TimeoutStopSec=15

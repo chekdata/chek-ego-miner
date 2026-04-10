@@ -96,6 +96,18 @@ def build_parser() -> argparse.ArgumentParser:
     fetch_phone_vision_models.add_argument("--json", action="store_true")
     fetch_phone_vision_models.add_argument("--report-path")
 
+    fetch_vlm_models = subparsers.add_parser(
+        "fetch-vlm-models",
+        help="Download the VLM model files required by the Jetson Pro sidecar.",
+    )
+    fetch_vlm_models.add_argument("--models-root", default="")
+    fetch_vlm_models.add_argument("--primary-model-id", default="SmolVLM2-500M")
+    fetch_vlm_models.add_argument("--fallback-model-id", default="SmolVLM2-256M")
+    fetch_vlm_models.add_argument("--skip-fallback", action="store_true")
+    fetch_vlm_models.add_argument("--force", action="store_true")
+    fetch_vlm_models.add_argument("--json", action="store_true")
+    fetch_vlm_models.add_argument("--report-path")
+
     validate = subparsers.add_parser(
         "validate-bundle",
         help="Validate a downloaded capture bundle against tier requirements.",
@@ -146,6 +158,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="Start the local phone-vision sidecar in the foreground.",
     )
     phone_vision_start.add_argument("service_args", nargs=argparse.REMAINDER)
+
+    vlm_start = subparsers.add_parser(
+        "vlm-start",
+        help="Start the local VLM sidecar in the foreground.",
+    )
+    vlm_start.add_argument("service_args", nargs=argparse.REMAINDER)
 
     return parser
 
@@ -272,6 +290,25 @@ def main(argv: list[str] | None = None) -> int:
             extra.extend(["--report-path", args.report_path])
         return run_python("fetch_phone_vision_models.py", extra)
 
+    if args.command == "fetch-vlm-models":
+        extra = [
+            "--primary-model-id",
+            args.primary_model_id,
+        ]
+        if args.models_root:
+            extra.extend(["--models-root", args.models_root])
+        if args.fallback_model_id:
+            extra.extend(["--fallback-model-id", args.fallback_model_id])
+        if args.skip_fallback:
+            extra.append("--skip-fallback")
+        if args.force:
+            extra.append("--force")
+        if args.json:
+            extra.append("--json")
+        if args.report_path:
+            extra.extend(["--report-path", args.report_path])
+        return run_python("fetch_vlm_models.py", extra)
+
     if args.command == "validate-bundle":
         extra = ["--bundle", args.bundle, "--tier", args.tier]
         if args.json:
@@ -283,6 +320,12 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "phone-vision-start":
         return run_shell(
             "start_edge_phone_vision_service.sh",
+            normalize_passthrough(args.service_args),
+        )
+
+    if args.command == "vlm-start":
+        return run_shell(
+            "start_edge_vlm_sidecar.sh",
             normalize_passthrough(args.service_args),
         )
 

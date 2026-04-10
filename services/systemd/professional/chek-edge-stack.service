@@ -7,8 +7,15 @@ Requires=chek-edge-ap.service
 [Service]
 Type=oneshot
 RemainAfterExit=yes
-ExecStart=/usr/local/sbin/edge_stack_autostart.sh start
-ExecStop=/usr/local/sbin/edge_stack_autostart.sh stop
+WorkingDirectory=__EDGE_ROOT__
+Environment=CHEK_EDGE_ROOT=__CHEK_EDGE_ROOT__
+Environment=EDGE_RUNTIME_PROFILE=__EDGE_RUNTIME_PROFILE__
+Environment=EDGE_CONTROL_ENABLED=__EDGE_CONTROL_ENABLED__
+Environment=EDGE_SIM_ENABLED=__EDGE_SIM_ENABLED__
+Environment=STACK_BIND_HOST=__STACK_BIND_HOST__
+Environment=STACK_PUBLIC_HOST=__STACK_PUBLIC_HOST__
+ExecStart=/usr/bin/env bash __EDGE_ROOT__/scripts/edge_stack_autostart.sh start
+ExecStop=/usr/bin/env bash __EDGE_ROOT__/scripts/edge_stack_autostart.sh stop
 TimeoutStartSec=180
 TimeoutStopSec=60
 

@@ -3,7 +3,39 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
-PYTHON_BIN="${CHEK_EGO_MINER_PYTHON:-python3}"
+
+resolve_python_bin() {
+  local candidate="$1"
+  if [[ "${candidate}" == */* ]]; then
+    [[ -x "${candidate}" ]] && printf '%s\n' "${candidate}" || true
+    return 0
+  fi
+  command -v "${candidate}" 2>/dev/null || true
+}
+
+select_python_bin() {
+  local candidate resolved
+  if [[ -n "${CHEK_EGO_MINER_PYTHON:-}" ]]; then
+    resolved="$(resolve_python_bin "${CHEK_EGO_MINER_PYTHON}")"
+    [[ -n "${resolved}" ]] || {
+      echo "指定的 CHEK_EGO_MINER_PYTHON 不可用: ${CHEK_EGO_MINER_PYTHON}" >&2
+      exit 1
+    }
+    printf '%s\n' "${resolved}"
+    return 0
+  fi
+  for candidate in python3.10 python3.11 python3.12 python3.13 python3 python; do
+    resolved="$(resolve_python_bin "${candidate}")"
+    if [[ -n "${resolved}" ]]; then
+      printf '%s\n' "${resolved}"
+      return 0
+    fi
+  done
+  echo "未找到可用的 Python 解释器" >&2
+  exit 1
+}
+
+PYTHON_BIN="$(select_python_bin)"
 
 export PYTHONPATH="${REPO_ROOT}/cli:${REPO_ROOT}${PYTHONPATH:+:${PYTHONPATH}}"
 exec "${PYTHON_BIN}" -m chek_ego_miner.main "$@"

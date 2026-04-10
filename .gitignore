@@ -12,3 +12,7 @@ __pycache__/
 *.pyc
 .chek-edge/
 artifacts/
+model-candidates/huggingface/
+model-candidates/mmpose/
+model-candidates/rtmlib/
+model-candidates/mediapipe/hand_landmarker.task

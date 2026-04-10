@@ -44,6 +44,7 @@ RUNTIME_SYNC_PATHS = [
     "profiles",
     "modules",
     "services",
+    "model-candidates",
     "edge-orchestrator",
     "ruview-leap-bridge",
     "ruview-unitree-bridge",

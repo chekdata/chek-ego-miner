@@ -84,3 +84,23 @@ Notes:
 - On macOS, `install --system-install --enable-services` now auto-stages the runtime under `~/.chek-edge/runtime/macos/basic` so `launchd` does not depend on Desktop/Documents permissions.
 - The phone-vision start script auto-selects a compatible interpreter when `python3` itself is not usable.
 - `time_sync_samples` may remain empty on the single-phone basic lane; it is currently reported as an advisory rather than a blocker.
+
+## 10. Deliver the public Pro Jetson VLM path
+
+```bash
+./cli/chek-ego-miner install \
+  --profile professional \
+  --apply \
+  --system-install \
+  --enable-services
+
+python3 -m pip install --user -r scripts/edge_vlm_requirements.txt
+./cli/chek-ego-miner fetch-vlm-models --json
+./cli/chek-ego-miner vlm-start
+```
+
+Notes:
+
+- `fetch-vlm-models` downloads the core Hugging Face files only, not the extra ONNX variants.
+- `vlm-start` auto-selects a compatible Python interpreter and looks for `SmolVLM2-500M` plus `SmolVLM2-256M` under `model-candidates/huggingface/`.
+- The repo now ships `edge_vlm_sidecar.py` directly as a public runtime asset.

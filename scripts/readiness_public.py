@@ -12,6 +12,8 @@ if str(REPO_ROOT) not in sys.path:
 
 from scripts.check_host_basics import build_report
 
+REPO_ROOT = Path(__file__).resolve().parents[1]
+
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Public-safe readiness check for CHEK EGO Miner.")
@@ -62,6 +64,13 @@ def evaluate_readiness(tier: str, report: dict[str, object]) -> dict[str, object
             )
 
     if tier == "pro":
+        vlm_assets = {
+            "sidecar_script": REPO_ROOT / "scripts" / "edge_vlm_sidecar.py",
+            "start_script": REPO_ROOT / "scripts" / "start_edge_vlm_sidecar.sh",
+            "requirements": REPO_ROOT / "scripts" / "edge_vlm_requirements.txt",
+            "fetcher": REPO_ROOT / "scripts" / "fetch_vlm_models.py",
+            "manifest": REPO_ROOT / "model-candidates" / "manifests" / "model_inventory.json",
+        }
         if host["system"] != "Linux":
             warnings.append(
                 {
@@ -83,6 +92,14 @@ def evaluate_readiness(tier: str, report: dict[str, object]) -> dict[str, object
                     "message": "Node.js is recommended for local UI-related workflows.",
                 }
             )
+        for asset_name, path in vlm_assets.items():
+            if not path.is_file():
+                blockers.append(
+                    {
+                        "code": f"pro_{asset_name}_missing",
+                        "message": f"Missing required Pro VLM asset: {path.relative_to(REPO_ROOT)}",
+                    }
+                )
 
     ready = len(blockers) == 0
     return {

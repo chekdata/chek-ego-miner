@@ -2,8 +2,7 @@
 
 ## Goal
 
-These tools help you validate your setup without needing the full private
-engineering workspace.
+These tools help you validate your setup from the public repo itself.
 
 ## Scripts
 
@@ -71,6 +70,44 @@ Notes:
   `--break-system-packages`, or you can install the dependencies into a
   compatible interpreter such as `python3.10`.
 
+### `scripts/fetch_vlm_models.py`
+
+Use this to download the public VLM model files needed by the Jetson `Pro`
+sidecar. The fetcher only downloads the core Hugging Face files required by
+`transformers`, not the extra ONNX variants.
+
+Example:
+
+```bash
+./cli/chek-ego-miner fetch-vlm-models --json
+./cli/chek-ego-miner fetch-vlm-models \
+  --models-root /tmp/chek-vlm-models \
+  --primary-model-id SmolVLM2-256M \
+  --skip-fallback \
+  --json
+```
+
+### `scripts/start_edge_vlm_sidecar.sh`
+
+Use this to start the public VLM sidecar that powers `professional` edge-host
+semantic indexing.
+
+Example:
+
+```bash
+python3 -m pip install --user -r scripts/edge_vlm_requirements.txt
+./cli/chek-ego-miner fetch-vlm-models --json
+./cli/chek-ego-miner vlm-start
+```
+
+Notes:
+
+- The start script auto-selects a compatible interpreter and checks for
+  `torch`, `transformers`, `huggingface_hub`, `Pillow`, and `num2words`.
+- The default model locations are under `model-candidates/huggingface/`.
+- A local smoke was re-verified with `SmolVLM2-256M` returning a real caption
+  from `/infer`.
+
 ### `scripts/run_basic_e2e.py`
 
 Use this to run the verified synthetic `basic` flow:
@@ -132,6 +169,6 @@ Example:
 ## Notes
 
 - These scripts are intentionally generic and public-safe.
-- They are not a replacement for the full private acceptance archive.
 - `check_host_basics.py` is the first lightweight public self-check.
 - The public repo now also exposes a real `basic` synthetic end-to-end lane for dedicated Linux edge hosts.
+- The public repo now also ships a real `professional` VLM model-fetch and sidecar path.
