@@ -1,0 +1,16 @@
+[Unit]
+Description=CHEK Edge Wi-Fi Pose Bridge
+After=chek-edge-wifi-sensing.service chek-edge-stack.service
+Requires=chek-edge-wifi-sensing.service
+Wants=chek-edge-stack.service
+
+[Service]
+Type=simple
+WorkingDirectory=__EDGE_ROOT__
+Environment=CHEK_EDGE_ROOT=__CHEK_EDGE_ROOT__
+ExecStart=/usr/bin/env bash __EDGE_ROOT__/scripts/edge_wifi_bridge_autostart.sh
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

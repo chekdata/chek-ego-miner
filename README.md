@@ -133,7 +133,26 @@ This exact lane has already been verified on:
   - `basic-e2e` validated `public_download/demo_capture_bundle.json` with `score_percent = 100.0`
 - `time_sync_samples` remains an advisory on the single-phone basic lane
 
-If you want to deliver the public `Pro` Jetson VLM path, use the repo-shipped
+If you want the full public `Pro` Jetson runtime lane, first wire existing
+host-local professional assets into the public repo layout. The bootstrap now
+connects:
+
+- stereo calibration
+- the Wi-Fi sensing model and `sensing-server`
+- `edge-orchestrator`, `ruview-leap-bridge`, and `ruview-unitree-bridge` binaries
+- `RuView/ui-react/dist`
+- an existing Jetson GPU VLM venv plus SmolVLM model cache
+
+```bash
+./cli/chek-ego-miner jetson-professional-bootstrap -- --force
+./cli/chek-ego-miner install \
+  --profile professional \
+  --apply \
+  --system-install \
+  --runtime-edge-root "$PWD"
+```
+
+If you only want the public `Pro` Jetson VLM delivery path, use the repo-shipped
 VLM sidecar and model fetch flow:
 
 ```bash
@@ -149,8 +168,8 @@ python3 -m pip install --user -r scripts/edge_vlm_requirements.txt
 ```
 
 If the target Jetson already has a working GPU VLM venv and local model cache,
-you can wire those assets into the public repo layout and then enable the
-sidecar through `systemd-user`:
+you can wire only those VLM assets into the public repo layout and then enable
+the sidecar through `systemd-user`:
 
 ```bash
 ./cli/chek-ego-miner jetson-vlm-bootstrap -- --force
@@ -168,6 +187,7 @@ The public VLM delivery path now includes:
 - a systemd-user `chek-edge-vlm-sidecar.service` template for the `professional` profile
 - a verified local smoke where `SmolVLM2-256M` downloaded successfully and returned a real caption from `/infer`
 - a verified Jetson `professional` smoke where public `readiness --tier pro` passed, `jetson-vlm-bootstrap` wired in the GPU venv plus model dirs, `chek-edge-vlm-sidecar.service` started successfully, and `/infer` returned a real result
+- a verified Jetson `professional` public acceptance where `jetson-professional-bootstrap` wired stereo, Wi-Fi, runtime binaries, and workstation dist into the public layout, `chek-edge-stack`, `chek-edge-stereo`, `chek-edge-wifi-sensing`, `chek-edge-wifi-bridge`, and `chek-edge-vlm-sidecar` all reached `active`, and `/health`, `/association/hint`, `/api/v1/stream/status`, plus `/infer` returned live results
 
 ## Dataset Portal
 
@@ -189,6 +209,7 @@ and continues to act as the public-first home for:
 - dataset discovery entrypoints
 - public `basic` synthetic capture -> download -> validation regression
 - public `professional` Jetson VLM sidecar and model delivery
+- public `professional` Jetson stereo / Wi-Fi / VLM service bring-up on a real host
 
 ## Project Principles
 

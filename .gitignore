@@ -16,3 +16,8 @@ model-candidates/huggingface/
 model-candidates/mmpose/
 model-candidates/rtmlib/
 model-candidates/mediapipe/hand_landmarker.task
+RuView/rust-port/wifi-densepose-rs/target/
+RuView/rust-port/wifi-densepose-rs/data/models/
+RuView/rust-port/wifi-densepose-rs/data/recordings/
+RuView/ui/
+data/ruview/runtime/

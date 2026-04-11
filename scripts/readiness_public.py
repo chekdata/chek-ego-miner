@@ -71,6 +71,24 @@ def evaluate_readiness(tier: str, report: dict[str, object]) -> dict[str, object
             "fetcher": REPO_ROOT / "scripts" / "fetch_vlm_models.py",
             "manifest": REPO_ROOT / "model-candidates" / "manifests" / "model_inventory.json",
         }
+        professional_assets = {
+            "stereo_script": REPO_ROOT / "scripts" / "stereo_pose_producer.py",
+            "stereo_autostart": REPO_ROOT / "scripts" / "edge_stereo_autostart.sh",
+            "wifi_bridge_script": REPO_ROOT / "scripts" / "wifi_pose_bridge.py",
+            "wifi_bridge_autostart": REPO_ROOT / "scripts" / "edge_wifi_bridge_autostart.sh",
+            "wifi_sensing_autostart": REPO_ROOT / "scripts" / "edge_wifi_sensing_autostart.sh",
+            "wifi_workspace": REPO_ROOT / "RuView" / "rust-port" / "wifi-densepose-rs" / "Cargo.toml",
+            "professional_bootstrap": REPO_ROOT / "scripts" / "bootstrap_jetson_professional_runtime.sh",
+        }
+        host_bootstrap_assets = {
+            "stereo_calibration": REPO_ROOT / "data" / "ruview" / "runtime" / "stereo_pair_calibration.json",
+            "wifi_model": REPO_ROOT / "RuView" / "rust-port" / "wifi-densepose-rs" / "data" / "models" / "trained-supervised-live.rvf",
+            "wifi_ui": REPO_ROOT / "RuView" / "ui",
+            "edge_binary": REPO_ROOT / "edge-orchestrator" / "target" / "debug" / "edge-orchestrator",
+            "leap_binary": REPO_ROOT / "ruview-leap-bridge" / "target" / "debug" / "ruview-leap-bridge",
+            "unitree_binary": REPO_ROOT / "ruview-unitree-bridge" / "target" / "debug" / "ruview-unitree-bridge",
+            "workstation_dist": REPO_ROOT / "RuView" / "ui-react" / "dist",
+        }
         if host["system"] != "Linux":
             warnings.append(
                 {
@@ -98,6 +116,23 @@ def evaluate_readiness(tier: str, report: dict[str, object]) -> dict[str, object
                     {
                         "code": f"pro_{asset_name}_missing",
                         "message": f"Missing required Pro VLM asset: {path.relative_to(REPO_ROOT)}",
+                    }
+                )
+        for asset_name, path in professional_assets.items():
+            if not path.is_file():
+                blockers.append(
+                    {
+                        "code": f"pro_{asset_name}_missing",
+                        "message": f"Missing required Pro asset: {path.relative_to(REPO_ROOT)}",
+                    }
+                )
+        for asset_name, path in host_bootstrap_assets.items():
+            exists = path.is_dir() if asset_name in {"wifi_ui", "workstation_dist"} else path.is_file()
+            if not exists:
+                blockers.append(
+                    {
+                        "code": f"pro_{asset_name}_missing",
+                        "message": f"Missing required Pro runtime asset: {path.relative_to(REPO_ROOT)}",
                     }
                 )
 

@@ -85,14 +85,15 @@ Notes:
 - The phone-vision start script auto-selects a compatible interpreter when `python3` itself is not usable.
 - `time_sync_samples` may remain empty on the single-phone basic lane; it is currently reported as an advisory rather than a blocker.
 
-## 10. Deliver the public Pro Jetson VLM path
+## 10. Deliver the public Pro Jetson path
 
 ```bash
+./cli/chek-ego-miner jetson-professional-bootstrap -- --force
 ./cli/chek-ego-miner install \
   --profile professional \
   --apply \
   --system-install \
-  --enable-services
+  --runtime-edge-root "$PWD"
 
 python3 -m pip install --user -r scripts/edge_vlm_requirements.txt
 ./cli/chek-ego-miner fetch-vlm-models --json
@@ -100,7 +101,8 @@ python3 -m pip install --user -r scripts/edge_vlm_requirements.txt
 ```
 
 If your Jetson already has a working GPU VLM venv and local SmolVLM model
-cache, wire them into the public repo layout instead of downloading again:
+cache, or if you only want to wire the VLM portion instead of the full
+professional asset set, use:
 
 ```bash
 ./cli/chek-ego-miner jetson-vlm-bootstrap -- --force
@@ -113,7 +115,8 @@ cache, wire them into the public repo layout instead of downloading again:
 
 Notes:
 
+- `jetson-professional-bootstrap` wires stereo calibration, the Wi-Fi sensing model and binary, runtime binaries, workstation dist, and the existing Jetson VLM runtime into the public repo layout.
 - `fetch-vlm-models` downloads the core Hugging Face files only, not the extra ONNX variants.
 - `vlm-start` auto-selects a compatible Python interpreter and looks for `SmolVLM2-500M` plus `SmolVLM2-256M` under `model-candidates/huggingface/`.
 - The repo now ships `edge_vlm_sidecar.py` directly as a public runtime asset.
-- The Jetson bootstrap path now also has a live acceptance pass: `readiness --tier pro`, `jetson-vlm-bootstrap`, `service-install --enable` for `chek-edge-vlm-sidecar`, and a real `/infer` response on the Jetson host.
+- The Jetson bootstrap path now also has a live acceptance pass: `readiness --tier pro`, `jetson-professional-bootstrap`, public-path `systemd` / `systemd-user` services entering `active`, live `/health`, live `/association/hint`, live `/api/v1/stream/status`, and a real `/infer` response on the Jetson host.

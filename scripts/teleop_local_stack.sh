@@ -2,7 +2,16 @@
 
 set -euo pipefail
 
-export PATH="${HOME}/.cargo/bin:${HOME}/.local/bin:/opt/homebrew/bin:/usr/local/bin:${PATH}"
+USER_HOME="${HOME:-}"
+if [[ -z "${USER_HOME}" ]]; then
+    USER_HOME="$(python3 - <<'PY'
+from pathlib import Path
+print(Path.home())
+PY
+)"
+fi
+
+export PATH="${USER_HOME}/.cargo/bin:${USER_HOME}/.local/bin:/opt/homebrew/bin:/usr/local/bin:${PATH}"
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 EDGE_DIR="${ROOT_DIR}/edge-orchestrator"
@@ -31,11 +40,11 @@ LEAP_HTTP_PORT=8090
 UNITREE_HTTP_PORT=8091
 VIEWER_PORT=3010
 SIM_CONTROL_PORT=3011
-EDGE_TOKEN="chek-ego-miner-local-token"
-TRIP_ID="trip-local-debug-001"
-SESSION_ID="sess-local-debug-001"
-DEVICE_ID="capture-sim-local-001"
-OPERATOR_ID="operator-local-001"
+EDGE_TOKEN="${EDGE_TOKEN:-chek-ego-miner-local-token}"
+TRIP_ID="${TRIP_ID:-trip-local-debug-001}"
+SESSION_ID="${SESSION_ID:-sess-local-debug-001}"
+DEVICE_ID="${DEVICE_ID:-capture-sim-local-001}"
+OPERATOR_ID="${OPERATOR_ID:-operator-local-001}"
 SIM_FPS=20
 ENABLE_SIM=1
 SIM_FLAG_EXPLICIT=0

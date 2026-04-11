@@ -130,7 +130,25 @@ python3 -m pip install --user --break-system-packages -r scripts/edge_phone_visi
   - `basic-e2e` 产出的 `public_download/demo_capture_bundle.json` 验证 `score_percent = 100.0`
 - `time_sync_samples` 在单手机 basic lane 上当前作为 advisory，不再阻塞通过
 
-如果你要走 public `Pro` Jetson 的 VLM 交付路径，可以直接使用仓里自带的
+如果你要走 public `Pro` Jetson 的完整运行面，可以先把宿主上已有的专业资产接进
+public 仓标准布局，再执行安装与服务重启。这个 bootstrap 现在会一起接入：
+
+- stereo 标定文件
+- Wi‑Fi sensing 模型与 `sensing-server`
+- `edge-orchestrator` / `ruview-leap-bridge` / `ruview-unitree-bridge` 二进制
+- `RuView/ui-react/dist`
+- 现成的 Jetson GPU VLM venv 与 SmolVLM 模型目录
+
+```bash
+./cli/chek-ego-miner jetson-professional-bootstrap -- --force
+./cli/chek-ego-miner install \
+  --profile professional \
+  --apply \
+  --system-install \
+  --runtime-edge-root "$PWD"
+```
+
+如果你只想走 public `Pro` Jetson 的 VLM 交付路径，也可以直接使用仓里自带的
 VLM sidecar 与模型下载链：
 
 ```bash
@@ -145,8 +163,8 @@ python3 -m pip install --user -r scripts/edge_vlm_requirements.txt
 ./cli/chek-ego-miner vlm-start
 ```
 
-如果目标 Jetson 已经有现成的 GPU VLM venv 和本地模型目录，也可以直接把它们接进
-public 仓的标准布局，再由 `systemd-user` 启 sidecar：
+如果目标 Jetson 已经有现成的 GPU VLM venv 和本地模型目录，也可以只接入 VLM 资产，
+再由 `systemd-user` 启 sidecar：
 
 ```bash
 ./cli/chek-ego-miner jetson-vlm-bootstrap -- --force
@@ -164,6 +182,7 @@ public 仓的标准布局，再由 `systemd-user` 启 sidecar：
 - `professional` profile 的 `systemd-user` `chek-edge-vlm-sidecar.service` 模板
 - 一条已经真实跑通的本地 smoke：`SmolVLM2-256M` 下载成功，并通过 `/infer` 返回了真实 caption
 - 一条已经真实跑通的 Jetson `professional` smoke：public `readiness --tier pro` 通过，`jetson-vlm-bootstrap` 成功接入 GPU venv 与模型目录，`chek-edge-vlm-sidecar.service` 成功启动，并在 `/infer` 返回真实结果
+- 一条已经真实跑通的 Jetson `professional` 全栈 public 验收：`jetson-professional-bootstrap` 完成 stereo / Wi‑Fi / runtime 二进制 / workstation dist 接线，`chek-edge-stack`、`chek-edge-stereo`、`chek-edge-wifi-sensing`、`chek-edge-wifi-bridge`、`chek-edge-vlm-sidecar` 全部进入 `active`，`/health`、`/association/hint`、`/api/v1/stream/status` 和 `/infer` 都返回真实结果
 
 ## 数据门户
 
@@ -183,6 +202,7 @@ public 仓的标准布局，再由 `systemd-user` 启 sidecar：
 - 数据检索入口
 - public `basic` synthetic capture -> download -> validation 回归
 - public `professional` Jetson VLM sidecar 与模型交付
+- public `professional` Jetson stereo / Wi‑Fi / VLM 真机服务启动链
 
 ## 项目理念
 

@@ -114,6 +114,12 @@ def build_parser() -> argparse.ArgumentParser:
     )
     jetson_vlm_bootstrap.add_argument("bootstrap_args", nargs=argparse.REMAINDER)
 
+    jetson_professional_bootstrap = subparsers.add_parser(
+        "jetson-professional-bootstrap",
+        help="Wire existing Jetson professional runtime assets into the public repo layout.",
+    )
+    jetson_professional_bootstrap.add_argument("bootstrap_args", nargs=argparse.REMAINDER)
+
     validate = subparsers.add_parser(
         "validate-bundle",
         help="Validate a downloaded capture bundle against tier requirements.",
@@ -318,6 +324,12 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "jetson-vlm-bootstrap":
         return run_shell(
             "bootstrap_jetson_vlm_runtime.sh",
+            normalize_passthrough(args.bootstrap_args),
+        )
+
+    if args.command == "jetson-professional-bootstrap":
+        return run_shell(
+            "bootstrap_jetson_professional_runtime.sh",
             normalize_passthrough(args.bootstrap_args),
         )
 
