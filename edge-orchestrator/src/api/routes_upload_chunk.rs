@@ -1,4 +1,4 @@
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 
 use axum::extract::{Multipart, State};
 use axum::http::StatusCode;
@@ -9,7 +9,6 @@ use serde_json::Value;
 use tokio::io::AsyncWriteExt;
 use tracing::{debug, warn};
 
-use crate::path_safety;
 use crate::ws::types::ChunkAckPacket;
 use crate::AppState;
 
@@ -70,7 +69,20 @@ async fn upload_chunk(
     mut multipart: Multipart,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
     // 允许 metadata/file 的字段顺序不固定：先把 file 落到临时目录，再按 metadata 决定最终落盘位置。
-    let tmp_dir = Path::new(&state.config.data_dir).join("tmp");
+    let data_dir = Path::new(&state.config.data_dir);
+    if data_dir
+        .components()
+        .any(|component| matches!(component, Component::CurDir | Component::ParentDir))
+    {
+        return Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(err(
+                "invalid_data_dir",
+                "data_dir 不能包含 . 或 .. 路径段".to_string(),
+            )),
+        ));
+    }
+    let tmp_dir = data_dir.join("tmp");
     if let Err(e) = tokio::fs::create_dir_all(&tmp_dir).await {
         return Err((
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -191,16 +203,22 @@ async fn upload_chunk(
         }
     };
     let storage_track = storage_media_track(media_scope, media_track);
-    let session_dir =
-        match path_safety::session_base_dir(Path::new(&state.config.data_dir), &meta.session_id) {
-            Ok(path) => path,
-            Err(message) => {
-                return Err((
-                    StatusCode::BAD_REQUEST,
-                    Json(err("invalid_session_id", message)),
-                ));
-            }
-        };
+    let session_id = meta.session_id.trim();
+    if session_id.is_empty()
+        || matches!(session_id, "." | "..")
+        || session_id
+            .chars()
+            .any(|ch| matches!(ch, '/' | '\\' | '\0' | '\n' | '\r'))
+    {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(err(
+                "invalid_session_id",
+                "session_id 不能包含路径分隔符或控制字符".to_string(),
+            )),
+        ));
+    }
+    let session_dir = data_dir.join("session").join(session_id);
     let chunk_dir = session_dir
         .join("raw")
         .join(media_scope)

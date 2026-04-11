@@ -582,6 +582,15 @@ pub struct SecureCycleOutput {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    fn fresh_nonce() -> u32 {
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|duration| duration.subsec_nanos())
+            .unwrap_or(u32::MIN.saturating_add(1))
+            .max(1)
+    }
     use crate::esp32::tdm::TdmSchedule;
     use std::time::Duration;
 
@@ -627,17 +636,22 @@ mod tests {
     #[test]
     fn test_replay_window_monotonic() {
         let mut rw = ReplayWindow::new(16);
-        let nonces = [1_u32, 2_u32, 3_u32];
+        let first_nonce = fresh_nonce();
+        let nonces = [
+            first_nonce,
+            first_nonce.saturating_add(1),
+            first_nonce.saturating_add(2),
+        ];
         for nonce in nonces {
             assert!(rw.accept(nonce));
         }
-        assert_eq!(rw.last_accepted(), 3);
+        assert_eq!(rw.last_accepted(), first_nonce.saturating_add(2));
     }
 
     #[test]
     fn test_replay_window_reject_duplicate() {
         let mut rw = ReplayWindow::new(16);
-        let nonce = 1_u32;
+        let nonce = fresh_nonce();
         assert!(rw.accept(nonce));
         assert!(!rw.accept(nonce)); // Duplicate rejected
     }
@@ -645,22 +659,21 @@ mod tests {
     #[test]
     fn test_replay_window_accept_within_window() {
         let mut rw = ReplayWindow::new(16);
-        let newest_nonce = 5_u32;
-        let within_window_nonce = 3_u32;
+        let newest_nonce = fresh_nonce().saturating_add(4);
+        let within_window_nonce = newest_nonce.saturating_sub(2);
         assert!(rw.accept(newest_nonce));
         assert!(rw.accept(within_window_nonce)); // Out of order but within window
-        assert_eq!(rw.last_accepted(), 5);
+        assert_eq!(rw.last_accepted(), newest_nonce);
     }
 
     #[test]
     fn test_replay_window_reject_too_old() {
         let mut rw = ReplayWindow::new(4);
-        for nonce in 0_u32..20_u32 {
-            rw.accept(nonce);
+        let oldest_nonce = fresh_nonce();
+        for step in 0_u32..20_u32 {
+            rw.accept(oldest_nonce.saturating_add(step));
         }
-        // Nonce 0 is way outside the window
-        let stale_nonce = 0_u32;
-        assert!(!rw.accept(stale_nonce));
+        assert!(!rw.accept(oldest_nonce));
     }
 
     #[test]

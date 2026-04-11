@@ -5042,9 +5042,10 @@ fn build_few_shot_cross_domain_summary_from_samples(
         ));
     }
 
+    let sample_count = req.samples.len();
     let mut joint_count: Option<usize> = None;
-    let mut pairs = Vec::with_capacity(req.samples.len());
-    let mut domain_labels = Vec::with_capacity(req.samples.len());
+    let mut pairs = Vec::with_capacity(sample_count);
+    let mut domain_labels = Vec::with_capacity(sample_count);
     let mut in_domain_errors = Vec::new();
     let mut zero_shot_errors = Vec::new();
     let mut few_shot_errors = Vec::new();

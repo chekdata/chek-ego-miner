@@ -1,10 +1,8 @@
 use std::collections::HashMap;
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path};
 
 use serde::{Deserialize, Serialize};
 use tokio::io::AsyncWriteExt;
-
-use crate::path_safety;
 
 #[derive(Debug, Clone)]
 pub struct UploadReceiptInput {
@@ -116,14 +114,20 @@ pub fn is_valid_receipt_status(status: &str) -> bool {
 }
 
 pub async fn refresh_upload_queue(base_dir: &Path) -> Result<(), String> {
-    path_safety::ensure_session_dir_path(base_dir)?;
-    let upload_dir = upload_dir(base_dir);
+    let base_dir = base_dir.to_path_buf();
+    if base_dir
+        .components()
+        .any(|component| matches!(component, Component::CurDir | Component::ParentDir))
+    {
+        return Err(format!("非法 session 目录: {}", base_dir.display()));
+    }
+    let upload_dir = base_dir.join("upload");
     tokio::fs::create_dir_all(&upload_dir)
         .await
         .map_err(|e| format!("创建 upload 目录失败: {} ({e})", upload_dir.display()))?;
 
-    let manifest = read_upload_manifest(base_dir).await?;
-    let receipt_aggregates = read_receipt_aggregates(base_dir).await?;
+    let manifest = read_upload_manifest(&base_dir).await?;
+    let receipt_aggregates = read_receipt_aggregates(&base_dir).await?;
 
     let mut entries = Vec::new();
     let mut summary = UploadQueueSummary {
@@ -185,13 +189,19 @@ pub async fn append_upload_receipt_and_refresh(
     base_dir: &Path,
     input: UploadReceiptInput,
 ) -> Result<(), String> {
-    path_safety::ensure_session_dir_path(base_dir)?;
-    let upload_dir = upload_dir(base_dir);
+    let base_dir = base_dir.to_path_buf();
+    if base_dir
+        .components()
+        .any(|component| matches!(component, Component::CurDir | Component::ParentDir))
+    {
+        return Err(format!("非法 session 目录: {}", base_dir.display()));
+    }
+    let upload_dir = base_dir.join("upload");
     tokio::fs::create_dir_all(&upload_dir)
         .await
         .map_err(|e| format!("创建 upload 目录失败: {} ({e})", upload_dir.display()))?;
 
-    let manifest = read_upload_manifest(base_dir).await?;
+    let manifest = read_upload_manifest(&base_dir).await?;
     if manifest.trip_id != input.trip_id || manifest.session_id != input.session_id {
         return Err(format!(
             "upload receipt trip/session 不匹配: expected {}/{} got {}/{}",
@@ -236,17 +246,23 @@ pub async fn append_upload_receipt_and_refresh(
         .await
         .map_err(|e| format!("写入 upload_receipts.jsonl 失败: {e}"))?;
 
-    refresh_upload_queue(base_dir).await
+    refresh_upload_queue(&base_dir).await
 }
 
 pub async fn load_or_refresh_upload_queue(base_dir: &Path) -> Result<serde_json::Value, String> {
-    path_safety::ensure_session_dir_path(base_dir)?;
-    let path = upload_dir(base_dir).join("upload_queue.json");
+    let base_dir = base_dir.to_path_buf();
+    if base_dir
+        .components()
+        .any(|component| matches!(component, Component::CurDir | Component::ParentDir))
+    {
+        return Err(format!("非法 session 目录: {}", base_dir.display()));
+    }
+    let path = base_dir.join("upload").join("upload_queue.json");
     if !tokio::fs::try_exists(&path)
         .await
         .map_err(|e| format!("检查 upload_queue.json 是否存在失败: {e}"))?
     {
-        refresh_upload_queue(base_dir).await?;
+        refresh_upload_queue(&base_dir).await?;
     }
     let content = tokio::fs::read_to_string(&path)
         .await
@@ -254,13 +270,15 @@ pub async fn load_or_refresh_upload_queue(base_dir: &Path) -> Result<serde_json:
     serde_json::from_str(&content).map_err(|e| format!("解析 upload_queue.json 失败: {e}"))
 }
 
-fn upload_dir(base_dir: &Path) -> PathBuf {
-    base_dir.join("upload")
-}
-
 async fn read_upload_manifest(base_dir: &Path) -> Result<UploadManifestFile, String> {
-    path_safety::ensure_session_dir_path(base_dir)?;
-    let manifest_path = upload_dir(base_dir).join("upload_manifest.json");
+    let base_dir = base_dir.to_path_buf();
+    if base_dir
+        .components()
+        .any(|component| matches!(component, Component::CurDir | Component::ParentDir))
+    {
+        return Err(format!("非法 session 目录: {}", base_dir.display()));
+    }
+    let manifest_path = base_dir.join("upload").join("upload_manifest.json");
     let content = tokio::fs::read_to_string(&manifest_path)
         .await
         .map_err(|e| {
@@ -276,8 +294,14 @@ async fn read_upload_manifest(base_dir: &Path) -> Result<UploadManifestFile, Str
 async fn read_receipt_aggregates(
     base_dir: &Path,
 ) -> Result<HashMap<String, ReceiptAggregate>, String> {
-    path_safety::ensure_session_dir_path(base_dir)?;
-    let path = upload_dir(base_dir).join("upload_receipts.jsonl");
+    let base_dir = base_dir.to_path_buf();
+    if base_dir
+        .components()
+        .any(|component| matches!(component, Component::CurDir | Component::ParentDir))
+    {
+        return Err(format!("非法 session 目录: {}", base_dir.display()));
+    }
+    let path = base_dir.join("upload").join("upload_receipts.jsonl");
     if !tokio::fs::try_exists(&path)
         .await
         .map_err(|e| format!("检查 upload_receipts.jsonl 是否存在失败: {e}"))?

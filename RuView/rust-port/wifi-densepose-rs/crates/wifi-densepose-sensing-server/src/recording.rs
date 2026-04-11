@@ -190,20 +190,6 @@ fn sanitize_recording_component(raw: &str) -> String {
     }
 }
 
-fn validate_recording_id(raw: &str) -> Option<String> {
-    let value = raw.trim();
-    if value.is_empty() || matches!(value, "." | "..") {
-        return None;
-    }
-    if value
-        .chars()
-        .any(|ch| matches!(ch, '/' | '\\' | '\0' | '\n' | '\r'))
-    {
-        return None;
-    }
-    Some(value.to_string())
-}
-
 // ── Public helpers (called from the CSI processing loop in main.rs) ──────────
 
 /// Append a single frame to the active recording file.
@@ -485,7 +471,13 @@ async fn download_recording(
     State(_state): State<AppState>,
     AxumPath(id): AxumPath<String>,
 ) -> impl IntoResponse {
-    let Some(safe_id) = validate_recording_id(&id) else {
+    let safe_id = id.trim();
+    if safe_id.is_empty()
+        || matches!(safe_id, "." | "..")
+        || safe_id
+            .chars()
+            .any(|ch| matches!(ch, '/' | '\\' | '\0' | '\n' | '\r'))
+    {
         return (
             axum::http::StatusCode::BAD_REQUEST,
             Json(serde_json::json!({
@@ -494,7 +486,7 @@ async fn download_recording(
             })),
         )
             .into_response();
-    };
+    }
     let dir = PathBuf::from(RECORDINGS_DIR);
     // Find the JSONL file matching the ID.
     let file_path = dir.join(format!("{safe_id}.csi.jsonl"));
@@ -539,12 +531,18 @@ async fn delete_recording(
     State(_state): State<AppState>,
     AxumPath(id): AxumPath<String>,
 ) -> Json<serde_json::Value> {
-    let Some(safe_id) = validate_recording_id(&id) else {
+    let safe_id = id.trim();
+    if safe_id.is_empty()
+        || matches!(safe_id, "." | "..")
+        || safe_id
+            .chars()
+            .any(|ch| matches!(ch, '/' | '\\' | '\0' | '\n' | '\r'))
+    {
         return Json(serde_json::json!({
             "status": "error",
             "message": "invalid recording id",
         }));
-    };
+    }
     let dir = PathBuf::from(RECORDINGS_DIR);
     let jsonl_path = dir.join(format!("{safe_id}.csi.jsonl"));
     let meta_path = dir.join(format!("{safe_id}.csi.meta.json"));
