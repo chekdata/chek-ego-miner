@@ -9,6 +9,7 @@ use serde_json::Value;
 use tokio::io::AsyncWriteExt;
 use tracing::{debug, warn};
 
+use crate::path_safety;
 use crate::ws::types::ChunkAckPacket;
 use crate::AppState;
 
@@ -190,9 +191,16 @@ async fn upload_chunk(
         }
     };
     let storage_track = storage_media_track(media_scope, media_track);
-    let session_dir = Path::new(&state.config.data_dir)
-        .join("session")
-        .join(&meta.session_id);
+    let session_dir =
+        match path_safety::session_base_dir(Path::new(&state.config.data_dir), &meta.session_id) {
+            Ok(path) => path,
+            Err(message) => {
+                return Err((
+                    StatusCode::BAD_REQUEST,
+                    Json(err("invalid_session_id", message)),
+                ));
+            }
+        };
     let chunk_dir = session_dir
         .join("raw")
         .join(media_scope)
@@ -206,7 +214,7 @@ async fn upload_chunk(
         ));
     }
 
-    let file_type = meta.file_type.clone().unwrap_or_else(|| "bin".to_string());
+    let file_type = sanitize_file_component(meta.file_type.as_deref().unwrap_or("bin"));
     let base_name = sanitize_filename(
         meta.file_name
             .as_deref()
@@ -582,6 +590,25 @@ fn sanitize_filename(input: &str) -> String {
             _ => c,
         })
         .collect()
+}
+
+fn sanitize_file_component(input: &str) -> String {
+    let raw = input.trim();
+    if raw.is_empty() {
+        return "bin".to_string();
+    }
+    let sanitized: String = raw
+        .chars()
+        .map(|c| match c {
+            '/' | '\\' | ':' | '\0' | '\n' | '\r' => '_',
+            _ => c,
+        })
+        .collect();
+    if sanitized.trim_matches('.').is_empty() {
+        "bin".to_string()
+    } else {
+        sanitized
+    }
 }
 
 fn resolve_media_track<'a>(

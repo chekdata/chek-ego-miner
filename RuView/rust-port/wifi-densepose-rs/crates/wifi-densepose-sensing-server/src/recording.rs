@@ -170,6 +170,40 @@ fn normalize_scene_id(value: Option<&str>) -> Option<String> {
     }
 }
 
+fn sanitize_recording_component(raw: &str) -> String {
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        return "recording".to_string();
+    }
+    let sanitized: String = trimmed
+        .chars()
+        .map(|ch| match ch {
+            '/' | '\\' | ':' | '\0' | '\n' | '\r' | '\t' | ' ' => '_',
+            _ => ch,
+        })
+        .collect();
+    let collapsed = sanitized.trim_matches('_');
+    if collapsed.is_empty() {
+        "recording".to_string()
+    } else {
+        collapsed.to_string()
+    }
+}
+
+fn validate_recording_id(raw: &str) -> Option<String> {
+    let value = raw.trim();
+    if value.is_empty() || matches!(value, "." | "..") {
+        return None;
+    }
+    if value
+        .chars()
+        .any(|ch| matches!(ch, '/' | '\\' | '\0' | '\n' | '\r'))
+    {
+        return None;
+    }
+    Some(value.to_string())
+}
+
 // ── Public helpers (called from the CSI processing loop in main.rs) ──────────
 
 /// Append a single frame to the active recording file.
@@ -348,7 +382,7 @@ async fn start_recording(
 
     let session_id = format!(
         "{}-{}",
-        body.session_name.replace(' ', "_"),
+        sanitize_recording_component(&body.session_name),
         chrono::Utc::now().format("%Y%m%d_%H%M%S")
     );
     let file_name = format!("{session_id}.csi.jsonl");
@@ -451,9 +485,19 @@ async fn download_recording(
     State(_state): State<AppState>,
     AxumPath(id): AxumPath<String>,
 ) -> impl IntoResponse {
+    let Some(safe_id) = validate_recording_id(&id) else {
+        return (
+            axum::http::StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({
+                "status": "error",
+                "message": "invalid recording id",
+            })),
+        )
+            .into_response();
+    };
     let dir = PathBuf::from(RECORDINGS_DIR);
     // Find the JSONL file matching the ID.
-    let file_path = dir.join(format!("{id}.csi.jsonl"));
+    let file_path = dir.join(format!("{safe_id}.csi.jsonl"));
 
     if !file_path.exists() {
         return (
@@ -475,7 +519,7 @@ async fn download_recording(
                 ),
                 (
                     axum::http::header::CONTENT_DISPOSITION,
-                    format!("attachment; filename=\"{id}.csi.jsonl\""),
+                    format!("attachment; filename=\"{safe_id}.csi.jsonl\""),
                 ),
             ];
             (headers, data).into_response()
@@ -495,9 +539,15 @@ async fn delete_recording(
     State(_state): State<AppState>,
     AxumPath(id): AxumPath<String>,
 ) -> Json<serde_json::Value> {
+    let Some(safe_id) = validate_recording_id(&id) else {
+        return Json(serde_json::json!({
+            "status": "error",
+            "message": "invalid recording id",
+        }));
+    };
     let dir = PathBuf::from(RECORDINGS_DIR);
-    let jsonl_path = dir.join(format!("{id}.csi.jsonl"));
-    let meta_path = dir.join(format!("{id}.csi.meta.json"));
+    let jsonl_path = dir.join(format!("{safe_id}.csi.jsonl"));
+    let meta_path = dir.join(format!("{safe_id}.csi.meta.json"));
 
     if !jsonl_path.exists() && !meta_path.exists() {
         return Json(serde_json::json!({
@@ -524,7 +574,7 @@ async fn delete_recording(
 
     Json(serde_json::json!({
         "status": "deleted",
-        "id": id,
+        "id": safe_id,
         "deleted_files": deleted,
     }))
 }

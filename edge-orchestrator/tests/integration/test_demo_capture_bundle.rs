@@ -696,17 +696,12 @@ async fn recorder_should_emit_demo_bundle_calibration_and_time_sync_artifacts() 
 
     wait_for_file(base_dir.join("upload").join("upload_receipts.jsonl")).await?;
 
-    let queue_via_api = client
-        .get(format!(
-            "{}/upload/queue?session_id={session_id}",
-            server.http_base
-        ))
-        .bearer_auth(&server.edge_token)
-        .send()
-        .await?
-        .error_for_status()?
-        .json::<serde_json::Value>()
-        .await?;
+    let queue_via_api: serde_json::Value = support::authed_get_json(
+        &client,
+        &server,
+        &format!("/upload/queue?session_id={session_id}"),
+    )
+    .await?;
     let iphone_media_queue_entry = queue_via_api
         .get("entries")
         .and_then(|v| v.as_array())
@@ -1791,17 +1786,12 @@ async fn crowd_upload_worker_should_ack_session_assets_via_remote_endpoint() -> 
     let deadline = tokio::time::Instant::now() + Duration::from_secs(10);
     let mut iphone_media_status = None;
     while tokio::time::Instant::now() < deadline {
-        let queue = client
-            .get(format!(
-                "{}/upload/queue?session_id={session_id}",
-                server.http_base
-            ))
-            .bearer_auth(&server.edge_token)
-            .send()
-            .await?
-            .error_for_status()?
-            .json::<serde_json::Value>()
-            .await?;
+        let queue: serde_json::Value = support::authed_get_json(
+            &client,
+            &server,
+            &format!("/upload/queue?session_id={session_id}"),
+        )
+        .await?;
         iphone_media_status = queue
             .get("entries")
             .and_then(|value| value.as_array())

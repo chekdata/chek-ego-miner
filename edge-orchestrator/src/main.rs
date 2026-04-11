@@ -7,6 +7,7 @@ mod config;
 mod control;
 mod host_metrics;
 mod operator;
+mod path_safety;
 mod protocol;
 mod reason;
 mod recorder;

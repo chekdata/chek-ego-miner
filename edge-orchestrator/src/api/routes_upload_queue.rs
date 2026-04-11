@@ -8,6 +8,7 @@ use axum::{
 };
 use serde::Deserialize;
 
+use crate::path_safety;
 use crate::recorder::upload_queue::{self, UploadReceiptInput};
 use crate::AppState;
 
@@ -45,7 +46,12 @@ async fn get_upload_queue(
             Json(err("missing_session_id", "session_id 不能为空".to_string())),
         ));
     }
-    let base_dir = session_base_dir(&state, &query.session_id);
+    let base_dir = session_base_dir(&state, &query.session_id).map_err(|message| {
+        (
+            StatusCode::BAD_REQUEST,
+            Json(err("invalid_session_id", message)),
+        )
+    })?;
     match upload_queue::load_or_refresh_upload_queue(&base_dir).await {
         Ok(queue) => Ok(Json(queue)),
         Err(message) => Err((
@@ -80,7 +86,12 @@ async fn post_upload_receipt(
             )),
         ));
     }
-    let base_dir = session_base_dir(&state, &req.session_id);
+    let base_dir = session_base_dir(&state, &req.session_id).map_err(|message| {
+        (
+            StatusCode::BAD_REQUEST,
+            Json(err("invalid_session_id", message)),
+        )
+    })?;
     let receipt = UploadReceiptInput {
         trip_id: req.trip_id,
         session_id: req.session_id,
@@ -114,10 +125,8 @@ async fn post_upload_receipt(
     }
 }
 
-fn session_base_dir(state: &AppState, session_id: &str) -> std::path::PathBuf {
-    Path::new(&state.config.data_dir)
-        .join("session")
-        .join(session_id.trim())
+fn session_base_dir(state: &AppState, session_id: &str) -> Result<std::path::PathBuf, String> {
+    path_safety::session_base_dir(Path::new(&state.config.data_dir), session_id)
 }
 
 fn err(code: &str, message: String) -> serde_json::Value {

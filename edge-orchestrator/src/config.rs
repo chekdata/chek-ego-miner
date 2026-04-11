@@ -1,5 +1,7 @@
 use std::env;
 
+use crate::path_safety;
+
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -391,12 +393,35 @@ impl Config {
                 "ESP32_OTA_MAC_PREFIXES",
                 "e8:3d:c1,1c:db:d4,3c:0f:02,24:6f:28,30:c6:f7,7c:df:a1,84:f7:03,cc:db:a7,ac:15:18",
             ),
-            iphone_stereo_extrinsic_path: env::var("IPHONE_STEREO_EXTRINSIC_PATH")
-                .unwrap_or_else(|_| format!("{}/runtime/iphone_stereo_extrinsic.json", data_dir)),
-            wifi_stereo_extrinsic_path: env::var("WIFI_STEREO_EXTRINSIC_PATH")
-                .unwrap_or_else(|_| format!("{}/runtime/wifi_stereo_extrinsic.json", data_dir)),
-            stereo_runtime_calibration_path: env::var("STEREO_RUNTIME_CALIBRATION_PATH")
-                .unwrap_or_else(|_| format!("{}/runtime/stereo_pair_calibration.json", data_dir)),
+            iphone_stereo_extrinsic_path: path_safety::validate_fs_path(
+                &env::var("IPHONE_STEREO_EXTRINSIC_PATH").unwrap_or_else(|_| {
+                    format!("{}/runtime/iphone_stereo_extrinsic.json", data_dir)
+                }),
+                "IPHONE_STEREO_EXTRINSIC_PATH",
+            )
+            .map_err(|value| ConfigError::Value {
+                key: "IPHONE_STEREO_EXTRINSIC_PATH".to_string(),
+                value,
+            })?,
+            wifi_stereo_extrinsic_path: path_safety::validate_fs_path(
+                &env::var("WIFI_STEREO_EXTRINSIC_PATH")
+                    .unwrap_or_else(|_| format!("{}/runtime/wifi_stereo_extrinsic.json", data_dir)),
+                "WIFI_STEREO_EXTRINSIC_PATH",
+            )
+            .map_err(|value| ConfigError::Value {
+                key: "WIFI_STEREO_EXTRINSIC_PATH".to_string(),
+                value,
+            })?,
+            stereo_runtime_calibration_path: path_safety::validate_fs_path(
+                &env::var("STEREO_RUNTIME_CALIBRATION_PATH").unwrap_or_else(|_| {
+                    format!("{}/runtime/stereo_pair_calibration.json", data_dir)
+                }),
+                "STEREO_RUNTIME_CALIBRATION_PATH",
+            )
+            .map_err(|value| ConfigError::Value {
+                key: "STEREO_RUNTIME_CALIBRATION_PATH".to_string(),
+                value,
+            })?,
             stereo_calibration_solver_path: env::var("EDGE_STEREO_CALIBRATION_SOLVER_PATH")
                 .unwrap_or_else(|_| "../scripts/stereo_calibration_solver.py".to_string()),
             stereo_calibration_python_bin: env::var("EDGE_STEREO_CALIBRATION_PYTHON_BIN")
@@ -417,8 +442,7 @@ impl Config {
                 .unwrap_or_else(|_| "http://127.0.0.1:3011".to_string()),
             replay_proxy_base: env::var("EDGE_REPLAY_PROXY_BASE")
                 .unwrap_or_else(|_| "http://127.0.0.1:3020".to_string()),
-            isaac_runtime_base_url: env::var("EDGE_ISAAC_RUNTIME_BASE_URL")
-                .unwrap_or_default(),
+            isaac_runtime_base_url: env::var("EDGE_ISAAC_RUNTIME_BASE_URL").unwrap_or_default(),
             runtime_profile,
             phone_ingest_enabled: env_bool(
                 "EDGE_PHONE_INGEST_ENABLED",

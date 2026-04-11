@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import argparse
+import ipaddress
 import json
 import mimetypes
 import posixpath
@@ -54,6 +55,40 @@ def safe_join(root: Path, raw_path: str) -> Path:
     if candidate != root and root not in candidate.parents:
         raise ValueError("path escapes root")
     return candidate
+
+
+def validate_proxy_base(raw_url: str) -> str:
+    parsed = urlsplit(raw_url.strip())
+    if parsed.scheme not in {"http", "https"}:
+        raise ValueError("proxy base must use http or https")
+    if not parsed.hostname:
+        raise ValueError("proxy base must include a hostname")
+    if parsed.scheme == "http":
+        host = parsed.hostname
+        try:
+            ip = ipaddress.ip_address(host)
+            if not (ip.is_loopback or ip.is_private or ip.is_link_local):
+                raise ValueError("http proxy base must target localhost or a private address")
+        except ValueError:
+            if host.lower() != "localhost":
+                raise ValueError("http proxy base must target localhost or a private address")
+    return parsed.geturl().rstrip("/")
+
+
+def sanitize_header_value(value: str) -> str:
+    return value.replace("\r", "").replace("\n", "")
+
+
+def ensure_allowed_file_target(target: Path, allowed_roots: list[Path]) -> Path:
+    candidate = target.resolve()
+    for root in allowed_roots:
+        resolved_root = root.resolve()
+        if resolved_root.is_dir():
+            if candidate == resolved_root or resolved_root in candidate.parents:
+                return candidate
+        elif candidate == resolved_root:
+            return candidate
+    raise ValueError("file target is outside allowed roots")
 
 
 def run_command(args: list[str]) -> subprocess.CompletedProcess[str]:
@@ -211,6 +246,18 @@ class WorkstationHandler(BaseHTTPRequestHandler):
         self.send_file(target, with_body, cache_control=cache_control)
 
     def send_file(self, target: Path, with_body: bool, cache_control: str | None = None):
+        try:
+            target = ensure_allowed_file_target(
+                target,
+                [
+                    self.server.config.dist_dir,
+                    self.server.config.stereo_preview_path,
+                    self.server.config.stereo_watchdog_status_path,
+                ],
+            )
+        except ValueError:
+            self.send_error(400, "invalid file target")
+            return
         if not target.exists() or not target.is_file():
             self.send_error(404, "file not found")
             return
@@ -256,7 +303,7 @@ class WorkstationHandler(BaseHTTPRequestHandler):
                     header_key = key.lower()
                     if header_key in HOP_BY_HOP_HEADERS:
                         continue
-                    self.send_header(key, value)
+                    self.send_header(key, sanitize_header_value(value))
                 self.end_headers()
                 if with_body and self.command != "HEAD":
                     shutil.copyfileobj(upstream, self.wfile)
@@ -265,7 +312,7 @@ class WorkstationHandler(BaseHTTPRequestHandler):
             for key, value in error.headers.items():
                 if key.lower() in HOP_BY_HOP_HEADERS:
                     continue
-                self.send_header(key, value)
+                self.send_header(key, sanitize_header_value(value))
             payload = error.read()
             self.send_header("Content-Length", str(len(payload)))
             self.end_headers()
@@ -315,10 +362,10 @@ def main():
     config = argparse.Namespace(
         dist_dir=dist_dir,
         proxy_map={
-            "/edge": args.edge_http_base,
-            "/sensing": args.sensing_http_base,
-            "/sim-control": args.sim_control_http_base,
-            "/replay": args.replay_http_base,
+            "/edge": validate_proxy_base(args.edge_http_base),
+            "/sensing": validate_proxy_base(args.sensing_http_base),
+            "/sim-control": validate_proxy_base(args.sim_control_http_base),
+            "/replay": validate_proxy_base(args.replay_http_base),
         },
         stereo_preview_path=Path(args.stereo_preview_path).resolve(),
         stereo_watchdog_status_path=Path(args.stereo_watchdog_status_path).resolve(),

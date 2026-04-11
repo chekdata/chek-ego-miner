@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::net::IpAddr;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
@@ -11,6 +12,7 @@ use tokio::time::MissedTickBehavior;
 use tracing::{info, warn};
 use walkdir::WalkDir;
 
+use crate::path_safety;
 use crate::recorder::upload_queue::{self, UploadReceiptInput};
 use crate::AppState;
 
@@ -145,13 +147,26 @@ struct ControlPlaneUploadTransport {
 }
 
 pub async fn run_crowd_upload_worker(state: AppState) {
-    let control_base_url = state
-        .config
-        .crowd_upload_control_base_url
-        .trim()
-        .trim_end_matches('/')
-        .to_string();
-    let artifact_url = state.config.crowd_upload_artifact_url.trim().to_string();
+    let control_base_url = match normalize_optional_remote_url(
+        &state.config.crowd_upload_control_base_url,
+        "EDGE_CROWD_UPLOAD_CONTROL_BASE_URL",
+    ) {
+        Ok(url) => url,
+        Err(error) => {
+            warn!(error=%error, "invalid crowd upload control base URL");
+            return;
+        }
+    };
+    let artifact_url = match normalize_optional_remote_url(
+        &state.config.crowd_upload_artifact_url,
+        "EDGE_CROWD_UPLOAD_ARTIFACT_URL",
+    ) {
+        Ok(url) => url,
+        Err(error) => {
+            warn!(error=%error, "invalid crowd upload artifact URL");
+            return;
+        }
+    };
     if control_base_url.is_empty() && artifact_url.is_empty() {
         warn!(
             "crowd upload enabled but EDGE_CROWD_UPLOAD_CONTROL_BASE_URL / EDGE_CROWD_UPLOAD_ARTIFACT_URL are empty; uploader disabled"
@@ -221,7 +236,12 @@ async fn collect_session_dirs(session_root: &Path) -> Result<Vec<PathBuf>, Strin
             )
         })?;
         if file_type.is_dir() {
-            session_dirs.push(entry.path());
+            let entry_path = entry.path();
+            if let Err(error) = path_safety::ensure_session_dir_path(&entry_path) {
+                warn!(path=%entry_path.display(), error=%error, "skipping invalid session directory");
+                continue;
+            }
+            session_dirs.push(entry_path);
         }
     }
     session_dirs.sort();
@@ -276,6 +296,7 @@ async fn process_session_uploads(
     artifact_url: &str,
     base_dir: &Path,
 ) -> Result<(), String> {
+    path_safety::ensure_session_dir_path(base_dir)?;
     let queue_value = match upload_queue::load_or_refresh_upload_queue(base_dir).await {
         Ok(queue) => queue,
         Err(error) => {
@@ -480,7 +501,7 @@ async fn upload_entry_via_control_plane(
     loaded_manifest: &LoadedUploadManifest,
     entry: &UploadQueueEntry,
 ) -> Result<(), String> {
-    let artifact_path = base_dir.join(&entry.relpath);
+    let artifact_path = path_safety::join_relative(base_dir, &entry.relpath, "artifact relpath")?;
     if !tokio::fs::try_exists(&artifact_path)
         .await
         .map_err(|e| format!("检查上传资源失败: {} ({e})", artifact_path.display()))?
@@ -605,7 +626,7 @@ async fn upload_entry_direct(
     queue: &UploadQueueFile,
     entry: &UploadQueueEntry,
 ) -> Result<(), String> {
-    let artifact_path = base_dir.join(&entry.relpath);
+    let artifact_path = path_safety::join_relative(base_dir, &entry.relpath, "artifact relpath")?;
     if !tokio::fs::try_exists(&artifact_path)
         .await
         .map_err(|e| format!("检查上传资源失败: {} ({e})", artifact_path.display()))?
@@ -651,9 +672,10 @@ async fn upload_entry_direct(
         }
     };
 
+    let upload_url = normalize_required_remote_url(artifact_url, "EDGE_CROWD_UPLOAD_ARTIFACT_URL")?;
     let mut request = state
         .http_client
-        .post(artifact_url)
+        .post(upload_url)
         .header("content-type", prepared.content_type)
         .header("x-chek-trip-id", &queue.trip_id)
         .header("x-chek-session-id", &queue.session_id)
@@ -744,6 +766,7 @@ async fn declare_control_plane_artifact(
     loaded_manifest: &LoadedUploadManifest,
     entry: &UploadQueueEntry,
 ) -> Result<ControlPlaneUploadTarget, String> {
+    let safe_session_id = path_safety::validate_path_component(&queue.session_id, "session_id")?;
     let manifest_artifact = loaded_manifest
         .by_asset_id
         .get(&entry.asset_id)
@@ -779,7 +802,7 @@ async fn declare_control_plane_artifact(
         state,
         "POST",
         control_base_url,
-        &format!("/v1/edge/sessions/{}/artifacts", queue.session_id),
+        &format!("/v1/edge/sessions/{safe_session_id}/artifacts"),
     )
     .json(&payload)
     .send()
@@ -820,6 +843,7 @@ async fn send_transport_upload_request(
             "control plane transport.url 与 EDGE_CROWD_UPLOAD_ARTIFACT_URL 均为空".to_string(),
         );
     }
+    let upload_url = normalize_required_remote_url(&upload_url, "control plane transport.url")?;
 
     let method = reqwest::Method::from_bytes(transport.method.trim().to_uppercase().as_bytes())
         .map_err(|e| format!("解析 transport.method 失败: {e}"))?;
@@ -907,7 +931,7 @@ async fn send_transport_upload_request(
             .text(metadata_field.to_string(), metadata.to_string());
         let request = state
             .http_client
-            .request(method, &upload_url)
+            .request(method.clone(), &upload_url)
             .multipart(form);
         let request = apply_transport_headers(request, &headers, prepared.upload_encoding)?;
         apply_transport_auth(request, transport, scope_token, bearer_token)?
@@ -957,6 +981,7 @@ async fn post_control_plane_receipt(
     storage_key: &str,
     metadata: Value,
 ) -> Result<(), String> {
+    let safe_session_id = path_safety::validate_path_component(&queue.session_id, "session_id")?;
     let payload = json!({
         "asset_id": entry.asset_id,
         "status": "acked",
@@ -968,7 +993,7 @@ async fn post_control_plane_receipt(
         state,
         "POST",
         control_base_url,
-        &format!("/v1/edge/sessions/{}/receipts", queue.session_id),
+        &format!("/v1/edge/sessions/{safe_session_id}/receipts"),
     )
     .json(&payload)
     .send()
@@ -1082,6 +1107,49 @@ fn control_plane_request(
         request = request.bearer_auth(token);
     }
     request
+}
+
+fn normalize_optional_remote_url(raw: &str, field: &str) -> Result<String, String> {
+    let value = raw.trim();
+    if value.is_empty() {
+        return Ok(String::new());
+    }
+    normalize_required_remote_url(value, field)
+}
+
+fn normalize_required_remote_url(raw: &str, field: &str) -> Result<String, String> {
+    let url = reqwest::Url::parse(raw).map_err(|e| format!("{field} 不是合法 URL: {e}"))?;
+    validate_remote_url(&url, field)?;
+    Ok(url.as_str().trim_end_matches('/').to_string())
+}
+
+fn validate_remote_url(url: &reqwest::Url, field: &str) -> Result<(), String> {
+    let scheme = url.scheme();
+    if scheme != "https" && scheme != "http" {
+        return Err(format!("{field} 仅支持 http/https"));
+    }
+    let host = url
+        .host_str()
+        .ok_or_else(|| format!("{field} 缺少主机名"))?;
+    if scheme == "http" && !is_loopback_or_private_host(host) {
+        return Err(format!(
+            "{field} 仅允许对 localhost / 私有地址使用 http 明文协议"
+        ));
+    }
+    Ok(())
+}
+
+fn is_loopback_or_private_host(host: &str) -> bool {
+    if host.eq_ignore_ascii_case("localhost") {
+        return true;
+    }
+    let Ok(ip) = host.parse::<IpAddr>() else {
+        return false;
+    };
+    match ip {
+        IpAddr::V4(addr) => addr.is_loopback() || addr.is_private() || addr.is_link_local(),
+        IpAddr::V6(addr) => addr.is_loopback() || addr.is_unique_local(),
+    }
 }
 
 fn apply_transport_headers(

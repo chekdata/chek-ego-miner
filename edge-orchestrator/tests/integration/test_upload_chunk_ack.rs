@@ -92,16 +92,14 @@ async fn upload_chunk_triggers_ack_and_cleaned_flow() -> anyhow::Result<()> {
         .await?
         .error_for_status()?;
 
-    let state = client
-        .get(format!(
-            "{}/chunk/state?trip_id={trip_id}&session_id={session_id}&chunk_index={chunk_index}",
-            server.http_base
-        ))
-        .bearer_auth(&server.edge_token)
-        .send()
-        .await?
-        .json::<serde_json::Value>()
-        .await?;
+    let state: serde_json::Value = support::authed_get_json(
+        &client,
+        &server,
+        &format!(
+            "/chunk/state?trip_id={trip_id}&session_id={session_id}&chunk_index={chunk_index}"
+        ),
+    )
+    .await?;
 
     assert_eq!(state.get("state").and_then(|v| v.as_str()), Some("cleaned"));
 

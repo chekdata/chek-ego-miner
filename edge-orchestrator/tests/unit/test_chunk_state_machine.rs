@@ -10,16 +10,14 @@ async fn chunk_cleaned_state_is_queryable() -> anyhow::Result<()> {
     let session_id = "sess-chunk-001";
     let chunk_index = 12;
 
-    let state0 = client
-        .get(format!(
-            "{}/chunk/state?trip_id={trip_id}&session_id={session_id}&chunk_index={chunk_index}",
-            server.http_base
-        ))
-        .bearer_auth(&server.edge_token)
-        .send()
-        .await?
-        .json::<serde_json::Value>()
-        .await?;
+    let state0: serde_json::Value = support::authed_get_json(
+        &client,
+        &server,
+        &format!(
+            "/chunk/state?trip_id={trip_id}&session_id={session_id}&chunk_index={chunk_index}"
+        ),
+    )
+    .await?;
     assert_eq!(
         state0.get("state").and_then(|v| v.as_str()),
         Some("received")
@@ -40,16 +38,14 @@ async fn chunk_cleaned_state_is_queryable() -> anyhow::Result<()> {
         .await?
         .error_for_status()?;
 
-    let state1 = client
-        .get(format!(
-            "{}/chunk/state?trip_id={trip_id}&session_id={session_id}&chunk_index={chunk_index}",
-            server.http_base
-        ))
-        .bearer_auth(&server.edge_token)
-        .send()
-        .await?
-        .json::<serde_json::Value>()
-        .await?;
+    let state1: serde_json::Value = support::authed_get_json(
+        &client,
+        &server,
+        &format!(
+            "/chunk/state?trip_id={trip_id}&session_id={session_id}&chunk_index={chunk_index}"
+        ),
+    )
+    .await?;
     assert_eq!(
         state1.get("state").and_then(|v| v.as_str()),
         Some("cleaned")

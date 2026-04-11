@@ -18,7 +18,9 @@ use tokio::time::sleep;
 
 use crate::calibration::IphoneStereoExtrinsic;
 use crate::operator::{canonical_body_points_3d, OperatorSnapshot, OperatorSource};
-use crate::sensing::{CsiSnapshot, StereoSnapshot, VisionDevicePose, VisionSnapshot, WifiPoseSnapshot};
+use crate::sensing::{
+    CsiSnapshot, StereoSnapshot, VisionDevicePose, VisionSnapshot, WifiPoseSnapshot,
+};
 use crate::AppState;
 
 const DEFAULT_SCENE_ID: &str = "chek_humanoid_lan_sense_main_stage_v1";
@@ -34,6 +36,7 @@ const DEFAULT_ZERO_SHOT_WARMUP_SECS: u64 = 10;
 const DEFAULT_ZERO_SHOT_VALIDATION_SECS: u64 = 15;
 const DEFAULT_FEW_SHOT_LORA_RANK: u8 = 8;
 const DEFAULT_FEW_SHOT_LORA_EPOCHS: u32 = 30;
+const MAX_FEW_SHOT_SUMMARY_SAMPLES: usize = 4_096;
 const FEW_SHOT_GATE_MAX_DOMAIN_GAP_RATIO: f64 = 1.5;
 const FEW_SHOT_GATE_MIN_ADAPTATION_SPEEDUP: f64 = 5.0;
 const GUIDE_PHASE_ADVANCE_COOLDOWN_MS: u64 = 900;
@@ -1719,7 +1722,10 @@ fn build_zero_shot_validation_artifact(
         blockers.push("双目还没锁定操作者，暂时无法做短验证片段。".to_string());
     }
     if !readiness.phone_ready {
-        blockers.push("手机 shared/world-frame device_pose 还没稳定在线，完整数据集预检暂时不能开始。".to_string());
+        blockers.push(
+            "手机 shared/world-frame device_pose 还没稳定在线，完整数据集预检暂时不能开始。"
+                .to_string(),
+        );
     }
     if !readiness.robot_ready {
         blockers.push("机器人状态链路还没就绪，完整数据集预检暂时不能开始。".to_string());
@@ -2639,16 +2645,19 @@ fn build_step_guide(
                         readiness.anchor_source
                     )
                 } else {
-                    "请先让双目 / teacher / 手机 / 机器人主链稳定，并确认 Wi‑Fi 先验在线。".to_string()
+                    "请先让双目 / teacher / 手机 / 机器人主链稳定，并确认 Wi‑Fi 先验在线。"
+                        .to_string()
                 },
             ));
             checks.push(build_check(
                 "手机姿态在线",
                 readiness.phone_ready,
                 if readiness.phone_ready {
-                    "手机 shared/world-frame device_pose 已持续上报，可并入完整多模态会话。".to_string()
+                    "手机 shared/world-frame device_pose 已持续上报，可并入完整多模态会话。"
+                        .to_string()
                 } else {
-                    "手机还没提供稳定的 shared/world-frame device_pose，暂时不满足完整数据集门槛。".to_string()
+                    "手机还没提供稳定的 shared/world-frame device_pose，暂时不满足完整数据集门槛。"
+                        .to_string()
                 },
             ));
             checks.push(build_check(
@@ -3772,10 +3781,16 @@ fn build_readiness(
         issues.push("当前 teacher 还没过线，先让双目和融合骨架稳定几秒。".to_string());
     }
     if !phone_ready {
-        issues.push("手机 shared/world-frame device_pose 还没稳定在线，请确认 ARKit 主路正在持续上报。".to_string());
+        issues.push(
+            "手机 shared/world-frame device_pose 还没稳定在线，请确认 ARKit 主路正在持续上报。"
+                .to_string(),
+        );
     }
     if !robot_ready {
-        issues.push("机器人状态链路还没就绪，请先确认 Unitree bridge、时间同步、外参和 LAN 控制在线。".to_string());
+        issues.push(
+            "机器人状态链路还没就绪，请先确认 Unitree bridge、时间同步、外参和 LAN 控制在线。"
+                .to_string(),
+        );
     }
     if phone_ready && iphone_visible_hand_count > 0 && hand_match_score < 0.45 {
         issues.push(
@@ -5014,6 +5029,16 @@ fn build_few_shot_cross_domain_summary_from_samples(
         return Err((
             StatusCode::BAD_REQUEST,
             "请至少提供一条 evaluator sample。".to_string(),
+        ));
+    }
+    if req.samples.len() > MAX_FEW_SHOT_SUMMARY_SAMPLES {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            format!(
+                "samples 过多：最多允许 {} 条，当前 {} 条。",
+                MAX_FEW_SHOT_SUMMARY_SAMPLES,
+                req.samples.len()
+            ),
         ));
     }
 
@@ -9637,12 +9662,10 @@ mod tests {
             false,
         );
         assert!(!readiness.phone_ready);
-        assert!(
-            readiness
-                .issues
-                .iter()
-                .any(|issue| issue.contains("shared/world-frame device_pose"))
-        );
+        assert!(readiness
+            .issues
+            .iter()
+            .any(|issue| issue.contains("shared/world-frame device_pose")));
     }
 
     #[test]
@@ -9672,12 +9695,10 @@ mod tests {
             false,
         );
         assert!(readiness.phone_ready);
-        assert!(
-            !readiness
-                .issues
-                .iter()
-                .any(|issue| issue.contains("手机手部还没和身体对齐"))
-        );
+        assert!(!readiness
+            .issues
+            .iter()
+            .any(|issue| issue.contains("手机手部还没和身体对齐")));
     }
 
     #[test]
