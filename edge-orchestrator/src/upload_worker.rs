@@ -1089,13 +1089,18 @@ fn control_plane_request(
     control_base_url: &str,
     path: &str,
 ) -> reqwest::RequestBuilder {
-    let base = control_base_url.trim_end_matches('/');
-    let path = if path.starts_with('/') {
+    let base_url = reqwest::Url::parse(control_base_url)
+        .expect("control plane URL should be validated during config load");
+    validate_remote_url(&base_url, "crowd_upload_control_base_url")
+        .expect("control plane URL should remain valid after config load");
+    let request_path = if path.starts_with('/') {
         path.to_string()
     } else {
         format!("/{path}")
     };
-    let url = format!("{base}{path}");
+    let url = base_url
+        .join(request_path.trim_start_matches('/'))
+        .expect("fixed control plane path should be joinable");
     let method = reqwest::Method::from_bytes(method.as_bytes()).unwrap_or(reqwest::Method::POST);
     let mut request = state.http_client.request(method, url);
     if let Some(token) = state

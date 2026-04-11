@@ -1,5 +1,5 @@
 use std::collections::{HashMap, HashSet, VecDeque};
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 use std::time::Duration;
 
 use base64::Engine;
@@ -467,12 +467,19 @@ impl SessionRecorder {
         protocol: &ProtocolVersionInfo,
         cfg: &Config,
     ) -> Result<(), String> {
-        if trip_id.trim().is_empty() || session_id.trim().is_empty() {
+        let safe_session_id = session_id.trim();
+        if trip_id.trim().is_empty() || safe_session_id.is_empty() {
             return Err("session recorder requires non-empty trip_id/session_id".to_string());
         }
-        path_safety::validate_path_component(session_id, "session_id")?;
+        if matches!(safe_session_id, "." | "..")
+            || safe_session_id
+                .chars()
+                .any(|ch| matches!(ch, '/' | '\\' | '\0' | '\n' | '\r'))
+        {
+            return Err(format!("invalid session_id: {safe_session_id}"));
+        }
         if let Some(active) = guard.as_ref() {
-            if active.trip_id == trip_id && active.session_id == session_id {
+            if active.trip_id == trip_id && active.session_id == safe_session_id {
                 return Ok(());
             }
         }
@@ -484,7 +491,9 @@ impl SessionRecorder {
             }
             active.flush_pending_csi_chunk(cfg).await?;
         }
-        *guard = Some(ActiveSession::start(data_dir, trip_id, session_id, protocol, cfg).await?);
+        *guard = Some(
+            ActiveSession::start(data_dir, trip_id, safe_session_id, protocol, cfg).await?,
+        );
         Ok(())
     }
 
@@ -2546,7 +2555,14 @@ impl ActiveSession {
     }
 
     async fn calibration_flags(&self) -> (bool, bool, bool) {
-        let calibration_dir = self.base_dir.join("calibration");
+        let base_dir = self.base_dir.clone();
+        if base_dir
+            .components()
+            .any(|component| matches!(component, Component::CurDir | Component::ParentDir))
+        {
+            return (false, false, false);
+        }
+        let calibration_dir = base_dir.join("calibration");
         let has_iphone_calibration =
             tokio::fs::metadata(calibration_dir.join("iphone_capture.json"))
                 .await
@@ -2774,7 +2790,23 @@ impl ActiveSession {
         protocol: &ProtocolVersionInfo,
         cfg: &Config,
     ) -> Result<Self, String> {
-        let base_dir = path_safety::session_base_dir(data_dir, session_id)?;
+        let session_id = session_id.trim();
+        if session_id.is_empty()
+            || matches!(session_id, "." | "..")
+            || session_id
+                .chars()
+                .any(|ch| matches!(ch, '/' | '\\' | '\0' | '\n' | '\r'))
+        {
+            return Err(format!("invalid session_id: {session_id}"));
+        }
+        let data_dir = data_dir.to_path_buf();
+        if data_dir
+            .components()
+            .any(|component| matches!(component, Component::CurDir | Component::ParentDir))
+        {
+            return Err(format!("非法 data_dir: {}", data_dir.display()));
+        }
+        let base_dir = data_dir.join("session").join(session_id);
         let labels_dir = base_dir.join("labels");
         let raw_iphone_dir = base_dir.join("raw").join("iphone");
         let raw_iphone_wide_dir = raw_iphone_dir.join("wide");
@@ -3951,9 +3983,16 @@ impl ActiveSession {
     }
 
     async fn ensure_semantic_bundle_scaffold(&self, cfg: &Config) -> Result<(), String> {
-        let derived_vision_dir = self.base_dir.join("derived").join("vision");
+        let base_dir = self.base_dir.clone();
+        if base_dir
+            .components()
+            .any(|component| matches!(component, Component::CurDir | Component::ParentDir))
+        {
+            return Err(format!("非法 session 目录: {}", base_dir.display()));
+        }
+        let derived_vision_dir = base_dir.join("derived").join("vision");
         let derived_vision_embeddings_dir = derived_vision_dir.join("embeddings");
-        let preview_dir = self.base_dir.join("preview");
+        let preview_dir = base_dir.join("preview");
         let preview_keyframes_dir = preview_dir.join("keyframes");
         let preview_clips_dir = preview_dir.join("clips");
         for dir in [
@@ -3980,6 +4019,13 @@ impl ActiveSession {
     }
 
     async fn refresh_offline_manifest(&self) -> Result<(), String> {
+        let base_dir = self.base_dir.as_path();
+        if base_dir
+            .components()
+            .any(|component| matches!(component, Component::CurDir | Component::ParentDir))
+        {
+            return Err(format!("非法 session 目录: {}", base_dir.display()));
+        }
         let manifest = OfflineManifest {
             ty: "offline_manifest",
             schema_version: "1.0.0",
@@ -4037,7 +4083,7 @@ impl ActiveSession {
         };
         let value = serde_json::to_value(manifest).map_err(|e| e.to_string())?;
         Self::write_json_pretty(
-            self.base_dir
+            base_dir
                 .join("derived")
                 .join("offline")
                 .join("offline_manifest.json"),
@@ -4051,6 +4097,13 @@ impl ActiveSession {
         protocol: &ProtocolVersionInfo,
         cfg: &Config,
     ) -> Result<(), String> {
+        let base_dir = self.base_dir.clone();
+        if base_dir
+            .components()
+            .any(|component| matches!(component, Component::CurDir | Component::ParentDir))
+        {
+            return Err(format!("非法 session 目录: {}", base_dir.display()));
+        }
         self.hydrate_session_context_from_disk(cfg).await?;
         self.refresh_offline_manifest().await?;
         let mut calibration_snapshot_paths = vec!["calibration/edge_frames.json".to_string()];
@@ -4058,7 +4111,7 @@ impl ActiveSession {
             calibration_snapshot_paths.push("calibration/iphone_capture.json".to_string());
         }
         if tokio::fs::metadata(
-            self.base_dir
+            base_dir
                 .join("calibration")
                 .join("iphone_fisheye.json"),
         )
@@ -4283,7 +4336,14 @@ impl ActiveSession {
     }
 
     async fn refresh_upload_manifest(&self, cfg: &Config) -> Result<(), String> {
-        let quality_path = self.base_dir.join("qa").join("local_quality_report.json");
+        let base_dir = self.base_dir.as_path();
+        if base_dir
+            .components()
+            .any(|component| matches!(component, Component::CurDir | Component::ParentDir))
+        {
+            return Err(format!("非法 session 目录: {}", base_dir.display()));
+        }
+        let quality_path = base_dir.join("qa").join("local_quality_report.json");
         let quality_status = match tokio::fs::read_to_string(&quality_path).await {
             Ok(content) => serde_json::from_str::<serde_json::Value>(&content)
                 .ok()
@@ -4315,13 +4375,20 @@ impl ActiveSession {
         };
         let value = serde_json::to_value(manifest).map_err(|e| e.to_string())?;
         Self::write_json_pretty(
-            self.base_dir.join("upload").join("upload_manifest.json"),
+            base_dir.join("upload").join("upload_manifest.json"),
             &value,
         )
         .await
     }
 
     async fn refresh_upload_policy(&self, cfg: &Config) -> Result<(), String> {
+        let base_dir = self.base_dir.as_path();
+        if base_dir
+            .components()
+            .any(|component| matches!(component, Component::CurDir | Component::ParentDir))
+        {
+            return Err(format!("非法 session 目录: {}", base_dir.display()));
+        }
         let snapshot = UploadPolicySnapshot {
             ty: "upload_policy",
             schema_version: "1.0.0",
@@ -4339,7 +4406,7 @@ impl ActiveSession {
             ],
         };
         let value = serde_json::to_value(snapshot).map_err(|e| e.to_string())?;
-        Self::write_json_pretty(self.base_dir.join("qa").join("upload_policy.json"), &value).await
+        Self::write_json_pretty(base_dir.join("qa").join("upload_policy.json"), &value).await
     }
 
     async fn hydrate_session_context_from_disk(&mut self, cfg: &Config) -> Result<(), String> {
@@ -4353,18 +4420,40 @@ impl ActiveSession {
         &self,
         cfg: &Config,
     ) -> Result<Vec<LocalQualityCheck>, String> {
+        let base_dir = self.base_dir.clone();
+        if base_dir
+            .components()
+            .any(|component| matches!(component, Component::CurDir | Component::ParentDir))
+        {
+            return Err(format!("非法 session 目录: {}", base_dir.display()));
+        }
+        let session_root = PathBuf::from(&cfg.data_dir).join("session");
+        let canonical_session_root = tokio::fs::canonicalize(&session_root)
+            .await
+            .map_err(|e| format!("解析 session 根目录失败: {} ({e})", session_root.display()))?;
+        let canonical_base_dir = tokio::fs::canonicalize(&base_dir)
+            .await
+            .map_err(|e| format!("解析 session 目录失败: {} ({e})", base_dir.display()))?;
+        if !canonical_base_dir.starts_with(&canonical_session_root) {
+            return Err(format!(
+                "非法 session 目录: {} 不在 {} 下",
+                canonical_base_dir.display(),
+                canonical_session_root.display()
+            ));
+        }
         let line_counters = self.disk_line_counters().await?;
         let media_tracks_present = !self.collect_media_tracks().await?.is_empty();
-        let csi_packets_bytes =
-            tokio::fs::metadata(self.base_dir.join("raw").join("csi").join("packets.bin"))
-                .await
-                .map(|meta| meta.len())
-                .unwrap_or(0);
+        let csi_packets_path = canonical_base_dir.join("raw").join("csi").join("packets.bin");
+        let csi_packets_bytes = tokio::fs::metadata(&csi_packets_path)
+            .await
+            .map(|meta| meta.len())
+            .unwrap_or(0);
         let (has_iphone_calibration, _, _) = self.calibration_flags().await;
         let csi_index_summary =
-            summarize_csi_index(self.base_dir.join("raw").join("csi").join("index.jsonl")).await?;
+            summarize_csi_index(canonical_base_dir.join("raw").join("csi").join("index.jsonl"))
+                .await?;
         let fisheye_summary = summarize_media_index_frames(
-            self.base_dir
+            canonical_base_dir
                 .join("raw")
                 .join("iphone")
                 .join("fisheye")
@@ -5066,7 +5155,25 @@ impl ActiveSession {
         privacy_tier: &'static str,
         line_count: Option<u64>,
     ) -> Result<ArtifactSpecRecord, String> {
-        let path = path_safety::join_relative(&self.base_dir, relpath, "artifact relpath")?;
+        let base_dir = self.base_dir.as_path();
+        if base_dir
+            .components()
+            .any(|component| matches!(component, Component::CurDir | Component::ParentDir))
+        {
+            return Err(format!("非法 session 目录: {}", base_dir.display()));
+        }
+        let relpath_path = Path::new(relpath);
+        let mut safe_relpath = PathBuf::new();
+        for component in relpath_path.components() {
+            match component {
+                Component::Normal(part) => safe_relpath.push(part),
+                Component::CurDir
+                | Component::ParentDir
+                | Component::RootDir
+                | Component::Prefix(_) => return Err("artifact relpath 必须是受限的相对路径".to_string()),
+            }
+        }
+        let path = base_dir.join(&safe_relpath);
         let metadata = tokio::fs::metadata(&path).await.ok();
         Ok(ArtifactSpecRecord {
             id: id.to_string(),
@@ -5081,12 +5188,19 @@ impl ActiveSession {
     }
 
     async fn collect_media_tracks(&self) -> Result<Vec<DemoBundleMediaTrack>, String> {
+        let base_dir = self.base_dir.as_path();
+        if base_dir
+            .components()
+            .any(|component| matches!(component, Component::CurDir | Component::ParentDir))
+        {
+            return Err(format!("非法 session 目录: {}", base_dir.display()));
+        }
         let mut tracks = Vec::new();
         for template in MEDIA_TRACK_TEMPLATES {
             let storage_track = normalized_track_storage_name(template.scope, template.track);
             let media_index_relpath =
                 format!("raw/{}/{}/media_index.jsonl", template.scope, storage_track);
-            let media_index_path = self.base_dir.join(&media_index_relpath);
+            let media_index_path = base_dir.join(&media_index_relpath);
             let include_track = self
                 .seen_media_tracks
                 .contains(&(template.scope.to_string(), template.track.to_string()))
@@ -6003,7 +6117,12 @@ async fn request_vlm_sidecar_inference(
 }
 
 async fn open_append(path: PathBuf) -> Result<tokio::fs::File, String> {
-    path_safety::ensure_no_relative_escape(&path, "append path")?;
+    if path
+        .components()
+        .any(|component| matches!(component, Component::CurDir | Component::ParentDir))
+    {
+        return Err("append path 不能包含 . 或 .. 路径段".to_string());
+    }
     tokio::fs::OpenOptions::new()
         .create(true)
         .append(true)
@@ -6013,7 +6132,12 @@ async fn open_append(path: PathBuf) -> Result<tokio::fs::File, String> {
 }
 
 async fn open_append_bin(path: PathBuf) -> Result<tokio::fs::File, String> {
-    path_safety::ensure_no_relative_escape(&path, "append binary path")?;
+    if path
+        .components()
+        .any(|component| matches!(component, Component::CurDir | Component::ParentDir))
+    {
+        return Err("append binary path 不能包含 . 或 .. 路径段".to_string());
+    }
     tokio::fs::OpenOptions::new()
         .create(true)
         .append(true)
@@ -6023,7 +6147,12 @@ async fn open_append_bin(path: PathBuf) -> Result<tokio::fs::File, String> {
 }
 
 async fn count_jsonl_lines(path: PathBuf) -> Result<u64, String> {
-    path_safety::ensure_no_relative_escape(&path, "jsonl path")?;
+    if path
+        .components()
+        .any(|component| matches!(component, Component::CurDir | Component::ParentDir))
+    {
+        return Err("jsonl path 不能包含 . 或 .. 路径段".to_string());
+    }
     match tokio::fs::read_to_string(&path).await {
         Ok(content) => Ok(content
             .lines()
@@ -6041,7 +6170,12 @@ struct CsiIndexSummary {
 }
 
 async fn summarize_csi_index(path: PathBuf) -> Result<CsiIndexSummary, String> {
-    path_safety::ensure_no_relative_escape(&path, "csi index path")?;
+    if path
+        .components()
+        .any(|component| matches!(component, Component::CurDir | Component::ParentDir))
+    {
+        return Err("csi index path 不能包含 . 或 .. 路径段".to_string());
+    }
     let content = match tokio::fs::read_to_string(&path).await {
         Ok(content) => content,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
@@ -6082,7 +6216,12 @@ struct MediaIndexSummary {
 }
 
 async fn summarize_media_index_frames(path: PathBuf) -> Result<MediaIndexSummary, String> {
-    path_safety::ensure_no_relative_escape(&path, "media index path")?;
+    if path
+        .components()
+        .any(|component| matches!(component, Component::CurDir | Component::ParentDir))
+    {
+        return Err("media index path 不能包含 . 或 .. 路径段".to_string());
+    }
     let content = match tokio::fs::read_to_string(&path).await {
         Ok(content) => content,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
@@ -6277,7 +6416,31 @@ async fn load_existing_session_identity(
 }
 
 async fn load_persisted_session_context(base_dir: &Path) -> Result<SessionCrowdContext, String> {
-    path_safety::ensure_session_dir_path(base_dir)?;
+    if base_dir
+        .components()
+        .any(|component| matches!(component, Component::CurDir | Component::ParentDir))
+    {
+        return Err(format!("非法 session 目录: {}", base_dir.display()));
+    }
+    let parent_name = base_dir
+        .parent()
+        .and_then(|path| path.file_name())
+        .and_then(|value| value.to_str());
+    if parent_name != Some("session") {
+        return Err(format!("非法 session 目录: {}", base_dir.display()));
+    }
+    let session_id = base_dir
+        .file_name()
+        .and_then(|value| value.to_str())
+        .ok_or_else(|| format!("非法 session 目录: {}", base_dir.display()))?;
+    if session_id.is_empty()
+        || matches!(session_id, "." | "..")
+        || session_id
+            .chars()
+            .any(|ch| matches!(ch, '/' | '\\' | '\0' | '\n' | '\r'))
+    {
+        return Err(format!("非法 session 目录: {}", base_dir.display()));
+    }
     let mut merged = SessionCrowdContext::default();
     for relpath in [
         "upload/upload_manifest.json",
