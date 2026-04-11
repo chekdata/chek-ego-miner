@@ -26,6 +26,15 @@ HOP_BY_HOP_HEADERS = {
     "transfer-encoding",
     "upgrade",
 }
+ALLOWED_UPSTREAM_RESPONSE_HEADERS = {
+    "cache-control": "Cache-Control",
+    "content-disposition": "Content-Disposition",
+    "content-encoding": "Content-Encoding",
+    "content-length": "Content-Length",
+    "content-type": "Content-Type",
+    "etag": "ETag",
+    "last-modified": "Last-Modified",
+}
 KNOWN_ASSET_EXTENSIONS = {
     ".css",
     ".gif",
@@ -92,6 +101,41 @@ def sanitize_header_value(value: str) -> str:
     return value.replace("\r", "").replace("\n", "")
 
 
+def is_safe_proxy_token(value: str) -> bool:
+    if not value:
+        return True
+    sanitized = (
+        value.replace("-", "")
+        .replace("_", "")
+        .replace(".", "")
+        .replace("~", "")
+    )
+    return sanitized.isalnum()
+
+
+def normalize_asset_request_key(raw_path: str) -> str | None:
+    value = raw_path.strip("/")
+    if not value:
+        return ""
+    normalized = posixpath.normpath("/" + value).lstrip("/")
+    if not normalized:
+        return ""
+    for segment in normalized.split("/"):
+        if not segment or segment in {".", ".."} or not is_safe_proxy_token(segment):
+            return None
+    return normalized
+
+
+def build_dist_file_index(dist_dir: Path) -> dict[str, str]:
+    dist_root = dist_dir.resolve()
+    files: dict[str, str] = {}
+    for path in dist_root.rglob("*"):
+        if not path.is_file():
+            continue
+        files[path.relative_to(dist_root).as_posix()] = os.path.realpath(path)
+    return files
+
+
 def sanitize_proxy_suffix(raw_suffix: str) -> str:
     normalized = posixpath.normpath("/" + raw_suffix.lstrip("/"))
     if not normalized.startswith("/"):
@@ -100,7 +144,7 @@ def sanitize_proxy_suffix(raw_suffix: str) -> str:
     for segment in normalized.split("/"):
         if not segment:
             continue
-        if segment == "..":
+        if segment == ".." or not is_safe_proxy_token(segment):
             raise ValueError("invalid proxy path")
         encoded_segments.append(quote(segment, safe="-._~"))
     suffix = "/" + "/".join(encoded_segments)
@@ -112,7 +156,11 @@ def sanitize_proxy_suffix(raw_suffix: str) -> str:
 def sanitize_proxy_query(raw_query: str) -> str:
     if not raw_query:
         return ""
-    return urlencode(parse_qsl(raw_query, keep_blank_values=True), doseq=True, safe="-._~")
+    pairs = parse_qsl(raw_query, keep_blank_values=True)
+    for key, value in pairs:
+        if not is_safe_proxy_token(key) or not is_safe_proxy_token(value):
+            raise ValueError("invalid proxy query")
+    return urlencode(pairs, doseq=True, safe="-._~")
 
 
 def build_proxy_request_target(base_path: str, raw_suffix: str, raw_query: str) -> str:
@@ -265,22 +313,20 @@ class WorkstationHandler(BaseHTTPRequestHandler):
         self.serve_app(path, with_body)
 
     def serve_app(self, path: str, with_body: bool):
-        dist_root = os.path.realpath(self.server.config.dist_dir)
-        relative = path.lstrip("/")
-        target_path = os.path.join(dist_root, "index.html")
+        request_key = normalize_asset_request_key(path)
+        if request_key is None:
+            self.send_error(400, "invalid path")
+            return
+        target_path = self.server.config.dist_index_path
         cache_control = None
 
-        if relative:
-            normalized_relative = posixpath.normpath("/" + relative).lstrip("/")
-            candidate_path = os.path.normpath(os.path.join(dist_root, normalized_relative))
-            if candidate_path != dist_root and not candidate_path.startswith(dist_root + os.sep):
-                self.send_error(400, "invalid path")
-                return
-            if os.path.isfile(candidate_path):
-                target_path = candidate_path
-                if relative == "observatory.html" or relative.startswith("observatory/"):
+        if request_key:
+            mapped_path = self.server.config.dist_files.get(request_key)
+            if mapped_path is not None:
+                target_path = mapped_path
+                if request_key == "observatory.html" or request_key.startswith("observatory/"):
                     cache_control = "no-store"
-            elif os.path.splitext(candidate_path)[1] in KNOWN_ASSET_EXTENSIONS:
+            elif os.path.splitext(request_key)[1] in KNOWN_ASSET_EXTENSIONS:
                 self.send_error(404, "asset not found")
                 return
 
@@ -344,6 +390,19 @@ class WorkstationHandler(BaseHTTPRequestHandler):
         except ValueError:
             self.send_error(400, "invalid proxy path")
             return
+        request_target_token = (
+            request_target.replace("/", "")
+            .replace("-", "")
+            .replace("_", "")
+            .replace(".", "")
+            .replace("?", "")
+            .replace("&", "")
+            .replace("=", "")
+            .replace("~", "")
+        )
+        if request_target_token and not request_target_token.isalnum():
+            self.send_error(400, "invalid proxy path")
+            return
 
         body = None
         content_length = int(self.headers.get("Content-Length", "0") or "0")
@@ -376,7 +435,10 @@ class WorkstationHandler(BaseHTTPRequestHandler):
                     header_key = key.lower()
                     if header_key in HOP_BY_HOP_HEADERS:
                         continue
-                    self.send_header(key, sanitize_header_value(value))
+                    canonical_name = ALLOWED_UPSTREAM_RESPONSE_HEADERS.get(header_key)
+                    if canonical_name is None:
+                        continue
+                    self.send_header(canonical_name, sanitize_header_value(value))
                 self.end_headers()
                 if with_body and self.command != "HEAD":
                     shutil.copyfileobj(upstream, self.wfile)
@@ -428,6 +490,8 @@ def main():
 
     config = argparse.Namespace(
         dist_dir=dist_dir,
+        dist_files=build_dist_file_index(dist_dir),
+        dist_index_path=os.path.realpath(dist_dir / "index.html"),
         proxy_map={
             "/edge": validate_proxy_base(args.edge_http_base),
             "/sensing": validate_proxy_base(args.sensing_http_base),
