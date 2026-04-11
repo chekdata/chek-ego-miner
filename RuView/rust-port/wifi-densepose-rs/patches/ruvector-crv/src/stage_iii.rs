@@ -31,8 +31,7 @@ impl StageIIIEncoder {
     pub fn new(config: &CrvConfig) -> Self {
         let dim = config.dimensions;
         // Single GNN layer: input_dim -> hidden_dim, 1 head
-        let gnn_layer = RuvectorLayer::new(dim, dim, 1, 0.0)
-            .expect("ruvector-crv: valid GNN layer config (dim, dim, 1 head, 0.0 dropout)");
+        let gnn_layer = RuvectorLayer::new(dim, dim, 1, 0.0);
 
         Self { dim, gnn_layer }
     }
