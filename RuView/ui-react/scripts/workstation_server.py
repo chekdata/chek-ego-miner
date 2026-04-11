@@ -14,7 +14,7 @@ import time
 from dataclasses import dataclass
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import parse_qsl, quote, urlencode, urlsplit
+from urllib.parse import urlsplit
 
 HOP_BY_HOP_HEADERS = {
     "connection",
@@ -35,6 +35,20 @@ ALLOWED_UPSTREAM_RESPONSE_HEADERS = {
     "etag": "ETag",
     "last-modified": "Last-Modified",
 }
+ALLOWED_PROXY_PATHS = {
+    "/api/replay/session",
+    "/api/v1/model/info",
+    "/api/v1/pose/current",
+    "/api/v1/pose/zones/summary",
+    "/api/v1/recording/start",
+    "/api/v1/sensing/latest",
+    "/api/v1/stream/status",
+    "/api/v1/train/start",
+    "/api/v1/vital-signs",
+    "/association/hint",
+    "/health",
+}
+ALLOWED_PROXY_PATH_PREFIXES = ("/api/replay/frame/",)
 KNOWN_ASSET_EXTENSIONS = {
     ".css",
     ".gif",
@@ -136,44 +150,27 @@ def build_dist_file_index(dist_dir: Path) -> dict[str, str]:
     return files
 
 
-def sanitize_proxy_suffix(raw_suffix: str) -> str:
+def normalize_allowed_proxy_path(raw_suffix: str) -> str:
     normalized = posixpath.normpath("/" + raw_suffix.lstrip("/"))
-    if not normalized.startswith("/"):
-        raise ValueError("invalid proxy path")
-    encoded_segments: list[str] = []
-    for segment in normalized.split("/"):
-        if not segment:
+    if normalized in ALLOWED_PROXY_PATHS:
+        return normalized
+    for prefix in ALLOWED_PROXY_PATH_PREFIXES:
+        if not normalized.startswith(prefix):
             continue
-        if segment == ".." or not is_safe_proxy_token(segment):
-            raise ValueError("invalid proxy path")
-        encoded_segments.append(quote(segment, safe="-._~"))
-    suffix = "/" + "/".join(encoded_segments)
-    if raw_suffix.endswith("/") and suffix != "/" and not suffix.endswith("/"):
-        suffix += "/"
-    return suffix
+        remainder = normalized[len(prefix):]
+        if remainder and is_safe_proxy_token(remainder):
+            return normalized
+    raise ValueError("invalid proxy path")
 
 
-def sanitize_proxy_query(raw_query: str) -> str:
-    if not raw_query:
-        return ""
-    pairs = parse_qsl(raw_query, keep_blank_values=True)
-    for key, value in pairs:
-        if not is_safe_proxy_token(key) or not is_safe_proxy_token(value):
-            raise ValueError("invalid proxy query")
-    return urlencode(pairs, doseq=True, safe="-._~")
-
-
-def build_proxy_request_target(base_path: str, raw_suffix: str, raw_query: str) -> str:
-    suffix = sanitize_proxy_suffix(raw_suffix)
+def build_proxy_request_target(base_path: str, raw_suffix: str) -> str:
+    suffix = normalize_allowed_proxy_path(raw_suffix)
     if base_path == "/":
         request_target = suffix
     elif suffix == "/":
         request_target = base_path
     else:
         request_target = base_path.rstrip("/") + suffix
-    query = sanitize_proxy_query(raw_query)
-    if query:
-        request_target = f"{request_target}?{query}"
     return request_target
 
 
@@ -385,8 +382,11 @@ class WorkstationHandler(BaseHTTPRequestHandler):
     def proxy_request(self, prefix: str, target: ProxyTarget, with_body: bool):
         parsed = urlsplit(self.path)
         stripped = parsed.path[len(prefix):] or "/"
+        if parsed.query:
+            self.send_error(400, "proxy query is not supported")
+            return
         try:
-            request_target = build_proxy_request_target(target.base_path, stripped, parsed.query)
+            request_target = build_proxy_request_target(target.base_path, stripped)
         except ValueError:
             self.send_error(400, "invalid proxy path")
             return
