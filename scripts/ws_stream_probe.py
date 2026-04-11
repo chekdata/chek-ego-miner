@@ -95,6 +95,7 @@ def open_websocket(url: str, timeout: float) -> socket.socket:
     raw_sock = socket.create_connection((host, port), timeout=timeout)
     if scheme == "wss":
         context = ssl.create_default_context()
+        context.minimum_version = ssl.TLSVersion.TLSv1_2
         sock: socket.socket = context.wrap_socket(raw_sock, server_hostname=host)
     else:
         sock = raw_sock

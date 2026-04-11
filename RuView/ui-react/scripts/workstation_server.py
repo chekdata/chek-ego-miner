@@ -1,18 +1,20 @@
 #!/usr/bin/env python3
 
 import argparse
+import http.client
 import ipaddress
 import json
 import mimetypes
+import os
 import posixpath
 import shutil
+import ssl
 import subprocess
 import time
+from dataclasses import dataclass
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.error import HTTPError, URLError
-from urllib.parse import urlsplit, urlunsplit
-from urllib.request import Request, urlopen
+from urllib.parse import parse_qsl, quote, urlencode, urlsplit
 
 HOP_BY_HOP_HEADERS = {
     "connection",
@@ -44,25 +46,24 @@ KNOWN_ASSET_EXTENSIONS = {
 }
 
 
-def normalize_relative_path(raw_path: str) -> Path:
-    normalized = posixpath.normpath("/" + raw_path.lstrip("/")).lstrip("/")
-    return Path(normalized)
+@dataclass(frozen=True)
+class ProxyTarget:
+    scheme: str
+    host: str
+    port: int
+    base_path: str
 
 
-def safe_join(root: Path, raw_path: str) -> Path:
-    root = root.resolve()
-    candidate = (root / normalize_relative_path(raw_path)).resolve()
-    if candidate != root and root not in candidate.parents:
-        raise ValueError("path escapes root")
-    return candidate
-
-
-def validate_proxy_base(raw_url: str) -> str:
+def validate_proxy_base(raw_url: str) -> ProxyTarget:
     parsed = urlsplit(raw_url.strip())
     if parsed.scheme not in {"http", "https"}:
         raise ValueError("proxy base must use http or https")
     if not parsed.hostname:
         raise ValueError("proxy base must include a hostname")
+    if parsed.username or parsed.password:
+        raise ValueError("proxy base cannot include credentials")
+    if parsed.query or parsed.fragment:
+        raise ValueError("proxy base cannot include query or fragment")
     if parsed.scheme == "http":
         host = parsed.hostname
         try:
@@ -72,23 +73,66 @@ def validate_proxy_base(raw_url: str) -> str:
         except ValueError:
             if host.lower() != "localhost":
                 raise ValueError("http proxy base must target localhost or a private address")
-    return parsed.geturl().rstrip("/")
+    port = parsed.port or (443 if parsed.scheme == "https" else 80)
+    base_path = parsed.path or "/"
+    if not base_path.startswith("/"):
+        raise ValueError("proxy base path must start with /")
+    base_path = posixpath.normpath(base_path)
+    if not base_path.startswith("/"):
+        raise ValueError("proxy base path is invalid")
+    return ProxyTarget(
+        scheme=parsed.scheme,
+        host=parsed.hostname,
+        port=port,
+        base_path=base_path,
+    )
 
 
 def sanitize_header_value(value: str) -> str:
     return value.replace("\r", "").replace("\n", "")
 
 
-def ensure_allowed_file_target(target: Path, allowed_roots: list[Path]) -> Path:
-    candidate = target.resolve()
-    for root in allowed_roots:
-        resolved_root = root.resolve()
-        if resolved_root.is_dir():
-            if candidate == resolved_root or resolved_root in candidate.parents:
-                return candidate
-        elif candidate == resolved_root:
-            return candidate
-    raise ValueError("file target is outside allowed roots")
+def sanitize_proxy_suffix(raw_suffix: str) -> str:
+    normalized = posixpath.normpath("/" + raw_suffix.lstrip("/"))
+    if not normalized.startswith("/"):
+        raise ValueError("invalid proxy path")
+    encoded_segments: list[str] = []
+    for segment in normalized.split("/"):
+        if not segment:
+            continue
+        if segment == "..":
+            raise ValueError("invalid proxy path")
+        encoded_segments.append(quote(segment, safe="-._~"))
+    suffix = "/" + "/".join(encoded_segments)
+    if raw_suffix.endswith("/") and suffix != "/" and not suffix.endswith("/"):
+        suffix += "/"
+    return suffix
+
+
+def sanitize_proxy_query(raw_query: str) -> str:
+    if not raw_query:
+        return ""
+    return urlencode(parse_qsl(raw_query, keep_blank_values=True), doseq=True, safe="-._~")
+
+
+def build_proxy_request_target(base_path: str, raw_suffix: str, raw_query: str) -> str:
+    suffix = sanitize_proxy_suffix(raw_suffix)
+    if base_path == "/":
+        request_target = suffix
+    elif suffix == "/":
+        request_target = base_path
+    else:
+        request_target = base_path.rstrip("/") + suffix
+    query = sanitize_proxy_query(raw_query)
+    if query:
+        request_target = f"{request_target}?{query}"
+    return request_target
+
+
+def build_https_context() -> ssl.SSLContext:
+    context = ssl.create_default_context()
+    context.minimum_version = ssl.TLSVersion.TLSv1_2
+    return context
 
 
 def run_command(args: list[str]) -> subprocess.CompletedProcess[str]:
@@ -206,7 +250,7 @@ class WorkstationHandler(BaseHTTPRequestHandler):
             return
 
         if path == "/stereo-preview.jpg":
-            self.send_file(self.server.config.stereo_preview_path, with_body, cache_control="no-store")
+            self.send_known_file(self.server.config.stereo_preview_path, with_body, cache_control="no-store")
             return
 
         if path == "/stereo-watchdog.json":
@@ -221,55 +265,70 @@ class WorkstationHandler(BaseHTTPRequestHandler):
         self.serve_app(path, with_body)
 
     def serve_app(self, path: str, with_body: bool):
-        dist_dir = self.server.config.dist_dir
+        dist_root = os.path.realpath(self.server.config.dist_dir)
         relative = path.lstrip("/")
-        target = None
+        target_path = os.path.join(dist_root, "index.html")
         cache_control = None
 
         if relative:
-            try:
-                candidate = safe_join(dist_dir, relative)
-            except ValueError:
+            normalized_relative = posixpath.normpath("/" + relative).lstrip("/")
+            candidate_path = os.path.normpath(os.path.join(dist_root, normalized_relative))
+            if candidate_path != dist_root and not candidate_path.startswith(dist_root + os.sep):
                 self.send_error(400, "invalid path")
                 return
-            if candidate.is_file():
-                target = candidate
+            if os.path.isfile(candidate_path):
+                target_path = candidate_path
                 if relative == "observatory.html" or relative.startswith("observatory/"):
                     cache_control = "no-store"
-            elif candidate.suffix in KNOWN_ASSET_EXTENSIONS:
+            elif os.path.splitext(candidate_path)[1] in KNOWN_ASSET_EXTENSIONS:
                 self.send_error(404, "asset not found")
                 return
 
-        if target is None:
-            target = dist_dir / "index.html"
-
-        self.send_file(target, with_body, cache_control=cache_control)
-
-    def send_file(self, target: Path, with_body: bool, cache_control: str | None = None):
-        try:
-            target = ensure_allowed_file_target(
-                target,
-                [
-                    self.server.config.dist_dir,
-                    self.server.config.stereo_preview_path,
-                    self.server.config.stereo_watchdog_status_path,
-                ],
-            )
-        except ValueError:
-            self.send_error(400, "invalid file target")
-            return
-        if not target.exists() or not target.is_file():
+        if not os.path.isfile(target_path):
             self.send_error(404, "file not found")
             return
+        try:
+            with open(target_path, "rb") as handle:
+                payload = handle.read()
+        except OSError:
+            self.send_error(500, "failed to read file")
+            return
 
-        content_type = mimetypes.guess_type(str(target))[0] or "application/octet-stream"
-        payload = target.read_bytes()
+        content_type = (mimetypes.guess_type(target_path)[0] or "application/octet-stream").replace(
+            "\r", ""
+        ).replace("\n", "")
+        self.send_payload(content_type, payload, with_body, cache_control, os.path.splitext(target_path)[1])
+
+    def send_known_file(self, target: Path, with_body: bool, cache_control: str | None = None):
+        target_path = os.fspath(target)
+        if not os.path.isfile(target_path):
+            self.send_error(404, "file not found")
+            return
+        try:
+            with open(target_path, "rb") as handle:
+                payload = handle.read()
+        except OSError:
+            self.send_error(500, "failed to read file")
+            return
+        content_type = (mimetypes.guess_type(target_path)[0] or "application/octet-stream").replace(
+            "\r", ""
+        ).replace("\n", "")
+        self.send_payload(content_type, payload, with_body, cache_control, os.path.splitext(target_path)[1])
+
+    def send_payload(
+        self,
+        content_type: str,
+        payload: bytes,
+        with_body: bool,
+        cache_control: str | None,
+        suffix: str,
+    ):
         self.send_response(200)
         self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(payload)))
         if cache_control is not None:
             self.send_header("Cache-Control", cache_control)
-        elif target.suffix == ".html":
+        elif suffix == ".html":
             self.send_header("Cache-Control", "no-store")
         else:
             self.send_header("Cache-Control", "public, max-age=3600")
@@ -277,27 +336,41 @@ class WorkstationHandler(BaseHTTPRequestHandler):
         if with_body:
             self.wfile.write(payload)
 
-    def proxy_request(self, prefix: str, target_base: str, with_body: bool):
+    def proxy_request(self, prefix: str, target: ProxyTarget, with_body: bool):
         parsed = urlsplit(self.path)
         stripped = parsed.path[len(prefix):] or "/"
-        upstream_url = target_base.rstrip("/") + stripped
-        if parsed.query:
-            upstream_url = urlunsplit(urlsplit(upstream_url)._replace(query=parsed.query))
+        try:
+            request_target = build_proxy_request_target(target.base_path, stripped, parsed.query)
+        except ValueError:
+            self.send_error(400, "invalid proxy path")
+            return
 
         body = None
         content_length = int(self.headers.get("Content-Length", "0") or "0")
         if content_length > 0:
             body = self.rfile.read(content_length)
 
-        request = Request(upstream_url, data=body, method=self.command)
+        headers: dict[str, str] = {}
         for key, value in self.headers.items():
             header_key = key.lower()
             if header_key in HOP_BY_HOP_HEADERS or header_key == "host":
                 continue
-            request.add_header(key, value)
+            headers[key] = sanitize_header_value(value)
 
+        connection: http.client.HTTPConnection | None = None
         try:
-            with urlopen(request, timeout=120) as upstream:
+            if target.scheme == "https":
+                connection = http.client.HTTPSConnection(
+                    target.host,
+                    target.port,
+                    timeout=120,
+                    context=build_https_context(),
+                )
+            else:
+                connection = http.client.HTTPConnection(target.host, target.port, timeout=120)
+            connection.request(self.command, request_target, body=body, headers=headers)
+            upstream = connection.getresponse()
+            try:
                 self.send_response(upstream.status)
                 for key, value in upstream.headers.items():
                     header_key = key.lower()
@@ -307,20 +380,14 @@ class WorkstationHandler(BaseHTTPRequestHandler):
                 self.end_headers()
                 if with_body and self.command != "HEAD":
                     shutil.copyfileobj(upstream, self.wfile)
-        except HTTPError as error:
-            self.send_response(error.code)
-            for key, value in error.headers.items():
-                if key.lower() in HOP_BY_HOP_HEADERS:
-                    continue
-                self.send_header(key, sanitize_header_value(value))
-            payload = error.read()
-            self.send_header("Content-Length", str(len(payload)))
-            self.end_headers()
-            if with_body and self.command != "HEAD" and payload:
-                self.wfile.write(payload)
-        except URLError as error:
-            message = f"upstream unavailable: {error.reason}"
+            finally:
+                upstream.close()
+        except (http.client.HTTPException, OSError) as error:
+            message = f"upstream unavailable: {error}"
             self.send_error(502, message)
+        finally:
+            if connection is not None:
+                connection.close()
 
     def respond_json(self, status: int, payload: dict):
         body = json.dumps(payload).encode("utf-8")
