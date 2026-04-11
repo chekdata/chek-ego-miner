@@ -4420,25 +4420,40 @@ impl ActiveSession {
         &self,
         cfg: &Config,
     ) -> Result<Vec<LocalQualityCheck>, String> {
-        let base_dir = self.base_dir.as_path();
+        let base_dir = self.base_dir.clone();
         if base_dir
             .components()
             .any(|component| matches!(component, Component::CurDir | Component::ParentDir))
         {
             return Err(format!("非法 session 目录: {}", base_dir.display()));
         }
+        let session_root = PathBuf::from(&cfg.data_dir).join("session");
+        let canonical_session_root = tokio::fs::canonicalize(&session_root)
+            .await
+            .map_err(|e| format!("解析 session 根目录失败: {} ({e})", session_root.display()))?;
+        let canonical_base_dir = tokio::fs::canonicalize(&base_dir)
+            .await
+            .map_err(|e| format!("解析 session 目录失败: {} ({e})", base_dir.display()))?;
+        if !canonical_base_dir.starts_with(&canonical_session_root) {
+            return Err(format!(
+                "非法 session 目录: {} 不在 {} 下",
+                canonical_base_dir.display(),
+                canonical_session_root.display()
+            ));
+        }
         let line_counters = self.disk_line_counters().await?;
         let media_tracks_present = !self.collect_media_tracks().await?.is_empty();
-        let csi_packets_bytes =
-            tokio::fs::metadata(base_dir.join("raw").join("csi").join("packets.bin"))
-                .await
-                .map(|meta| meta.len())
-                .unwrap_or(0);
+        let csi_packets_path = canonical_base_dir.join("raw").join("csi").join("packets.bin");
+        let csi_packets_bytes = tokio::fs::metadata(&csi_packets_path)
+            .await
+            .map(|meta| meta.len())
+            .unwrap_or(0);
         let (has_iphone_calibration, _, _) = self.calibration_flags().await;
         let csi_index_summary =
-            summarize_csi_index(base_dir.join("raw").join("csi").join("index.jsonl")).await?;
+            summarize_csi_index(canonical_base_dir.join("raw").join("csi").join("index.jsonl"))
+                .await?;
         let fisheye_summary = summarize_media_index_frames(
-            base_dir
+            canonical_base_dir
                 .join("raw")
                 .join("iphone")
                 .join("fisheye")
