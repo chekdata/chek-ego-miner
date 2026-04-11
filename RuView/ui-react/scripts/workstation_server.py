@@ -35,20 +35,6 @@ ALLOWED_UPSTREAM_RESPONSE_HEADERS = {
     "etag": "ETag",
     "last-modified": "Last-Modified",
 }
-ALLOWED_PROXY_PATHS = {
-    "/api/replay/session",
-    "/api/v1/model/info",
-    "/api/v1/pose/current",
-    "/api/v1/pose/zones/summary",
-    "/api/v1/recording/start",
-    "/api/v1/sensing/latest",
-    "/api/v1/stream/status",
-    "/api/v1/train/start",
-    "/api/v1/vital-signs",
-    "/association/hint",
-    "/health",
-}
-ALLOWED_PROXY_PATH_PREFIXES = ("/api/replay/frame/",)
 KNOWN_ASSET_EXTENSIONS = {
     ".css",
     ".gif",
@@ -150,21 +136,39 @@ def build_dist_file_index(dist_dir: Path) -> dict[str, str]:
     return files
 
 
-def normalize_allowed_proxy_path(raw_suffix: str) -> str:
+def normalize_proxy_path(raw_suffix: str) -> str:
     normalized = posixpath.normpath("/" + raw_suffix.lstrip("/"))
-    if normalized in ALLOWED_PROXY_PATHS:
-        return normalized
-    for prefix in ALLOWED_PROXY_PATH_PREFIXES:
-        if not normalized.startswith(prefix):
-            continue
-        remainder = normalized[len(prefix):]
-        if remainder and is_safe_proxy_token(remainder):
-            return normalized
+    if normalized == "/api/replay/session":
+        return "/api/replay/session"
+    if normalized == "/api/v1/model/info":
+        return "/api/v1/model/info"
+    if normalized == "/api/v1/pose/current":
+        return "/api/v1/pose/current"
+    if normalized == "/api/v1/pose/zones/summary":
+        return "/api/v1/pose/zones/summary"
+    if normalized == "/api/v1/recording/start":
+        return "/api/v1/recording/start"
+    if normalized == "/api/v1/sensing/latest":
+        return "/api/v1/sensing/latest"
+    if normalized == "/api/v1/stream/status":
+        return "/api/v1/stream/status"
+    if normalized == "/api/v1/train/start":
+        return "/api/v1/train/start"
+    if normalized == "/api/v1/vital-signs":
+        return "/api/v1/vital-signs"
+    if normalized == "/association/hint":
+        return "/association/hint"
+    if normalized == "/health":
+        return "/health"
+    if normalized.startswith("/api/replay/frame/"):
+        frame_id = normalized.removeprefix("/api/replay/frame/")
+        if frame_id.isdigit():
+            return f"/api/replay/frame/{frame_id}"
     raise ValueError("invalid proxy path")
 
 
 def build_proxy_request_target(base_path: str, raw_suffix: str) -> str:
-    suffix = normalize_allowed_proxy_path(raw_suffix)
+    suffix = normalize_proxy_path(raw_suffix)
     if base_path == "/":
         request_target = suffix
     elif suffix == "/":
