@@ -10,6 +10,7 @@ use serde_json::{json, Map, Value};
 use tokio::process::Command;
 
 use crate::calibration::IphoneStereoExtrinsic;
+use crate::path_safety;
 use crate::sensing::{StereoTrackedPersonSnapshot, VisionDevicePose};
 use crate::{AppState, SimTrackingCarrySnapshot};
 
@@ -146,9 +147,12 @@ async fn serve_latest_retarget(State(state): State<AppState>) -> Response {
         &current_session.trip_id,
         &current_session.session_id,
     );
-    let operator = state
-        .operator
-        .snapshot(state.config.vision_stale_ms.max(state.config.stereo_stale_ms));
+    let operator = state.operator.snapshot(
+        state
+            .config
+            .vision_stale_ms
+            .max(state.config.stereo_stale_ms),
+    );
     let vision = state.vision.snapshot(state.config.vision_stale_ms);
     let stereo = state.stereo.snapshot(state.config.stereo_stale_ms);
     let wifi_pose = state.wifi_pose.snapshot(state.config.wifi_pose_stale_ms);
@@ -446,20 +450,17 @@ fn build_live_session_context(
     trip_id: &str,
     session_id: &str,
 ) -> Option<LiveSessionContext> {
-    let session_id = session_id.trim();
-    if session_id.is_empty() {
-        return None;
-    }
+    let session_id = path_safety::validate_path_component(session_id, "session_id").ok()?;
     let trip_id = if trip_id.trim().is_empty() {
-        session_id.to_string()
+        session_id.clone()
     } else {
         trip_id.trim().to_string()
     };
     let session_root = PathBuf::from(state.config.data_dir.trim()).join("session");
-    let session_dir = session_root.join(session_id);
+    let session_dir = session_root.join(&session_id);
     Some(LiveSessionContext {
         trip_id,
-        session_id: session_id.to_string(),
+        session_id,
         session_dir,
     })
 }

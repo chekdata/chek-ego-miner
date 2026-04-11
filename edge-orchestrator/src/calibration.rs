@@ -6,6 +6,8 @@ use nalgebra::{Matrix3, Rotation3, UnitQuaternion, Vector3};
 use serde::{Deserialize, Serialize};
 use tracing::warn;
 
+use crate::path_safety;
+
 const IPHONE_SIMILARITY_MIN_SCALE: f32 = 0.75;
 const IPHONE_SIMILARITY_MAX_SCALE: f32 = 1.25;
 const IPHONE_SIMILARITY_MAX_RMS_FACTOR: f32 = 0.92;
@@ -76,14 +78,20 @@ pub struct WifiStereoCalibrationStore {
 impl WifiStereoCalibrationStore {
     pub fn new(path: impl Into<PathBuf>) -> Self {
         let path = path.into();
-        let loaded = fs::read_to_string(&path)
+        let safe_path = path_safety::ensure_no_relative_escape(&path, "wifi_stereo_extrinsic_path")
+            .map(|_| path.clone())
+            .unwrap_or_else(|error| {
+                warn!(error=%error, path=%path.display(), "invalid wifi-stereo calibration path; using inert path");
+                PathBuf::from("runtime/invalid_wifi_stereo_extrinsic.json")
+            });
+        let loaded = fs::read_to_string(&safe_path)
             .ok()
             .and_then(|raw| serde_json::from_str::<WifiStereoExtrinsic>(&raw).ok());
-        if loaded.is_none() && path.exists() {
-            warn!(path=%path.display(), "failed to load wifi-stereo extrinsic; continuing without calibration");
+        if loaded.is_none() && safe_path.exists() {
+            warn!(path=%safe_path.display(), "failed to load wifi-stereo extrinsic; continuing without calibration");
         }
         Self {
-            path,
+            path: safe_path,
             inner: RwLock::new(loaded),
         }
     }
@@ -96,6 +104,8 @@ impl WifiStereoCalibrationStore {
     }
 
     pub fn save(&self, calibration: WifiStereoExtrinsic) -> anyhow::Result<()> {
+        path_safety::ensure_no_relative_escape(&self.path, "wifi_stereo_extrinsic_path")
+            .map_err(anyhow::Error::msg)?;
         if let Some(parent) = self.path.parent() {
             fs::create_dir_all(parent)?;
         }
@@ -116,14 +126,20 @@ impl WifiStereoCalibrationStore {
 impl IphoneStereoCalibrationStore {
     pub fn new(path: impl Into<PathBuf>) -> Self {
         let path = path.into();
-        let loaded = fs::read_to_string(&path)
+        let safe_path = path_safety::ensure_no_relative_escape(&path, "iphone_stereo_extrinsic_path")
+            .map(|_| path.clone())
+            .unwrap_or_else(|error| {
+                warn!(error=%error, path=%path.display(), "invalid iphone-stereo calibration path; using inert path");
+                PathBuf::from("runtime/invalid_iphone_stereo_extrinsic.json")
+            });
+        let loaded = fs::read_to_string(&safe_path)
             .ok()
             .and_then(|raw| serde_json::from_str::<IphoneStereoExtrinsic>(&raw).ok());
-        if loaded.is_none() && path.exists() {
-            warn!(path=%path.display(), "failed to load iphone-stereo extrinsic; continuing without calibration");
+        if loaded.is_none() && safe_path.exists() {
+            warn!(path=%safe_path.display(), "failed to load iphone-stereo extrinsic; continuing without calibration");
         }
         Self {
-            path,
+            path: safe_path,
             inner: RwLock::new(loaded),
         }
     }
@@ -136,6 +152,8 @@ impl IphoneStereoCalibrationStore {
     }
 
     pub fn save(&self, calibration: IphoneStereoExtrinsic) -> anyhow::Result<()> {
+        path_safety::ensure_no_relative_escape(&self.path, "iphone_stereo_extrinsic_path")
+            .map_err(anyhow::Error::msg)?;
         if let Some(parent) = self.path.parent() {
             fs::create_dir_all(parent)?;
         }

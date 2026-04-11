@@ -4,6 +4,7 @@ use std::process::{Child, Command, Stdio};
 use std::time::Duration;
 
 use anyhow::{anyhow, Context};
+use serde::de::DeserializeOwned;
 
 pub mod ws_harness;
 
@@ -85,6 +86,32 @@ impl TestServer {
     pub fn kill(&mut self) {
         let _ = self.child.kill();
     }
+
+    pub fn endpoint(&self, path: &str) -> anyhow::Result<String> {
+        if !path.starts_with('/') {
+            return Err(anyhow!("测试请求路径必须以 / 开头: {path}"));
+        }
+        if path.contains('\r') || path.contains('\n') {
+            return Err(anyhow!("测试请求路径不能包含换行符"));
+        }
+        let url = reqwest::Url::parse(&self.http_base)
+            .with_context(|| format!("解析测试 http_base 失败: {}", self.http_base))?;
+        let host = url
+            .host_str()
+            .ok_or_else(|| anyhow!("测试 http_base 缺少主机: {}", self.http_base))?;
+        let is_loopback = host.eq_ignore_ascii_case("localhost")
+            || host
+                .parse::<std::net::IpAddr>()
+                .map(|ip| ip.is_loopback())
+                .unwrap_or(false);
+        if url.scheme() != "http" || !is_loopback {
+            return Err(anyhow!(
+                "测试 http_base 只允许使用 loopback http 地址: {}",
+                self.http_base
+            ));
+        }
+        Ok(format!("{}{}", self.http_base, path))
+    }
 }
 
 impl Drop for TestServer {
@@ -116,6 +143,22 @@ pub async fn enable_full_teleop_profile(
         .await?
         .error_for_status()?;
     Ok(())
+}
+
+pub async fn authed_get_json<T: DeserializeOwned>(
+    client: &reqwest::Client,
+    server: &TestServer,
+    path: &str,
+) -> anyhow::Result<T> {
+    client
+        .get(server.endpoint(path)?)
+        .bearer_auth(&server.edge_token)
+        .send()
+        .await?
+        .error_for_status()?
+        .json::<T>()
+        .await
+        .map_err(Into::into)
 }
 
 fn pick_free_port() -> anyhow::Result<u16> {

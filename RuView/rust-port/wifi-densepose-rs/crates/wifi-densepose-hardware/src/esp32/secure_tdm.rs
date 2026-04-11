@@ -619,42 +619,48 @@ mod tests {
     #[test]
     fn test_replay_window_accept_first() {
         let mut rw = ReplayWindow::new(16);
-        assert!(rw.accept(0)); // First nonce accepted
+        let first_nonce = u32::MIN;
+        assert!(rw.accept(first_nonce)); // First nonce accepted
         assert_eq!(rw.window_count(), 1);
     }
 
     #[test]
     fn test_replay_window_monotonic() {
         let mut rw = ReplayWindow::new(16);
-        assert!(rw.accept(1));
-        assert!(rw.accept(2));
-        assert!(rw.accept(3));
+        let nonces = [1_u32, 2_u32, 3_u32];
+        for nonce in nonces {
+            assert!(rw.accept(nonce));
+        }
         assert_eq!(rw.last_accepted(), 3);
     }
 
     #[test]
     fn test_replay_window_reject_duplicate() {
         let mut rw = ReplayWindow::new(16);
-        assert!(rw.accept(1));
-        assert!(!rw.accept(1)); // Duplicate rejected
+        let nonce = 1_u32;
+        assert!(rw.accept(nonce));
+        assert!(!rw.accept(nonce)); // Duplicate rejected
     }
 
     #[test]
     fn test_replay_window_accept_within_window() {
         let mut rw = ReplayWindow::new(16);
-        assert!(rw.accept(5));
-        assert!(rw.accept(3)); // Out of order but within window
+        let newest_nonce = 5_u32;
+        let within_window_nonce = 3_u32;
+        assert!(rw.accept(newest_nonce));
+        assert!(rw.accept(within_window_nonce)); // Out of order but within window
         assert_eq!(rw.last_accepted(), 5);
     }
 
     #[test]
     fn test_replay_window_reject_too_old() {
         let mut rw = ReplayWindow::new(4);
-        for i in 0..20 {
-            rw.accept(i);
+        for nonce in 0_u32..20_u32 {
+            rw.accept(nonce);
         }
         // Nonce 0 is way outside the window
-        assert!(!rw.accept(0));
+        let stale_nonce = 0_u32;
+        assert!(!rw.accept(stale_nonce));
     }
 
     #[test]

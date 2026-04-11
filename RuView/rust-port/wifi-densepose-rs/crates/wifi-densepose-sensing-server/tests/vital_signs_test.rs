@@ -162,8 +162,7 @@ fn test_heartbeat_detection_synthetic() {
     if let Some(bpm) = vitals.heart_rate_bpm {
         assert!(
             bpm >= 40.0 && bpm <= 120.0,
-            "detected heart rate {:.1} BPM should be in physiological range [40, 120]",
-            bpm
+            "detected heart rate should be in physiological range [40, 120]"
         );
     }
 
@@ -210,8 +209,7 @@ fn test_combined_vital_signs() {
     if let Some(hb_bpm) = vitals.heart_rate_bpm {
         assert!(
             hb_bpm >= 40.0 && hb_bpm <= 120.0,
-            "heartbeat {:.1} BPM should be in range [40, 120]",
-            hb_bpm
+            "heartbeat should be in range [40, 120]"
         );
     }
 }

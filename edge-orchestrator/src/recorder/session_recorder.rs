@@ -13,6 +13,7 @@ use tokio::task::JoinHandle;
 use tracing::{debug, warn};
 
 use crate::config::Config;
+use crate::path_safety;
 use crate::protocol::version_guard::ProtocolVersionInfo;
 use crate::recorder::upload_queue;
 
@@ -317,6 +318,10 @@ impl SessionRecorder {
             if !file_type.is_dir() {
                 continue;
             }
+            if let Err(error) = path_safety::ensure_session_dir_path(&entry_path) {
+                warn!(path=%entry_path.display(), error=%error, "skipping invalid session directory during repair");
+                continue;
+            }
             results.push(Self::repair_existing_session_dir(&entry_path, protocol, cfg).await?);
         }
         results.sort_by(|a, b| a.session_id.cmp(&b.session_id));
@@ -347,6 +352,7 @@ impl SessionRecorder {
         protocol: &ProtocolVersionInfo,
         cfg: &Config,
     ) -> Result<SessionRepairResult, String> {
+        path_safety::ensure_session_dir_path(base_dir)?;
         let session_id = base_dir
             .file_name()
             .and_then(|value| value.to_str())
@@ -464,6 +470,7 @@ impl SessionRecorder {
         if trip_id.trim().is_empty() || session_id.trim().is_empty() {
             return Err("session recorder requires non-empty trip_id/session_id".to_string());
         }
+        path_safety::validate_path_component(session_id, "session_id")?;
         if let Some(active) = guard.as_ref() {
             if active.trip_id == trip_id && active.session_id == session_id {
                 return Ok(());
@@ -2767,7 +2774,7 @@ impl ActiveSession {
         protocol: &ProtocolVersionInfo,
         cfg: &Config,
     ) -> Result<Self, String> {
-        let base_dir = data_dir.join("session").join(session_id);
+        let base_dir = path_safety::session_base_dir(data_dir, session_id)?;
         let labels_dir = base_dir.join("labels");
         let raw_iphone_dir = base_dir.join("raw").join("iphone");
         let raw_iphone_wide_dir = raw_iphone_dir.join("wide");
@@ -5059,7 +5066,7 @@ impl ActiveSession {
         privacy_tier: &'static str,
         line_count: Option<u64>,
     ) -> Result<ArtifactSpecRecord, String> {
-        let path = self.base_dir.join(relpath);
+        let path = path_safety::join_relative(&self.base_dir, relpath, "artifact relpath")?;
         let metadata = tokio::fs::metadata(&path).await.ok();
         Ok(ArtifactSpecRecord {
             id: id.to_string(),
@@ -5996,6 +6003,7 @@ async fn request_vlm_sidecar_inference(
 }
 
 async fn open_append(path: PathBuf) -> Result<tokio::fs::File, String> {
+    path_safety::ensure_no_relative_escape(&path, "append path")?;
     tokio::fs::OpenOptions::new()
         .create(true)
         .append(true)
@@ -6005,6 +6013,7 @@ async fn open_append(path: PathBuf) -> Result<tokio::fs::File, String> {
 }
 
 async fn open_append_bin(path: PathBuf) -> Result<tokio::fs::File, String> {
+    path_safety::ensure_no_relative_escape(&path, "append binary path")?;
     tokio::fs::OpenOptions::new()
         .create(true)
         .append(true)
@@ -6014,6 +6023,7 @@ async fn open_append_bin(path: PathBuf) -> Result<tokio::fs::File, String> {
 }
 
 async fn count_jsonl_lines(path: PathBuf) -> Result<u64, String> {
+    path_safety::ensure_no_relative_escape(&path, "jsonl path")?;
     match tokio::fs::read_to_string(&path).await {
         Ok(content) => Ok(content
             .lines()
@@ -6031,6 +6041,7 @@ struct CsiIndexSummary {
 }
 
 async fn summarize_csi_index(path: PathBuf) -> Result<CsiIndexSummary, String> {
+    path_safety::ensure_no_relative_escape(&path, "csi index path")?;
     let content = match tokio::fs::read_to_string(&path).await {
         Ok(content) => content,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
@@ -6071,6 +6082,7 @@ struct MediaIndexSummary {
 }
 
 async fn summarize_media_index_frames(path: PathBuf) -> Result<MediaIndexSummary, String> {
+    path_safety::ensure_no_relative_escape(&path, "media index path")?;
     let content = match tokio::fs::read_to_string(&path).await {
         Ok(content) => content,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
@@ -6265,6 +6277,7 @@ async fn load_existing_session_identity(
 }
 
 async fn load_persisted_session_context(base_dir: &Path) -> Result<SessionCrowdContext, String> {
+    path_safety::ensure_session_dir_path(base_dir)?;
     let mut merged = SessionCrowdContext::default();
     for relpath in [
         "upload/upload_manifest.json",

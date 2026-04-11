@@ -573,8 +573,12 @@ pub fn run_benchmark(n_frames: usize) -> (std::time::Duration, std::time::Durati
         last_vital.breathing_rate_bpm
     );
     eprintln!(
-        "  Heart rate:           {:?} BPM",
-        last_vital.heart_rate_bpm
+        "  Heart rate detected:  {}",
+        if last_vital.heart_rate_bpm.is_some() {
+            "yes"
+        } else {
+            "no"
+        }
     );
     eprintln!(
         "  Breathing confidence: {:.3}",

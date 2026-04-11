@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import base64
 import hashlib
+import ipaddress
 import json
 import os
 import socket
@@ -26,7 +27,7 @@ def percentile(values: list[float], ratio: float) -> float:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Open multiple real WebSocket clients and record bounded fanout metrics.")
-    parser.add_argument("--url", required=True, help="ws://... or wss://... URL")
+    parser.add_argument("--url", required=True, help="WebSocket endpoint URL")
     parser.add_argument("--clients", type=int, default=4)
     parser.add_argument("--duration-seconds", type=float, default=8.0)
     parser.add_argument("--connect-timeout", type=float, default=5.0)
@@ -88,6 +89,8 @@ def open_websocket(url: str, timeout: float) -> socket.socket:
     path = parsed.path or "/"
     if parsed.query:
         path = f"{path}?{parsed.query}"
+    if scheme == "ws" and not is_loopback_or_private_host(host):
+        raise ValueError("plain ws:// connections are only allowed for localhost or private addresses")
 
     raw_sock = socket.create_connection((host, port), timeout=timeout)
     if scheme == "wss":
@@ -137,6 +140,16 @@ def open_websocket(url: str, timeout: float) -> socket.socket:
         raise ConnectionError("websocket handshake failed: invalid Sec-WebSocket-Accept")
 
     return sock
+
+
+def is_loopback_or_private_host(host: str) -> bool:
+    if host.lower() == "localhost":
+        return True
+    try:
+        ip = ipaddress.ip_address(host)
+    except ValueError:
+        return False
+    return ip.is_loopback or ip.is_private or ip.is_link_local
 
 
 def client_worker(url: str, timeout: float, duration_seconds: float, results: list[dict[str, object]], index: int, lock: threading.Lock) -> None:
