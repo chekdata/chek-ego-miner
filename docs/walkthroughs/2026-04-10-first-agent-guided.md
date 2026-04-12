@@ -1,35 +1,30 @@
-# 2026-04-10 First Agent-Guided Walkthrough
+# Agent-Guided Lite Walkthrough
 
 ## Scenario
 
-- Agent style: Codex-style step-by-step guidance
-- Tier: `Lite`
-- Prompt source: `prompts/install-lite.md`
+- tier: `Lite`
+- guidance style: one step at a time
+- prompt source: `prompts/install-lite.md`
 
-## Flow validated
+## Recommended flow
 
-1. Determine tier and host OS.
-2. Run host doctor.
-3. Run tier readiness.
-4. Point the user to the app download and hardware guide.
-5. Continue step by step instead of skipping to advanced setup.
+1. Confirm the tier and host OS.
+2. Run `doctor`.
+3. Run `readiness --tier lite`.
+4. Open the app download link and hardware guide.
+5. Continue step by step instead of jumping to advanced setup.
 
-## Commands executed
+## Commands you will usually see
 
 ```bash
-cd /Users/jasonhong/Desktop/开发项目/chek-ego-miner
-
 ./cli/chek-ego-miner doctor
 ./cli/chek-ego-miner readiness --tier lite
 ./cli/chek-ego-miner quickstart --tier lite
 ```
 
-## Result
+## What good guidance looks like
 
-- the public prompt and docs supported a real step-by-step agent workflow
-- the public CLI gave the agent enough host context to continue safely
-- the first recommended lane is now “app download -> doctor -> readiness -> quickstart -> agent guidance”
-- validated commands all passed on the current macOS host:
-  - `./cli/chek-ego-miner doctor`
-  - `./cli/chek-ego-miner readiness --tier lite`
-  - `./cli/chek-ego-miner quickstart --tier lite`
+- the assistant asks one question at a time
+- the assistant explains what each command is checking
+- the assistant waits for your result before continuing
+- the assistant keeps you on the Lite path until you are ready for more

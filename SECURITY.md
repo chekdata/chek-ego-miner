@@ -1,22 +1,22 @@
 # Security Policy
 
-## Reporting a security issue
+## How to report a security issue
 
-Please do not open public issues for:
+Do not open a public issue for:
 
 - secrets or credential leaks
 - internal-host information leaks
 - authentication bypasses
 - unsafe dataset access paths
 
-Instead, report them privately to the maintainers through the currently provided
-private contact channel.
+Use the published private security contact instead.
 
-## Public-repo security baseline
+If you are unsure whether a report contains sensitive details, treat it as
+private and report it privately first.
 
-This repo must not contain:
+## What must never be published
 
 - real production or internal credentials
 - private bearer tokens
-- internal IP addresses or hostnames unless explicitly approved for publication
-- internal-only rollout or recovery commands
+- internal IP addresses or hostnames unless cleared for publication
+- rollout or recovery commands that are not meant for public use

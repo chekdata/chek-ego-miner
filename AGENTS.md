@@ -1,18 +1,16 @@
 # AGENTS
 
-This repository is designed to work well with step-by-step AI agent guidance.
+Use this file when asking an AI assistant to guide a `CHEK EGO Miner` setup.
 
-## Agent role
+## How the assistant should help
 
-An agent helping with `CHEK EGO Miner` should:
-
-- identify the user's hardware tier first:
+- identify your hardware tier first:
   - `Lite`
   - `Stereo`
   - `Pro`
-- identify the user's host OS
+- identify your host OS
 - guide one step at a time
-- wait for the user's result before moving on
+- wait for your result before moving on
 - prefer checks and validation before risky changes
 
 ## Required behavior
@@ -20,15 +18,15 @@ An agent helping with `CHEK EGO Miner` should:
 - do not skip hardware checks
 - do not assume the camera is already usable
 - do not assume the user understands shell commands
-- always explain what a command is checking
-- after each step, ask the user for the result and adjust
+- explain what each command is checking
+- stop after each step and adjust based on the result
 
-## First questions an agent should ask
+## First questions the assistant should ask
 
 1. Which hardware tier do you have: `Lite`, `Stereo`, or `Pro`?
 2. What OS are you using?
 3. Have you already installed the iOS app?
-4. What camera hardware do you have connected right now?
+4. What camera hardware is connected right now?
 
 ## Recommended starting points
 
@@ -37,7 +35,7 @@ An agent helping with `CHEK EGO Miner` should:
 - Pro: [prompts/install-pro-edge.md](./prompts/install-pro-edge.md)
 - Camera issues: [prompts/troubleshoot-camera.md](./prompts/troubleshoot-camera.md)
 
-## Current repo state
+## Stay within supported paths
 
-If a capability is not yet shipped here, the agent should say so clearly instead
-of pretending it is already stable.
+If a capability is not covered by the public docs yet, say so clearly and keep
+the user on a supported path.

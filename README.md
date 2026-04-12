@@ -2,31 +2,27 @@
 
 # CHEK EGO Miner
 
-Crowdsource robot data scarcity.
-
-One phone plus one computer is enough to start the new era of EGO data mining:
-capture first-person data, contribute it, and earn tokens.
+Capture first-person EGO data with a phone and computer, contribute sessions,
+and browse reusable datasets.
 
 ## Start Here
 
 - Download the iOS app: [TestFlight](https://testflight.apple.com/join/RrYdeDUv)
 - Choose your hardware: [Hardware Guide](./docs/hardware.md)
-- Let an agent guide you step by step:
+- Get step-by-step help:
   - [Codex Guide](./docs/agent-guides/codex.md)
   - [Claude Guide](./docs/agent-guides/claude.md)
   - [OpenClaw Guide](./docs/agent-guides/openclaw.md)
 - Browse and download contributed datasets:
   - [EGO Dataset Portal](https://www-dev.chekkk.com/humanoid/ego-dataset)
 
-## What This Project Is
+## What You Can Do
 
-CHEK EGO Miner is the public-facing repo for people who want to:
-
-- capture EGO data with a phone and a computer
-- scale up with a stereo camera or a dedicated edge machine
-- use AI agents to guide installation and troubleshooting
-- contribute data to the crowd dataset economy
-- search and download useful contributed datasets
+- start with one phone and one computer
+- add a stereo camera when you want better spatial cues
+- move to a dedicated edge setup for higher-throughput capture
+- use an AI assistant for guided install and troubleshooting
+- contribute sessions and explore downloadable datasets
 
 ## System View
 
@@ -40,7 +36,7 @@ flowchart LR
   Upload --> Rewards["Token Rewards"]
 ```
 
-## Hardware Tiers
+## Choose a Setup
 
 | Tier | Setup | Who it is for |
 | --- | --- | --- |
@@ -52,9 +48,9 @@ You will also need a first-person phone mount. See [Hardware Guide](./docs/hardw
 for buying criteria, setup tradeoffs, search keywords, and direct purchase
 examples including China marketplace links.
 
-## Agent-Guided Setup
+## Get Step-by-Step Help
 
-If you want step-by-step help instead of reading long docs, start with:
+If you want guided setup instead of reading long docs, start with:
 
 - [AGENTS.md](./AGENTS.md)
 - one of the ready-to-use prompts:
@@ -63,14 +59,14 @@ If you want step-by-step help instead of reading long docs, start with:
   - [Pro Edge Install Prompt](./prompts/install-pro-edge.md)
   - [Camera Troubleshooting Prompt](./prompts/troubleshoot-camera.md)
 
-The recommended workflow is:
+Recommended flow:
 
-1. Tell the agent which hardware tier you have.
-2. Tell the agent your OS and what is already installed.
-3. Ask the agent to guide you one step at a time.
-4. Do not let the agent skip hardware checks, app install, or camera validation.
+1. Tell the assistant which hardware tier you have.
+2. Share your OS and what is already installed.
+3. Ask for one step at a time.
+4. Keep hardware checks, app install, and camera validation in the flow.
 
-## First Local Check
+## Before You Install
 
 Before a longer install session, run the lightweight host self-check:
 
@@ -78,13 +74,13 @@ Before a longer install session, run the lightweight host self-check:
 python3 scripts/check_host_basics.py
 ```
 
-For a publish-safety check inside this public repo:
+If you plan to share your own fork or public changes, run:
 
 ```bash
 ./scripts/scan_public_safety.sh .
 ```
 
-Or use the public CLI:
+Or use the CLI:
 
 ```bash
 ./cli/chek-ego-miner doctor
@@ -92,8 +88,9 @@ Or use the public CLI:
 ./cli/chek-ego-miner readiness --tier pro
 ```
 
-If you want to reinstall a Linux or macOS basic host from the public repo and
-run the verified `basic` lane, start here:
+## Lite Setup on Linux or macOS
+
+If you want the quickest supported setup path, start here:
 
 ```bash
 ./cli/chek-ego-miner install \
@@ -119,29 +116,30 @@ If Homebrew-managed macOS `python3` blocks `pip install --user`, install the
 same requirements into a compatible interpreter such as `python3.10`; the
 start script will auto-select it when available.
 
-This exact lane has already been verified on:
+After the basic flow finishes, you should see:
 
-- a dedicated `Linux x86_64` edge host:
-  - public repo reinstall succeeded
-  - `systemd-user` basic service started successfully
-  - synthetic capture -> local download -> public download export succeeded
-  - `public_download/demo_capture_bundle.json` validated with `score_percent = 100.0`
-- a local `macOS arm64` developer machine:
-  - `install --apply --system-install --enable-services` auto-staged the runtime to `~/.chek-edge/runtime/macos/basic`
-  - `launchd` basic service started successfully from that staged runtime root
-  - `./scripts/start_edge_phone_vision_service.sh` auto-selected a compatible local Python interpreter
-  - `basic-e2e` validated `public_download/demo_capture_bundle.json` with `score_percent = 100.0`
-- `time_sync_samples` remains an advisory on the single-phone basic lane
+- `ok: true`
+- `validation.ok: true`
+- `validation.score_percent: 100.0`
+- `public_download/demo_capture_bundle.json` in your output directory
 
-If you want the full public `Pro` Jetson runtime lane, first wire existing
-host-local professional assets into the public repo layout. The bootstrap now
-connects:
+Notes:
+
+- This path is intended for `Linux x86_64` and `macOS arm64` basic hosts.
+- On macOS, `install --system-install --enable-services` stages the runtime
+  under `~/.chek-edge/runtime/macos/basic`.
+- `time_sync_samples` can stay empty on the single-phone basic path.
+
+## Pro Setup on Jetson
+
+If you want the full `Pro` runtime path on Jetson, bootstrap the machine first.
+This brings in:
 
 - stereo calibration
 - the Wi-Fi sensing model and `sensing-server`
 - `edge-orchestrator`, `ruview-leap-bridge`, and `ruview-unitree-bridge` binaries
 - `RuView/ui-react/dist`
-- an existing Jetson GPU VLM venv plus SmolVLM model cache
+- an existing Jetson GPU VLM environment plus SmolVLM model cache
 
 ```bash
 ./cli/chek-ego-miner jetson-professional-bootstrap -- --force
@@ -152,8 +150,8 @@ connects:
   --runtime-edge-root "$PWD"
 ```
 
-If you only want the public `Pro` Jetson VLM delivery path, use the repo-shipped
-VLM sidecar and model fetch flow:
+If you only want the Jetson VLM path, use the bundled sidecar and model fetch
+flow:
 
 ```bash
 ./cli/chek-ego-miner install \
@@ -167,9 +165,9 @@ python3 -m pip install --user -r scripts/edge_vlm_requirements.txt
 ./cli/chek-ego-miner vlm-start
 ```
 
-If the target Jetson already has a working GPU VLM venv and local model cache,
-you can wire only those VLM assets into the public repo layout and then enable
-the sidecar through `systemd-user`:
+If the target Jetson already has a working GPU VLM environment and local model
+cache, you can wire only those VLM assets and enable the sidecar through
+`systemd-user`:
 
 ```bash
 ./cli/chek-ego-miner jetson-vlm-bootstrap -- --force
@@ -180,43 +178,31 @@ the sidecar through `systemd-user`:
   --runtime-edge-root "$PWD"
 ```
 
-The public VLM delivery path now includes:
+Notes:
 
-- a repo-shipped `edge_vlm_sidecar.py`
-- a public Hugging Face model fetcher for `SmolVLM2-500M` and `SmolVLM2-256M`
-- a systemd-user `chek-edge-vlm-sidecar.service` template for the `professional` profile
-- a verified local smoke where `SmolVLM2-256M` downloaded successfully and returned a real caption from `/infer`
-- a verified Jetson `professional` smoke where public `readiness --tier pro` passed, `jetson-vlm-bootstrap` wired in the GPU venv plus model dirs, `chek-edge-vlm-sidecar.service` started successfully, and `/infer` returned a real result
-- a verified Jetson `professional` public acceptance where `jetson-professional-bootstrap` wired stereo, Wi-Fi, runtime binaries, and workstation dist into the public layout, `chek-edge-stack`, `chek-edge-stereo`, `chek-edge-wifi-sensing`, `chek-edge-wifi-bridge`, and `chek-edge-vlm-sidecar` all reached `active`, and `/health`, `/association/hint`, `/api/v1/stream/status`, plus `/infer` returned live results
+- `fetch-vlm-models` downloads the core Hugging Face files needed by
+  `transformers`.
+- Default model files are stored under `model-candidates/huggingface/`.
+- A successful Jetson bring-up should look like:
+  - `./cli/chek-ego-miner readiness --tier pro` reports the host is ready
+  - required services reach `active`
+  - `/health`, `/association/hint`, `/api/v1/stream/status`, and `/infer`
+    return live responses on the host
 
 ## Dataset Portal
 
-You can currently search and download contributed data from:
+Search and download contributed data from:
 
 - [https://www-dev.chekkk.com/humanoid/ego-dataset](https://www-dev.chekkk.com/humanoid/ego-dataset)
 
-## Current Public Scope
+## What You Can Do Today
 
-This repo already supports reproducible public `basic` host lanes on dedicated
-Linux and local macOS
-and continues to act as the public-first home for:
-
-- onboarding
-- hardware selection
-- agent guidance
-- public install docs and prompts
-- contribution flow
-- dataset discovery entrypoints
-- public `basic` synthetic capture -> download -> validation regression
-- public `professional` Jetson VLM sidecar and model delivery
-- public `professional` Jetson stereo / Wi-Fi / VLM service bring-up on a real host
-
-## Project Principles
-
-- crowdsource the robot-data bottleneck
-- lower the barrier to EGO data capture
-- make agent-assisted bring-up a first-class path
-- turn capture sessions into reusable robot-data assets
+- onboard a new capture setup
+- choose hardware and accessories
+- use prompts for guided setup
+- run the Lite/basic path on Linux or macOS
+- bring up the Pro Jetson VLM and service path
+- learn how contribution, rewards, and dataset discovery work
 
 ## Docs
 

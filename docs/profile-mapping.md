@@ -1,25 +1,16 @@
-# Hardware Tiers and Runtime Profile Mapping
+# Hardware Tiers and Runtime Profiles
 
-## Goal
+Choose your tier by hardware first. If the CLI or setup files mention
+`basic`, `enhanced`, or `professional`, use this mapping:
 
-Explain the public hardware tiers in plain language while still preserving the
-mapping to the runtime profile vocabulary used by this repo.
-
-## Mapping
-
-| Public tier | Typical hardware | Runtime profile mapping | Current public expectation |
+| Public tier | Typical hardware | Runtime profile | What it means |
 | --- | --- | --- | --- |
-| `Lite` | computer + your own camera + iPhone | closest to `basic` | easiest way to get started |
-| `Stereo` | computer + stereo camera + iPhone | closest to `enhanced` | better depth and spatial quality |
-| `Pro` | edge machine + stereo camera + iPhone | closest to `professional` | dedicated capture and higher-throughput workflows |
+| `Lite` | computer + your own camera + iPhone | `basic` | easiest way to get started |
+| `Stereo` | computer + stereo camera + iPhone | `enhanced` | better depth and spatial quality |
+| `Pro` | edge machine + stereo camera + iPhone | `professional` | dedicated capture and higher throughput |
 
-## Why public docs use tiers first
+## How to use this page
 
-The public repo is optimized for operators and contributors, not for runtime
-manifest vocabulary. Most people can choose hardware much faster than they
-can reason about profile manifests.
-
-## Notes
-
-- The runtime profile system remains useful for deeper packaging and service setup.
-- Public docs should only expose the mapping where it helps understanding.
+- Pick `Lite`, `Stereo`, or `Pro` from your hardware.
+- Use the runtime profile name only when a command or config asks for it.
+- If you are unsure, start with `Lite`.

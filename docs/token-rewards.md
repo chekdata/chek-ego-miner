@@ -1,71 +1,47 @@
 # Token Rewards
 
-## Core idea
+Rewards are for accepted sessions, not for every upload.
 
-CHEK EGO Miner is built around the idea that useful robot data should be easier
-to produce, easier to review, and easier to reward.
+## How rewards usually work
 
-In simple terms:
+1. Record a session with a supported setup.
+2. Upload the session through the supported flow.
+3. Pass review, validation, and policy checks.
+4. Receive reward credit if the session qualifies.
 
-- you capture EGO data
-- you contribute accepted sessions
-- accepted sessions can earn tokens
-
-## Public-facing reward loop
-
-The intended loop is simple:
-
-1. record a session with a supported setup
-2. package and upload the session through the public flow
-3. pass review, validation, and policy checks
-4. receive reward credit if the session qualifies
-
-This means "recorded" is not the same as "rewarded". The session still needs to
-be usable, policy-compliant, and accepted.
-
-## What generally increases reward value
+## What usually helps
 
 - clear first-person footage
 - stable camera placement
 - complete sessions instead of fragments
-- useful motion diversity
-- well-labeled or well-structured uploads
-- data types that are currently in short supply
+- useful motion variety
+- clear metadata and labels
+- data that fills a real supply gap
 
-## What reviewers usually care about
+## What reviewers usually check
 
-Public-facing reward docs should make these expectations easy to understand:
+- whether the session can be opened and parsed
+- whether the capture is stable enough for robotics use
+- whether the metadata makes the session understandable
+- whether the session adds useful diversity
+- whether the session is meaningfully different from previous uploads
 
-- can the session actually be opened and parsed
-- is the capture stable enough for robotics use
-- does the metadata make the session understandable
-- does the session add diversity or fill a current supply gap
-- is the session clearly different from what has already been submitted
-
-## What can reduce or zero out rewards
+## What can reduce or remove a reward
 
 - missing consent
 - broken or unreadable uploads
 - duplicate low-value sessions
-- unstable or badly mounted camera footage
+- unstable or badly mounted footage
 - policy violations
 
-## What public docs should and should not promise
+## What to expect
 
-Public reward docs should explain:
+- review and anti-abuse checks are part of the process
+- token amounts and review thresholds may change over time
+- a published program page is the only place that should define a fixed payout
 
-- what kinds of contribution are valued
-- what usually causes rejection or downgrade
-- that review and anti-abuse checks are part of the process
-
-Public reward docs should not promise:
+## What not to expect
 
 - a fixed token amount for every upload
 - automatic rewards without review
-- permanent reward formulas that never change
-
-## Public note
-
-Exact token formulas, review thresholds, and anti-abuse rules may change over
-time. Public docs should explain the model clearly, but should not promise a
-fixed payout schedule unless a published program page explicitly does so.
+- a permanent formula that never changes

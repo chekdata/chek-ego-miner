@@ -1,73 +1,43 @@
 # Privacy, Consent, and Data License
 
-## Privacy first
+Only upload data that you have the right to capture and share.
 
-Do not upload data that you do not have the right to capture and contribute.
+## Before recording or uploading
 
-Before recording or uploading:
-
-- make sure the people involved understand what is being captured
+- make sure everyone involved understands what is being captured
 - make sure you have the right consent for the intended use
-- avoid capturing unnecessary private information
+- avoid recording private information that does not help the dataset
 
-For public contributions, the safest default is:
+## Safe default for public contributions
 
 - capture only what is needed for the task
 - avoid background details that do not help the dataset
-- avoid minors, medical settings, passwords, financial records, or other sensitive contexts unless an explicit approved program says otherwise
+- avoid minors, medical settings, passwords, financial records, and other
+  sensitive contexts unless an approved program says otherwise
 
-## Consent baseline
-
-At a minimum:
-
-- the recorder should know recording is happening
-- participants should know the data may be reviewed and used for robotics or AI workflows
-- sensitive or restricted contexts should not be uploaded without explicit approval
-
-## What contributors should state clearly
-
-When you publish or share a dataset entry, make it easy for downstream users to understand:
+## What to include on a dataset entry
 
 - what was recorded
 - what hardware was used
 - whether the session was staged, synthetic, or real-world
 - whether faces, voices, or other identifying signals are present
-- any use restrictions or review notes that matter for reuse
+- any use restrictions that matter for reuse
 
-## Public data license model
+## Code license and data license are different
 
-This public repo does not force one universal license on every dataset in the
-portal. Instead:
+- the source code follows the project `LICENSE`
+- contributed datasets may have different reuse terms
+- each dataset or export should display its own usage terms and restrictions
 
-- each public dataset or export should show its own license clearly
-- portal users should check the dataset-specific terms before reuse
-- public docs should prefer clearly labeled reusable datasets
+Do not assume that a permissive code license also applies to uploaded data.
 
-## Code license vs. data license
+## Corrections and removals
 
-These are different layers:
+If you need to correct or remove uploaded material:
 
-- the source code in this repo is licensed under the repo `LICENSE`
-- contributed datasets may use different reuse terms
-- a dataset entry should always carry its own usage terms, attribution rules, and restrictions
+- report the dataset quickly
+- explain what should change
+- pause reuse while review is pending when appropriate
 
-Do not assume that a permissive code license automatically applies to uploaded data.
-
-## Recommended public-facing expectation
-
-- code in this repo is licensed separately from contributed data
-- data may have different reuse terms from the source code
-- public datasets should always display their own license and usage constraints
-
-## Removal, correction, and moderation
-
-If a contributor needs to correct or remove uploaded material, public-facing docs
-and moderation tools should support:
-
-- reporting the dataset quickly
-- explaining why it should be corrected or removed
-- freezing reuse while the review is pending when appropriate
-- preserving an audit trail for maintainers
-
-If you believe a dataset was uploaded without proper rights or consent, report it
-through the appropriate maintainer or portal moderation path immediately.
+If you believe a dataset was uploaded without proper rights or consent, contact
+the published moderation or support path immediately.

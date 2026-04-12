@@ -1,14 +1,12 @@
 # Diagnostics
 
-## Goal
-
-These tools help you validate your setup from the public repo itself.
+Use these tools to check your hardware, models, and runtime health.
 
 ## Scripts
 
 ### `scripts/check_host_basics.py`
 
-Use this to print a lightweight public-safe host report for:
+Use this to print a lightweight host report for:
 
 - OS and architecture
 - Python path and version
@@ -40,8 +38,7 @@ Dependencies:
 
 ### `scripts/fetch_phone_vision_models.py`
 
-Use this to download the public model files required by the local phone-vision
-sidecar.
+Use this to download the model files required by the local phone-vision sidecar.
 
 Example:
 
@@ -72,9 +69,7 @@ Notes:
 
 ### `scripts/fetch_vlm_models.py`
 
-Use this to download the public VLM model files needed by the Jetson `Pro`
-sidecar. The fetcher only downloads the core Hugging Face files required by
-`transformers`, not the extra ONNX variants.
+Use this to download the VLM model files needed by the Jetson `Pro` sidecar.
 
 Example:
 
@@ -89,8 +84,7 @@ Example:
 
 ### `scripts/start_edge_vlm_sidecar.sh`
 
-Use this to start the public VLM sidecar that powers `professional` edge-host
-semantic indexing.
+Use this to start the VLM sidecar used for semantic indexing on a `Pro` host.
 
 Example:
 
@@ -104,17 +98,15 @@ Notes:
 
 - The start script auto-selects a compatible interpreter and checks for
   `torch`, `transformers`, `huggingface_hub`, `Pillow`, and `num2words`.
-- The default model locations are under `model-candidates/huggingface/`.
-- A local smoke was re-verified with `SmolVLM2-256M` returning a real caption
-  from `/infer`.
+- Default model locations are under `model-candidates/huggingface/`.
 
 ### `scripts/run_basic_e2e.py`
 
-Use this to run the verified synthetic `basic` flow:
+Use this to run the basic capture -> download -> validation flow:
 
 - send synthetic phone ingress packets
 - download the edge bundle from `/live-preview/file/...`
-- export a public-safe download subset
+- export a download subset
 - validate the resulting bundle contract
 
 Example:
@@ -157,8 +149,8 @@ python3 scripts/ws_stream_probe.py \
 
 ### `scripts/scan_public_safety.sh`
 
-Use this before publishing changes to detect obvious internal-only patterns such
-as internal IPs, hostnames, Tailscale references, or debug tokens.
+Use this if you plan to share a directory publicly and want to catch obvious
+private hostnames, tokens, or similar mistakes.
 
 Example:
 
@@ -166,9 +158,10 @@ Example:
 ./scripts/scan_public_safety.sh .
 ```
 
-## Notes
+## Recommended order
 
-- These scripts are intentionally generic and public-safe.
-- `check_host_basics.py` is the first lightweight public self-check.
-- The public repo now also exposes a real `basic` synthetic end-to-end lane for dedicated Linux edge hosts.
-- The public repo now also ships a real `professional` VLM model-fetch and sidecar path.
+- start with `check_host_basics.py`
+- run `doctor` and `readiness`
+- use `charuco` if camera calibration is needed
+- use `basic-e2e` after Lite/basic services are up
+- use the VLM tools only on `Pro` Jetson paths

@@ -4,7 +4,7 @@
 
 - [TestFlight](https://testflight.apple.com/join/RrYdeDUv)
 
-## 2. Pick your tier
+## 2. Choose your tier
 
 - `Lite`
 - `Stereo`
@@ -12,7 +12,7 @@
 
 See [Hardware Guide](./hardware.md).
 
-## 3. Run the public CLI doctor
+## 3. Run the CLI doctor
 
 ```bash
 ./cli/chek-ego-miner doctor
@@ -26,7 +26,7 @@ See [Hardware Guide](./hardware.md).
 ./cli/chek-ego-miner readiness --tier pro
 ```
 
-## 5. Ask an agent to guide you
+## 5. Get guided help
 
 Pick a prompt from:
 
@@ -40,7 +40,7 @@ Pick a prompt from:
 ./cli/chek-ego-miner charuco --output-dir ./artifacts/charuco
 ```
 
-## 7. Reinstall a Linux or macOS basic host from the public repo
+## 7. Set up Lite on Linux or macOS
 
 ```bash
 ./cli/chek-ego-miner install \
@@ -58,7 +58,7 @@ python3 -m pip install --user --break-system-packages -r scripts/edge_phone_visi
 ./scripts/start_edge_phone_vision_service.sh
 ```
 
-## 9. Run the verified basic end-to-end flow
+## 9. Run the basic capture flow
 
 ```bash
 ./cli/chek-ego-miner basic-e2e \
@@ -70,7 +70,7 @@ python3 -m pip install --user --break-system-packages -r scripts/edge_phone_visi
   --json
 ```
 
-Expected result:
+You should see:
 
 - `ok: true`
 - `validation.ok: true`
@@ -79,13 +79,14 @@ Expected result:
 
 Notes:
 
-- This exact lane has been verified on a dedicated `Linux x86_64` edge host.
-- This exact lane has also been verified on a local `macOS arm64` developer machine.
-- On macOS, `install --system-install --enable-services` now auto-stages the runtime under `~/.chek-edge/runtime/macos/basic` so `launchd` does not depend on Desktop/Documents permissions.
-- The phone-vision start script auto-selects a compatible interpreter when `python3` itself is not usable.
-- `time_sync_samples` may remain empty on the single-phone basic lane; it is currently reported as an advisory rather than a blocker.
+- This path is intended for `Linux x86_64` and `macOS arm64` basic hosts.
+- On macOS, `install --system-install --enable-services` auto-stages the
+  runtime under `~/.chek-edge/runtime/macos/basic`.
+- The phone-vision start script auto-selects a compatible interpreter when
+  `python3` itself is not usable.
+- `time_sync_samples` may remain empty on the single-phone basic path.
 
-## 10. Deliver the public Pro Jetson path
+## 10. Set up Pro on Jetson
 
 ```bash
 ./cli/chek-ego-miner jetson-professional-bootstrap -- --force
@@ -100,8 +101,8 @@ python3 -m pip install --user -r scripts/edge_vlm_requirements.txt
 ./cli/chek-ego-miner vlm-start
 ```
 
-If your Jetson already has a working GPU VLM venv and local SmolVLM model
-cache, or if you only want to wire the VLM portion instead of the full
+If your Jetson already has a working GPU VLM environment and local SmolVLM
+model cache, or if you only want to wire the VLM portion instead of the full
 professional asset set, use:
 
 ```bash
@@ -115,8 +116,12 @@ professional asset set, use:
 
 Notes:
 
-- `jetson-professional-bootstrap` wires stereo calibration, the Wi-Fi sensing model and binary, runtime binaries, workstation dist, and the existing Jetson VLM runtime into the public repo layout.
-- `fetch-vlm-models` downloads the core Hugging Face files only, not the extra ONNX variants.
-- `vlm-start` auto-selects a compatible Python interpreter and looks for `SmolVLM2-500M` plus `SmolVLM2-256M` under `model-candidates/huggingface/`.
-- The repo now ships `edge_vlm_sidecar.py` directly as a public runtime asset.
-- The Jetson bootstrap path now also has a live acceptance pass: `readiness --tier pro`, `jetson-professional-bootstrap`, public-path `systemd` / `systemd-user` services entering `active`, live `/health`, live `/association/hint`, live `/api/v1/stream/status`, and a real `/infer` response on the Jetson host.
+- `jetson-professional-bootstrap` connects stereo calibration, the Wi-Fi
+  sensing model and binary, runtime binaries, workstation dist, and an
+  existing Jetson VLM environment.
+- `fetch-vlm-models` downloads the core Hugging Face files only.
+- `vlm-start` auto-selects a compatible Python interpreter and looks for
+  `SmolVLM2-500M` plus `SmolVLM2-256M` under `model-candidates/huggingface/`.
+- A successful Jetson bring-up should end with required services in `active`
+  and working `/health`, `/association/hint`, `/api/v1/stream/status`, and
+  `/infer` responses on the host.
