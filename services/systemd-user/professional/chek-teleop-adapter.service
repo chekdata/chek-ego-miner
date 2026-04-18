@@ -13,6 +13,7 @@ Environment=PYTHONUNBUFFERED=1
 ExecStart=/usr/bin/env bash __EDGE_ROOT__/scripts/start_isaac_host_adapter.sh
 Restart=always
 RestartSec=2
+RestartPreventExitStatus=78
 TimeoutStopSec=15
 KillMode=mixed
 

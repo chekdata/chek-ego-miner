@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+RESTART_PREVENT_EXIT_CODE=78
+
 ROOT_DIR="${CHEK_EDGE_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 VENV_PATH="${ISAAC_ADAPTER_VENV_PATH:-${ROOT_DIR}/sim/teleop_adapter/.venv}"
 PYTHON_BIN="${ISAAC_ADAPTER_PYTHON_BIN:-${VENV_PATH}/bin/python}"
@@ -26,7 +28,7 @@ python_can_run_adapter() {
 
 if [[ ! -f "${SCRIPT_PATH}" ]]; then
   echo "缺少 Isaac adapter 脚本: ${SCRIPT_PATH}" >&2
-  exit 1
+  exit "${RESTART_PREVENT_EXIT_CODE}"
 fi
 
 if ! python_can_run_adapter "${PYTHON_BIN}"; then
@@ -36,7 +38,7 @@ if ! python_can_run_adapter "${PYTHON_BIN}"; then
   else
     echo "Isaac adapter Python 不存在或缺少依赖: ${PYTHON_BIN}" >&2
     echo "Isaac python fallback 也不可用: ${ISAAC_PYTHON}" >&2
-    exit 1
+    exit "${RESTART_PREVENT_EXIT_CODE}"
   fi
 fi
 
