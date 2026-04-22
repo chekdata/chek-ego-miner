@@ -24,6 +24,19 @@ and browse reusable datasets.
 - use an AI assistant for guided install and troubleshooting
 - contribute sessions and explore downloadable datasets
 
+## Public-First Scope
+
+This repository is the public-first entry point for contributors. It should
+give people a clear install path, working operator surfaces, agent-guided
+troubleshooting, and a usable frontend without forcing them to understand the
+full internal runtime topology first.
+
+As the project evolves, this repo should keep that public-first experience
+while avoiding a second long-term copy of the same runtime or module source.
+The goal is to deliver runnable frontend and installation assets in a
+contributor-friendly way, without turning this repo into a duplicate
+implementation tree.
+
 ## System View
 
 ```mermaid
