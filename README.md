@@ -31,11 +31,14 @@ give people a clear install path, working operator surfaces, agent-guided
 troubleshooting, and a usable frontend without forcing them to understand the
 full internal runtime topology first.
 
+It is the path for people who want to assemble their own edge machine or run
+the stack from a computer install, instead of depending on a factory-integrated
+device workflow.
+
 As the project evolves, this repo should keep that public-first experience
-while avoiding a second long-term copy of the same runtime or module source.
-The goal is to deliver runnable frontend and installation assets in a
-contributor-friendly way, without turning this repo into a duplicate
-implementation tree.
+while sharing common building blocks with the factory edge engineering line.
+The goal is to avoid long-term duplicate runtime or module implementations,
+while still supporting a genuinely different installation and hardware path.
 
 ## System View
 
