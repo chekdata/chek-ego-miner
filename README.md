@@ -40,6 +40,37 @@ while sharing common building blocks with the factory edge engineering line.
 The goal is to avoid long-term duplicate runtime or module implementations,
 while still supporting a genuinely different installation and hardware path.
 
+## Capability Lanes
+
+From the public product point of view, `chek-ego-miner` should expose usable
+entry points for `SLAM`, `VLM`, and `time-sync` so that a self-assembled edge
+host or a computer install can actually run those capabilities.
+
+That does not mean all three should become long-term `ego-miner`-only module
+implementations:
+
+- `SLAM`
+  - today is still more tightly coupled to the factory-integrated edge line,
+    especially around sensing bring-up, calibration, replay, training gates,
+    and engineering observability
+  - `chek-ego-miner` should expose the public install and operator path for it,
+    but should not fork a second long-lived core SLAM stack
+- `VLM`
+  - must remain directly usable from `chek-ego-miner`, including model fetch,
+    sidecar startup, service wiring, and public diagnostics
+  - the underlying runtime behavior should converge with the factory edge line
+    instead of drifting into two different VLM implementations
+- `time-sync`
+  - is a shared capture-quality capability needed by both product lines
+  - `chek-ego-miner` should surface install, validation, and operator feedback,
+    while deeper factory calibration and engineering observability can stay in
+    `chek-edge-runtime`
+
+The rule going forward is simple: if two files express the same capability in
+`modules/`, `profiles/`, `services/`, install backends, or shared UI panels,
+they should be deduped into shared building blocks, templates, or versioned
+assets instead of being maintained as two drifting copies.
+
 ## System View
 
 ```mermaid
