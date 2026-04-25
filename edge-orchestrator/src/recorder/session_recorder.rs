@@ -4131,12 +4131,9 @@ impl ActiveSession {
         if self.has_iphone_calibration {
             calibration_snapshot_paths.push("calibration/iphone_capture.json".to_string());
         }
-        let iphone_fisheye_path = path_safety::join_relative(
-            &base_dir,
-            "calibration/iphone_fisheye.json",
-            "iphone_fisheye_path",
-        )?;
-        if tokio::fs::metadata(iphone_fisheye_path).await.is_ok() {
+        // The upload manifest tracks actual file existence; this bundle list stays declarative
+        // so it never derives a filesystem path from session-scoped input during refresh.
+        if self.has_iphone_calibration && self.lines.raw_iphone_media > 0 {
             calibration_snapshot_paths.push("calibration/iphone_fisheye.json".to_string());
         }
         if self.has_stereo_calibration {
