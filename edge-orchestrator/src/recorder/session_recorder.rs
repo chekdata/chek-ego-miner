@@ -3866,14 +3866,15 @@ impl ActiveSession {
         let edge_time_reset = self
             .semantic
             .last_keyframe_edge_time_ns
-            .is_some_and(|last| edge_time_ns <= last);
+            .is_some_and(|last| edge_time_ns < last);
         let first_sample = self.semantic.last_keyframe_edge_time_ns.is_none();
         let interval_ns = cfg.vlm_keyframe_interval_ms.saturating_mul(1_000_000);
-        let fixed_due = self
+        let fixed_interval_due = self
             .semantic
             .last_keyframe_edge_time_ns
-            .map(|last| edge_time_reset || edge_time_ns.saturating_sub(last) >= interval_ns)
-            .unwrap_or(true);
+            .map(|last| edge_time_ns.saturating_sub(last) >= interval_ns)
+            .unwrap_or(false);
+        let fixed_due = first_sample || fixed_interval_due;
         let camera_mode_change_due = !edge_time_reset
             && cfg.vlm_event_trigger_enabled
             && cfg.vlm_event_trigger_camera_mode_change_enabled
@@ -3916,7 +3917,7 @@ impl ActiveSession {
 
         let sample_reasons = {
             let mut reasons = Vec::new();
-            if fixed_due {
+            if fixed_interval_due {
                 reasons.push("fixed_interval".to_string());
             }
             if first_sample {

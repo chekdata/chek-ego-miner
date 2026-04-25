@@ -268,12 +268,19 @@ async fn post_storage_sweep_apply(
         .map(|session| session.session_id.clone())
         .collect::<Vec<_>>();
     let mut applied_reclaimed_bytes: u64 = 0;
+    let mut applied_session_ids: Vec<String> = Vec::new();
+    let mut skipped_session_ids: Vec<String> = Vec::new();
     let mut last_error_messages: Vec<String> = Vec::new();
 
     for session in &candidates {
+        if session_became_protected(&state, session).await? {
+            skipped_session_ids.push(session.session_id.clone());
+            continue;
+        }
         match tokio::fs::remove_dir_all(&session.base_dir).await {
             Ok(()) => {
                 applied_reclaimed_bytes = applied_reclaimed_bytes.saturating_add(session.byte_size);
+                applied_session_ids.push(session.session_id.clone());
             }
             Err(error) => {
                 let message = format!(
@@ -300,8 +307,11 @@ async fn post_storage_sweep_apply(
 
     Ok(Json(serde_json::json!({
         "selected_session_count": selected_session_count,
+        "applied_session_count": applied_session_ids.len(),
         "applied_reclaimed_bytes": applied_reclaimed_bytes,
         "selected_session_ids": selected_session_ids,
+        "applied_session_ids": applied_session_ids,
+        "skipped_session_ids": skipped_session_ids,
         "policy": {
             "max_sessions": sweep_max_sessions(&body),
             "target_reclaim_bytes": body.target_reclaim_bytes.unwrap_or(0),
@@ -367,23 +377,39 @@ async fn post_storage_consumption_receipt(
         .map_err(internal_error)?;
 
     let signal_kind = normalize_non_empty(&receipt.signal_kind).unwrap_or_default();
-    let protected = is_protected_signal_kind(&signal_kind);
+    let protected_by_receipt = is_protected_signal_kind(&signal_kind);
+    let is_active = active_session_id(&state) == receipt.session_id;
+    let storage_pool = if is_active || protected_by_receipt {
+        "protected"
+    } else {
+        "rolling"
+    };
+    let local_storage_class = if is_active {
+        if protected_by_receipt {
+            format!("active_{}", signal_kind)
+        } else {
+            "active_session".to_string()
+        }
+    } else if protected_by_receipt {
+        signal_kind.clone()
+    } else {
+        "rolling_candidate".to_string()
+    };
+    let last_cleanup_skipped_reason = if is_active {
+        "active_session".to_string()
+    } else if protected_by_receipt {
+        signal_kind.clone()
+    } else {
+        String::new()
+    };
 
     Ok(Json(serde_json::json!({
         "ok": true,
         "session": {
             "session_id": receipt.session_id,
-            "storage_pool": if protected { "protected" } else { "rolling" },
-            "local_storage_class": if protected {
-                signal_kind.clone()
-            } else {
-                "rolling_candidate".to_string()
-            },
-            "last_cleanup_skipped_reason": if protected {
-                signal_kind.clone()
-            } else {
-                String::new()
-            },
+            "storage_pool": storage_pool,
+            "local_storage_class": local_storage_class,
+            "last_cleanup_skipped_reason": last_cleanup_skipped_reason,
         },
         "receipt": receipt,
     })))
@@ -525,6 +551,35 @@ fn sweep_max_sessions(request: &StorageSweepRequest) -> usize {
 
 fn is_cleanup_candidate(session: &SessionStorageInventory) -> bool {
     session.storage_pool == "rolling" && session.upload_queue_status == "acked"
+}
+
+async fn session_became_protected(
+    state: &AppState,
+    session: &SessionStorageInventory,
+) -> Result<bool, (StatusCode, Json<serde_json::Value>)> {
+    let active_session_id = active_session_id(state);
+    if !active_session_id.is_empty() && session.session_id == active_session_id {
+        return Ok(true);
+    }
+    let latest_receipts = load_latest_consumption_receipts(state)
+        .await
+        .map_err(internal_error)?;
+    let protected_by_receipt = latest_receipts
+        .get(&session.session_id)
+        .and_then(|receipt| normalize_non_empty(&receipt.signal_kind))
+        .is_some_and(|signal_kind| is_protected_signal_kind(&signal_kind));
+    if protected_by_receipt {
+        return Ok(true);
+    }
+    let upload_queue =
+        load_optional_json::<UploadQueueFile>(&session.base_dir, "upload/upload_queue.json")
+            .await
+            .map_err(internal_error)?;
+    Ok(upload_queue
+        .as_ref()
+        .map(upload_queue_status)
+        .unwrap_or_else(|| default_upload_queue_status(None))
+        != "acked")
 }
 
 async fn collect_session_dirs(state: &AppState) -> Result<Vec<PathBuf>, String> {

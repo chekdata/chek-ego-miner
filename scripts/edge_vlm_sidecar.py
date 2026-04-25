@@ -563,7 +563,9 @@ class SidecarHandler(BaseHTTPRequestHandler):
     def do_GET(self) -> None:
         parsed = urlparse(self.path)
         if parsed.path == "/health":
-            self._write_json(HTTPStatus.OK, self.runtime_state.health_payload())
+            with self.runtime_state.lock:
+                payload = self.runtime_state.health_payload()
+            self._write_json(HTTPStatus.OK, payload)
             return
         self._write_json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "not_found"})
 
