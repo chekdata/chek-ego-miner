@@ -491,9 +491,8 @@ impl SessionRecorder {
             }
             active.flush_pending_csi_chunk(cfg).await?;
         }
-        *guard = Some(
-            ActiveSession::start(data_dir, trip_id, safe_session_id, protocol, cfg).await?,
-        );
+        *guard =
+            Some(ActiveSession::start(data_dir, trip_id, safe_session_id, protocol, cfg).await?);
         Ok(())
     }
 
@@ -3622,10 +3621,8 @@ impl ActiveSession {
                 changed |= self.mark_semantic_degraded("vlm_runtime", reason, cfg);
             }
         } else if result.inference_source == "vlm_sidecar" {
-            changed |= self.clear_semantic_degraded_stages(
-                &["vlm_sidecar_inference", "vlm_runtime"],
-                cfg,
-            );
+            changed |=
+                self.clear_semantic_degraded_stages(&["vlm_sidecar_inference", "vlm_runtime"], cfg);
         }
 
         if meta.roll_segment_before_event {
@@ -3890,7 +3887,8 @@ impl ActiveSession {
                 .as_ref()
                 .and_then(|segment| segment.actions.last())
                 .is_some_and(|last_action| last_action != &action_guess);
-        let event_due = first_sample || edge_time_reset || camera_mode_change_due || action_change_due;
+        let event_due =
+            first_sample || edge_time_reset || camera_mode_change_due || action_change_due;
         if !fixed_due && !event_due {
             return false;
         }
@@ -4137,13 +4135,9 @@ impl ActiveSession {
         if self.has_iphone_calibration {
             calibration_snapshot_paths.push("calibration/iphone_capture.json".to_string());
         }
-        if tokio::fs::metadata(
-            base_dir
-                .join("calibration")
-                .join("iphone_fisheye.json"),
-        )
-        .await
-        .is_ok()
+        if tokio::fs::metadata(base_dir.join("calibration").join("iphone_fisheye.json"))
+            .await
+            .is_ok()
         {
             calibration_snapshot_paths.push("calibration/iphone_fisheye.json".to_string());
         }
@@ -4401,11 +4395,7 @@ impl ActiveSession {
             artifacts,
         };
         let value = serde_json::to_value(manifest).map_err(|e| e.to_string())?;
-        Self::write_json_pretty(
-            base_dir.join("upload").join("upload_manifest.json"),
-            &value,
-        )
-        .await
+        Self::write_json_pretty(base_dir.join("upload").join("upload_manifest.json"), &value).await
     }
 
     async fn refresh_upload_policy(&self, cfg: &Config) -> Result<(), String> {
@@ -4470,15 +4460,22 @@ impl ActiveSession {
         }
         let line_counters = self.disk_line_counters().await?;
         let media_tracks_present = !self.collect_media_tracks().await?.is_empty();
-        let csi_packets_path = canonical_base_dir.join("raw").join("csi").join("packets.bin");
+        let csi_packets_path = canonical_base_dir
+            .join("raw")
+            .join("csi")
+            .join("packets.bin");
         let csi_packets_bytes = tokio::fs::metadata(&csi_packets_path)
             .await
             .map(|meta| meta.len())
             .unwrap_or(0);
         let (has_iphone_calibration, _, _) = self.calibration_flags().await;
-        let csi_index_summary =
-            summarize_csi_index(canonical_base_dir.join("raw").join("csi").join("index.jsonl"))
-                .await?;
+        let csi_index_summary = summarize_csi_index(
+            canonical_base_dir
+                .join("raw")
+                .join("csi")
+                .join("index.jsonl"),
+        )
+        .await?;
         let fisheye_summary = summarize_media_index_frames(
             canonical_base_dir
                 .join("raw")
@@ -5197,7 +5194,9 @@ impl ActiveSession {
                 Component::CurDir
                 | Component::ParentDir
                 | Component::RootDir
-                | Component::Prefix(_) => return Err("artifact relpath 必须是受限的相对路径".to_string()),
+                | Component::Prefix(_) => {
+                    return Err("artifact relpath 必须是受限的相对路径".to_string())
+                }
             }
         }
         let path = base_dir.join(&safe_relpath);

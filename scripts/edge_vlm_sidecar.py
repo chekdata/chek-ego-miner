@@ -119,7 +119,8 @@ def is_cuda_runtime_error(error: Exception) -> bool:
     return any(
         token in message
         for token in (
-            "cuda",
+            "cuda runtime error",
+            "cublas error",
             "cudacachingallocator",
             "nvml",
             "device-side assert",
@@ -231,6 +232,7 @@ class RuntimeState:
     config: SidecarConfig
     lock: threading.Lock = field(default_factory=threading.Lock)
     loaded: Optional[LoadedRuntime] = None
+    runtime_device_override_until_ms: int = 0
     fallback_until_ms: int = 0
     consecutive_failures: int = 0
     last_error: str = ""
@@ -244,7 +246,9 @@ class RuntimeState:
     def health_payload(self) -> Dict[str, Any]:
         now_ms = int(time.time() * 1000)
         fallback_active = self.fallback_until_ms > now_ms
-        effective_runtime_device = self.runtime_device_override or self.config.runtime_device
+        effective_runtime_device = self.effective_runtime_device()
+        runtime_device_override = self.runtime_device_override or None
+        runtime_device_override_reason = self.runtime_device_override_reason or None
         return {
             "ok": True,
             "service": "edge_vlm_sidecar",
@@ -255,8 +259,8 @@ class RuntimeState:
             "active_model_path": self.last_model_path,
             "runtime_device": effective_runtime_device,
             "runtime_device_requested": self.config.runtime_device,
-            "runtime_device_override": self.runtime_device_override or None,
-            "runtime_device_override_reason": self.runtime_device_override_reason or None,
+            "runtime_device_override": runtime_device_override,
+            "runtime_device_override_reason": runtime_device_override_reason,
             "fallback_active": fallback_active,
             "fallback_until_ms": self.fallback_until_ms if fallback_active else None,
             "fallback_reason": self.last_fallback_reason or None,
@@ -283,11 +287,21 @@ class RuntimeState:
         self.last_fallback_reason = reason
 
     def effective_runtime_device(self) -> str:
-        return self.runtime_device_override or self.config.runtime_device
+        if self.runtime_device_override:
+            now_ms = int(time.time() * 1000)
+            if self.runtime_device_override_until_ms > now_ms:
+                return self.runtime_device_override
+            self.runtime_device_override = ""
+            self.runtime_device_override_reason = ""
+            self.runtime_device_override_until_ms = 0
+        return self.config.runtime_device
 
     def override_runtime_device(self, device: str, reason: str) -> None:
         self.runtime_device_override = device
         self.runtime_device_override_reason = reason
+        self.runtime_device_override_until_ms = int(time.time() * 1000) + int(
+            self.config.auto_fallback_cooldown_ms
+        )
 
 
 def load_runtime_modules() -> Tuple[Any, Any, Any, Any]:
@@ -308,14 +322,18 @@ def decode_pil_image(image_b64: str, image_cls: Any) -> Any:
 
 
 def load_model(state: RuntimeState, model_alias: str, model_path: str) -> LoadedRuntime:
-    if state.loaded and state.loaded.model_alias == model_alias and state.loaded.model_path == model_path:
-        return state.loaded
-
-    release_loaded_runtime(state)
-
     torch, _, auto_config_cls, auto_classes = load_runtime_modules()
     auto_processor_cls, auto_model_cls = auto_classes
     device = resolve_torch_device(torch, state.effective_runtime_device())
+    if (
+        state.loaded
+        and state.loaded.model_alias == model_alias
+        and state.loaded.model_path == model_path
+        and state.loaded.device == device
+    ):
+        return state.loaded
+
+    release_loaded_runtime(state)
     dtype = torch_dtype_for_device(torch, device)
 
     config = auto_config_cls.from_pretrained(model_path)

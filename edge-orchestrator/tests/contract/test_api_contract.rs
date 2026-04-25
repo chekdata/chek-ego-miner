@@ -161,12 +161,12 @@ async fn contract_storage_status_and_sessions_compatibility() -> anyhow::Result<
         .and_then(|value| value.as_array())
         .cloned()
         .unwrap_or_default();
-    assert!(blockers.iter().any(|value| {
-        value.as_str() == Some("active_session:sess-storage-active-001")
-    }));
-    assert!(blockers.iter().any(|value| {
-        value.as_str() == Some("manual_hold:sess-storage-held-001")
-    }));
+    assert!(blockers
+        .iter()
+        .any(|value| { value.as_str() == Some("active_session:sess-storage-active-001") }));
+    assert!(blockers
+        .iter()
+        .any(|value| { value.as_str() == Some("manual_hold:sess-storage-held-001") }));
     assert_eq!(alias_blockers, blockers);
 
     let sessions = client
@@ -422,7 +422,9 @@ async fn contract_storage_compat_accepts_legacy_consumption_receipts() -> anyhow
         Some("protected")
     );
     assert_eq!(
-        released.get("storage_pool").and_then(|value| value.as_str()),
+        released
+            .get("storage_pool")
+            .and_then(|value| value.as_str()),
         Some("rolling")
     );
 
@@ -704,7 +706,10 @@ fn seed_storage_session_fixture(
     fs::create_dir_all(session_dir.join("qa"))?;
     fs::create_dir_all(session_dir.join("upload"))?;
 
-    fs::write(session_dir.join("raw").join("payload.bin"), vec![b'x'; byte_size])?;
+    fs::write(
+        session_dir.join("raw").join("payload.bin"),
+        vec![b'x'; byte_size],
+    )?;
     fs::write(
         session_dir.join("qa").join("local_quality_report.json"),
         serde_json::to_vec_pretty(&serde_json::json!({
@@ -742,9 +747,9 @@ fn session_item<'a>(
     items: &'a [serde_json::Value],
     session_id: &str,
 ) -> Option<&'a serde_json::Value> {
-    items.iter().find(|item| {
-        item.get("session_id").and_then(|value| value.as_str()) == Some(session_id)
-    })
+    items
+        .iter()
+        .find(|item| item.get("session_id").and_then(|value| value.as_str()) == Some(session_id))
 }
 
 fn seed_legacy_consumption_receipts(data_dir: &Path) -> anyhow::Result<()> {

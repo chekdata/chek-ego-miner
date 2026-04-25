@@ -886,7 +886,10 @@ async fn run_teleop_publisher_inner(state: AppState) {
             vision.operator_track_id.as_deref(),
             associated_stereo_track_id.as_deref(),
             op.estimate.association.iphone_operator_track_id.as_deref(),
-            op.estimate.association.selected_operator_track_id.as_deref(),
+            op.estimate
+                .association
+                .selected_operator_track_id
+                .as_deref(),
         );
         let operator_source_edge_time_ns = op
             .estimate
@@ -916,7 +919,8 @@ async fn run_teleop_publisher_inner(state: AppState) {
         let matched_stereo_person_available = matched_stereo_person.is_some();
         let vision_body_available = !vision.body_kpts_3d.is_empty();
         let operator_hand_selected = points_have_valid_3d(&selected_operator_state.hand_kpts_3d)
-            && op.estimate.fusion_breakdown.hand_source != crate::operator::OperatorPartSource::None;
+            && op.estimate.fusion_breakdown.hand_source
+                != crate::operator::OperatorPartSource::None;
         let selected_body_source_edge_time_ns = resolve_selected_body_source_edge_time_ns(
             operator_body_selected,
             matched_stereo_person_available,
@@ -1471,8 +1475,8 @@ fn compute_fused_quality(
 #[cfg(test)]
 mod tests {
     use super::{
-        apply_one, effective_vision_conf, resolve_selected_body_source_edge_time_ns,
-        resolve_retarget_target_person_id, resolve_selected_hand_source_edge_time_ns,
+        apply_one, effective_vision_conf, resolve_retarget_target_person_id,
+        resolve_selected_body_source_edge_time_ns, resolve_selected_hand_source_edge_time_ns,
         MotionGrade, MotionSample,
     };
     use crate::sensing::{StereoSnapshot, VisionSnapshot};
@@ -1572,13 +1576,7 @@ mod tests {
     #[test]
     fn selected_body_source_prefers_associated_stereo_over_phone_fallback() {
         let edge_time_ns = resolve_selected_body_source_edge_time_ns(
-            false,
-            true,
-            true,
-            1_000,
-            6_000,
-            4_000,
-            2_000,
+            false, true, true, 1_000, 6_000, 4_000, 2_000,
         );
         assert_eq!(edge_time_ns, 6_000);
     }
