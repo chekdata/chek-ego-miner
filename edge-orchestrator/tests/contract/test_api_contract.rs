@@ -4,6 +4,11 @@ mod support;
 use std::time::Duration;
 use std::{fs, path::Path};
 
+#[cfg(unix)]
+use std::ffi::OsString;
+#[cfg(unix)]
+use std::os::unix::{ffi::OsStringExt, fs as unix_fs, fs::PermissionsExt};
+
 use support::ws_harness::WsHarness;
 
 #[tokio::test]
@@ -119,10 +124,14 @@ async fn contract_storage_status_and_sessions_compatibility() -> anyhow::Result<
     assert_eq!(
         status
             .get("session_summary")
-            .and_then(|value| value.get("active_session_id"))
-            .and_then(|value| value.as_str()),
-        Some("sess-storage-active-001")
+            .and_then(|value| value.get("active_session_present"))
+            .and_then(|value| value.as_bool()),
+        Some(true)
     );
+    assert!(status
+        .get("session_summary")
+        .and_then(|value| value.get("active_session_id"))
+        .is_none());
     assert_eq!(
         status
             .get("rolling_pool")
@@ -147,10 +156,14 @@ async fn contract_storage_status_and_sessions_compatibility() -> anyhow::Result<
     assert_eq!(
         status_alias
             .get("session_summary")
-            .and_then(|value| value.get("active_session_id"))
-            .and_then(|value| value.as_str()),
-        Some("sess-storage-active-001")
+            .and_then(|value| value.get("active_session_present"))
+            .and_then(|value| value.as_bool()),
+        Some(true)
     );
+    assert!(status_alias
+        .get("session_summary")
+        .and_then(|value| value.get("active_session_id"))
+        .is_none());
     assert_eq!(
         status_alias
             .get("rolling_pool")
@@ -186,10 +199,42 @@ async fn contract_storage_status_and_sessions_compatibility() -> anyhow::Result<
         .unwrap_or_default();
     assert!(blockers
         .iter()
-        .any(|value| { value.as_str() == Some("active_session:sess-storage-active-001") }));
+        .any(|value| { value.as_str() == Some("active_session") }));
     assert!(blockers
         .iter()
-        .any(|value| { value.as_str() == Some("manual_hold:sess-storage-held-001") }));
+        .any(|value| { value.as_str() == Some("manual_hold") }));
+    assert!(!blockers.iter().any(|value| {
+        value
+            .as_str()
+            .is_some_and(|text| text.contains("sess-storage-"))
+    }));
+    assert_eq!(
+        status
+            .get("cleanup")
+            .and_then(|value| value.get("current_blocker_counts"))
+            .and_then(|value| value.get("active_session"))
+            .and_then(|value| value.as_u64()),
+        Some(1)
+    );
+    assert_eq!(
+        status
+            .get("cleanup")
+            .and_then(|value| value.get("current_blocker_counts"))
+            .and_then(|value| value.get("manual_hold"))
+            .and_then(|value| value.as_u64()),
+        Some(1)
+    );
+    assert_eq!(
+        status
+            .get("cleanup")
+            .and_then(|value| value.get("dry_run_selected_session_count"))
+            .and_then(|value| value.as_u64()),
+        Some(1)
+    );
+    assert!(status
+        .get("cleanup")
+        .and_then(|value| value.get("dry_run_selected_sessions"))
+        .is_none());
     assert_eq!(alias_blockers, blockers);
 
     let sessions = client
@@ -235,6 +280,110 @@ async fn contract_storage_status_and_sessions_compatibility() -> anyhow::Result<
             .and_then(|value| value.as_str()),
         Some("acked")
     );
+
+    Ok(())
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn contract_storage_inventory_skips_bad_session_dirs() -> anyhow::Result<()> {
+    let server = support::TestServer::spawn().await?;
+    let client = reqwest::Client::new();
+
+    seed_storage_session_fixture(
+        &server.data_dir,
+        "trip-storage-healthy-001",
+        "sess-storage-healthy-001",
+        2_048,
+        "pass",
+        true,
+        "acked",
+    )?;
+
+    let session_root = server.data_dir.join("session");
+    fs::create_dir_all(session_root.join("bad\nsession"))?;
+    match fs::create_dir_all(session_root.join(OsString::from_vec(b"sess-bad-\xFF".to_vec()))) {
+        Ok(()) => {}
+        Err(error)
+            if error.kind() == std::io::ErrorKind::InvalidInput
+                || error.raw_os_error() == Some(92) => {}
+        Err(error) => return Err(error.into()),
+    }
+
+    let unreadable_session_dir = session_root.join("sess-storage-unreadable-001");
+    fs::create_dir_all(unreadable_session_dir.join("upload"))?;
+    fs::write(
+        unreadable_session_dir
+            .join("upload")
+            .join("upload_manifest.json"),
+        serde_json::to_vec(&serde_json::json!({
+            "trip_id": "trip-storage-unreadable-001",
+            "session_id": "sess-storage-unreadable-001",
+        }))?,
+    )?;
+    let mut unreadable_permissions = fs::metadata(&unreadable_session_dir)?.permissions();
+    unreadable_permissions.set_mode(0o000);
+    fs::set_permissions(&unreadable_session_dir, unreadable_permissions)?;
+
+    let broken_link = session_root.join("sess-storage-broken-link-001");
+    unix_fs::symlink(server.data_dir.join("missing-session-target"), broken_link)?;
+
+    let outside_target = server.data_dir.join("outside-session-target");
+    fs::create_dir_all(&outside_target)?;
+    unix_fs::symlink(
+        &outside_target,
+        session_root.join("sess-storage-outside-link-001"),
+    )?;
+
+    let status_result = client
+        .get(format!("{}/storage/status", server.http_base))
+        .send()
+        .await
+        .and_then(|response| response.error_for_status());
+
+    let sessions_result = client
+        .get(format!("{}/edge/storage/sessions", server.http_base))
+        .bearer_auth(&server.edge_token)
+        .send()
+        .await
+        .and_then(|response| response.error_for_status());
+
+    let mut readable_permissions = fs::metadata(&unreadable_session_dir)?.permissions();
+    readable_permissions.set_mode(0o700);
+    fs::set_permissions(&unreadable_session_dir, readable_permissions)?;
+
+    let status = status_result?.json::<serde_json::Value>().await?;
+
+    assert_eq!(
+        status
+            .get("rolling_pool")
+            .and_then(|value| value.get("session_count"))
+            .and_then(|value| value.as_u64()),
+        Some(1)
+    );
+    assert_eq!(
+        status
+            .get("protected_pool")
+            .and_then(|value| value.get("session_count"))
+            .and_then(|value| value.as_u64()),
+        Some(0)
+    );
+    assert_eq!(
+        status
+            .get("cleanup")
+            .and_then(|value| value.get("dry_run_selected_session_count"))
+            .and_then(|value| value.as_u64()),
+        Some(1)
+    );
+
+    let sessions = sessions_result?.json::<serde_json::Value>().await?;
+    let items = sessions
+        .get("sessions")
+        .and_then(|value| value.as_array())
+        .cloned()
+        .unwrap_or_default();
+    assert!(session_item(&items, "sess-storage-healthy-001").is_some());
+    assert!(session_item(&items, "sess-storage-unreadable-001").is_none());
 
     Ok(())
 }
