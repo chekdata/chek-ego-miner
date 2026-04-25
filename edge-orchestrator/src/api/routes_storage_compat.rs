@@ -163,19 +163,17 @@ async fn get_storage_status(
         .filter(|session| is_cleanup_candidate(session))
         .map(|session| session.byte_size)
         .sum::<u64>();
-    let current_blockers = inventory
+    let mut current_blocker_counts: HashMap<String, u64> = HashMap::new();
+    for session in inventory
         .iter()
-        .filter_map(|session| {
-            if session.last_cleanup_skipped_reason.is_empty() {
-                None
-            } else {
-                Some(format!(
-                    "{}:{}",
-                    session.last_cleanup_skipped_reason, session.session_id
-                ))
-            }
-        })
-        .collect::<Vec<_>>();
+        .filter(|session| !session.last_cleanup_skipped_reason.is_empty())
+    {
+        *current_blocker_counts
+            .entry(session.last_cleanup_skipped_reason.clone())
+            .or_insert(0) += 1;
+    }
+    let mut current_blockers = current_blocker_counts.keys().cloned().collect::<Vec<_>>();
+    current_blockers.sort();
     let (disk_total_bytes, disk_free_bytes) =
         disk_capacity_for_path(Path::new(&state.config.data_dir));
     let disk_used_bytes = disk_total_bytes.saturating_sub(disk_free_bytes);
@@ -203,12 +201,13 @@ async fn get_storage_status(
             "auto_sweep_enabled": true,
             "last_run_at": cleanup_state.last_run_at,
             "last_reclaimed_bytes": cleanup_state.last_reclaimed_bytes,
-            "dry_run_selected_sessions": dry_run_cleanup_candidates.iter().map(|session| session.session_id.clone()).collect::<Vec<_>>(),
+            "dry_run_selected_session_count": dry_run_cleanup_candidates.len(),
             "current_blockers": current_blockers,
+            "current_blocker_counts": current_blocker_counts,
             "last_error": cleanup_state.last_error,
         },
         "session_summary": {
-            "active_session_id": active_session_id,
+            "active_session_present": !active_session_id.is_empty(),
         }
     })))
 }
@@ -430,85 +429,100 @@ async fn load_storage_inventory(state: &AppState) -> Result<Vec<SessionStorageIn
     let mut inventory = Vec::new();
 
     for base_dir in session_dirs {
-        let upload_manifest =
-            load_optional_json::<UploadManifestFile>(&base_dir, "upload/upload_manifest.json")
-                .await?;
-        let upload_queue =
-            load_optional_json::<UploadQueueFile>(&base_dir, "upload/upload_queue.json").await?;
-        let local_quality = load_optional_json::<LocalQualityReportSummary>(
-            &base_dir,
-            "qa/local_quality_report.json",
-        )
-        .await?;
-        let fallback_session_id = base_dir
-            .file_name()
-            .and_then(|value| value.to_str())
-            .unwrap_or_default()
-            .to_string();
-        let session_id = upload_manifest
-            .as_ref()
-            .and_then(|manifest| normalize_non_empty(&manifest.session_id))
-            .unwrap_or_else(|| fallback_session_id.clone());
-        let trip_id = upload_manifest
-            .as_ref()
-            .and_then(|manifest| normalize_non_empty(&manifest.trip_id))
-            .unwrap_or_else(|| session_id.clone());
-        let byte_size = upload_manifest
-            .as_ref()
-            .map(upload_manifest_byte_size)
-            .filter(|value| *value > 0)
-            .unwrap_or_else(|| dir_size_bytes_sync(&base_dir));
-        let modified_unix_ms = metadata_modified_unix_ms(&base_dir).await.unwrap_or(0);
-        let qa_status = local_quality
-            .as_ref()
-            .and_then(|report| normalize_non_empty_option(report.status.as_ref()))
-            .unwrap_or_else(|| "pending".to_string());
-        let upload_queue_status = upload_queue
-            .as_ref()
-            .map(upload_queue_status)
-            .unwrap_or_else(|| default_upload_queue_status(upload_manifest.as_ref()));
-        let latest_receipt = latest_receipts.get(&session_id);
-        let signal_kind = latest_receipt
-            .and_then(|receipt| normalize_non_empty(&receipt.signal_kind))
-            .unwrap_or_default();
-        let protected_by_receipt = is_protected_signal_kind(&signal_kind);
-        let is_active = !active_session_id.is_empty() && session_id == active_session_id;
-        let (storage_pool, local_storage_class, last_cleanup_skipped_reason) = if is_active {
-            (
-                "protected".to_string(),
-                if protected_by_receipt {
-                    format!("active_{}", signal_kind)
-                } else {
-                    "active_session".to_string()
-                },
-                "active_session".to_string(),
+        let session_result: Result<SessionStorageInventory, String> = async {
+            let upload_manifest =
+                load_optional_json::<UploadManifestFile>(&base_dir, "upload/upload_manifest.json")
+                    .await?;
+            let upload_queue =
+                load_optional_json::<UploadQueueFile>(&base_dir, "upload/upload_queue.json")
+                    .await?;
+            let local_quality = load_optional_json::<LocalQualityReportSummary>(
+                &base_dir,
+                "qa/local_quality_report.json",
             )
-        } else if protected_by_receipt {
-            (
-                "protected".to_string(),
-                signal_kind.clone(),
-                signal_kind.clone(),
-            )
-        } else {
-            (
-                "rolling".to_string(),
-                "rolling_candidate".to_string(),
-                String::new(),
-            )
-        };
+            .await?;
+            let fallback_session_id = base_dir
+                .file_name()
+                .and_then(|value| value.to_str())
+                .unwrap_or_default()
+                .to_string();
+            let session_id = upload_manifest
+                .as_ref()
+                .and_then(|manifest| normalize_non_empty(&manifest.session_id))
+                .unwrap_or_else(|| fallback_session_id.clone());
+            let trip_id = upload_manifest
+                .as_ref()
+                .and_then(|manifest| normalize_non_empty(&manifest.trip_id))
+                .unwrap_or_else(|| session_id.clone());
+            let byte_size = upload_manifest
+                .as_ref()
+                .map(upload_manifest_byte_size)
+                .filter(|value| *value > 0)
+                .unwrap_or_else(|| dir_size_bytes_sync(&base_dir));
+            let modified_unix_ms = metadata_modified_unix_ms(&base_dir).await.unwrap_or(0);
+            let qa_status = local_quality
+                .as_ref()
+                .and_then(|report| normalize_non_empty_option(report.status.as_ref()))
+                .unwrap_or_else(|| "pending".to_string());
+            let upload_queue_status = upload_queue
+                .as_ref()
+                .map(upload_queue_status)
+                .unwrap_or_else(|| default_upload_queue_status(upload_manifest.as_ref()));
+            let latest_receipt = latest_receipts.get(&session_id);
+            let signal_kind = latest_receipt
+                .and_then(|receipt| normalize_non_empty(&receipt.signal_kind))
+                .unwrap_or_default();
+            let protected_by_receipt = is_protected_signal_kind(&signal_kind);
+            let is_active = !active_session_id.is_empty() && session_id == active_session_id;
+            let (storage_pool, local_storage_class, last_cleanup_skipped_reason) = if is_active {
+                (
+                    "protected".to_string(),
+                    if protected_by_receipt {
+                        format!("active_{}", signal_kind)
+                    } else {
+                        "active_session".to_string()
+                    },
+                    "active_session".to_string(),
+                )
+            } else if protected_by_receipt {
+                (
+                    "protected".to_string(),
+                    signal_kind.clone(),
+                    signal_kind.clone(),
+                )
+            } else {
+                (
+                    "rolling".to_string(),
+                    "rolling_candidate".to_string(),
+                    String::new(),
+                )
+            };
 
-        inventory.push(SessionStorageInventory {
-            session_id,
-            trip_id,
-            base_dir,
-            byte_size,
-            modified_unix_ms,
-            qa_status,
-            upload_queue_status,
-            last_cleanup_skipped_reason,
-            local_storage_class,
-            storage_pool,
-        });
+            Ok(SessionStorageInventory {
+                session_id,
+                trip_id,
+                base_dir: base_dir.clone(),
+                byte_size,
+                modified_unix_ms,
+                qa_status,
+                upload_queue_status,
+                last_cleanup_skipped_reason,
+                local_storage_class,
+                storage_pool,
+            })
+        }
+        .await;
+
+        match session_result {
+            Ok(session) => inventory.push(session),
+            Err(error) => {
+                tracing::warn!(
+                    error = %error,
+                    path = %base_dir.display(),
+                    "storage compat: 跳过无法读取的 session 目录"
+                );
+            }
+        }
     }
 
     inventory.sort_by(|left, right| {
@@ -617,30 +631,56 @@ async fn collect_session_dirs(state: &AppState) -> Result<Vec<PathBuf>, String> 
             session_root.display()
         )
     })? {
-        let file_type = entry.file_type().await.map_err(|error| {
-            format!(
-                "读取 session 目录类型失败: {} ({error})",
-                entry.path().display()
-            )
-        })?;
+        let file_type = match entry.file_type().await {
+            Ok(file_type) => file_type,
+            Err(error) => {
+                tracing::warn!(
+                    error = %error,
+                    path = %entry.path().display(),
+                    "storage compat: 跳过无法读取类型的 session 目录项"
+                );
+                continue;
+            }
+        };
         if file_type.is_dir() {
-            let file_name = entry
-                .file_name()
-                .to_str()
-                .ok_or_else(|| "session 目录名必须是 UTF-8".to_string())?
-                .to_string();
-            let safe_session_id = path_safety::validate_path_component(&file_name, "session_id")?;
+            let Some(file_name) = entry.file_name().to_str().map(str::to_string) else {
+                tracing::warn!(
+                    path = %entry.path().display(),
+                    "storage compat: 跳过非 UTF-8 session 目录名"
+                );
+                continue;
+            };
+            let safe_session_id =
+                match path_safety::validate_path_component(&file_name, "session_id") {
+                    Ok(value) => value,
+                    Err(error) => {
+                        tracing::warn!(
+                            error = %error,
+                            path = %entry.path().display(),
+                            "storage compat: 跳过非法 session 目录名"
+                        );
+                        continue;
+                    }
+                };
             let candidate = session_root.join(safe_session_id);
-            let canonical_candidate =
-                tokio::fs::canonicalize(&candidate).await.map_err(|error| {
-                    format!("解析 session 目录失败: {} ({error})", candidate.display())
-                })?;
+            let canonical_candidate = match tokio::fs::canonicalize(&candidate).await {
+                Ok(path) => path,
+                Err(error) => {
+                    tracing::warn!(
+                        error = %error,
+                        path = %candidate.display(),
+                        "storage compat: 跳过无法解析的 session 目录"
+                    );
+                    continue;
+                }
+            };
             if !canonical_candidate.starts_with(&session_root) {
-                return Err(format!(
-                    "session 目录越界: {} not under {}",
-                    canonical_candidate.display(),
-                    session_root.display()
-                ));
+                tracing::warn!(
+                    path = %canonical_candidate.display(),
+                    root = %session_root.display(),
+                    "storage compat: 跳过越界 session 目录"
+                );
+                continue;
             }
             session_dirs.push(canonical_candidate);
         }
