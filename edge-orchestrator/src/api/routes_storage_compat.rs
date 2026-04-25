@@ -177,7 +177,7 @@ async fn get_storage_status(
             "used_bytes": rolling_used_bytes,
             "evictable_bytes": evictable_bytes,
             "session_count": rolling_sessions.len(),
-            "status": rolling_pool_status(&pressure_level, rolling_used_bytes, evictable_bytes),
+            "status": rolling_pool_status(&pressure_level, rolling_used_bytes),
         },
         "protected_pool": {
             "used_bytes": protected_used_bytes,
@@ -251,7 +251,7 @@ async fn post_storage_sweep_apply(
         .map(|session| session.session_id.clone())
         .collect::<Vec<_>>();
     let mut applied_reclaimed_bytes: u64 = 0;
-    let mut last_error: Option<String> = None;
+    let mut last_error_messages: Vec<String> = Vec::new();
 
     for session in &candidates {
         match tokio::fs::remove_dir_all(&session.base_dir).await {
@@ -263,7 +263,7 @@ async fn post_storage_sweep_apply(
                     "删除 session 目录失败: {} ({error})",
                     session.base_dir.display()
                 );
-                last_error = Some(message);
+                last_error_messages.push(message);
             }
         }
     }
@@ -271,7 +271,11 @@ async fn post_storage_sweep_apply(
     let cleanup_state = CleanupStateFile {
         last_run_at: Some(now_unix_ms()),
         last_reclaimed_bytes: applied_reclaimed_bytes,
-        last_error,
+        last_error: if last_error_messages.is_empty() {
+            None
+        } else {
+            Some(last_error_messages.join(" | "))
+        },
     };
     write_cleanup_state(storage_state_dir(&state), &cleanup_state)
         .await
@@ -355,9 +359,6 @@ async fn load_storage_inventory(state: &AppState) -> Result<Vec<SessionStorageIn
     let session_dirs = collect_session_dirs(&session_root).await?;
     let latest_receipts = load_latest_consumption_receipts(storage_state_dir(state)).await?;
     let active_session_id = active_session_id(state);
-    let (disk_total_bytes, disk_free_bytes) =
-        disk_capacity_for_path(Path::new(&state.config.data_dir));
-    let protected_budget_bytes = protected_pool_budget_bytes(disk_total_bytes);
     let mut inventory = Vec::new();
 
     for base_dir in session_dirs {
@@ -635,15 +636,9 @@ fn disk_pressure_level(total_bytes: u64, free_bytes: u64) -> &'static str {
     }
 }
 
-fn rolling_pool_status(
-    pressure_level: &str,
-    used_bytes: u64,
-    evictable_bytes: u64,
-) -> &'static str {
+fn rolling_pool_status(pressure_level: &str, used_bytes: u64) -> &'static str {
     if used_bytes == 0 {
         "tracked"
-    } else if evictable_bytes == 0 {
-        "non_evictable_only"
     } else if pressure_level == "critical" {
         "over_hard_limit"
     } else if pressure_level == "warning" {

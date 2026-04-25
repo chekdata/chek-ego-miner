@@ -475,17 +475,21 @@ def infer_with_fallback(state: RuntimeState, payload: Dict[str, Any]) -> Dict[st
         if is_cuda_runtime_error(error) and state.effective_runtime_device() != "cpu":
             release_loaded_runtime(state)
             state.override_runtime_device("cpu", f"cuda_runtime_error:{error}")
-            retry = infer_once(state, payload, model_alias, model_path)
-            state.consecutive_failures = 0
-            state.last_error = ""
-            state.last_latency_ms = float(retry["latency_ms"])
-            state.last_model_alias = model_alias
-            state.last_model_path = model_path
-            retry["fallback_active"] = True
-            retry["degraded_reasons"] = retry.get("degraded_reasons", [])
-            retry["degraded_reasons"].append("cuda_runtime_fallback_to_cpu")
-            retry["inference_source"] = "vlm_sidecar"
-            return retry
+            try:
+                retry = infer_once(state, payload, model_alias, model_path)
+            except Exception as cpu_error:
+                state.last_error = str(cpu_error)
+            else:
+                state.consecutive_failures = 0
+                state.last_error = ""
+                state.last_latency_ms = float(retry["latency_ms"])
+                state.last_model_alias = model_alias
+                state.last_model_path = model_path
+                retry["fallback_active"] = True
+                retry["degraded_reasons"] = retry.get("degraded_reasons", [])
+                retry["degraded_reasons"].append("cuda_runtime_fallback_to_cpu")
+                retry["inference_source"] = "vlm_sidecar"
+                return retry
         if state.config.fallback_model_path and model_path != state.config.fallback_model_path:
             degraded_reasons.append("primary_runtime_error")
             release_loaded_runtime(state)
@@ -495,15 +499,19 @@ def infer_with_fallback(state: RuntimeState, payload: Dict[str, Any]) -> Dict[st
                 degraded_reasons.append("fallback_retry_without_cooldown")
             fallback_alias = state.config.fallback_model_id
             fallback_path = state.config.fallback_model_path
-            retry = infer_once(state, payload, fallback_alias, fallback_path)
-            retry["fallback_active"] = True
-            retry["degraded_reasons"] = degraded_reasons
-            retry["inference_source"] = "vlm_sidecar_fallback"
-            state.last_latency_ms = float(retry["latency_ms"])
-            state.last_model_alias = fallback_alias
-            state.last_model_path = fallback_path
-            state.last_error = ""
-            return retry
+            try:
+                retry = infer_once(state, payload, fallback_alias, fallback_path)
+            except Exception as fallback_error:
+                state.last_error = str(fallback_error)
+            else:
+                retry["fallback_active"] = True
+                retry["degraded_reasons"] = degraded_reasons
+                retry["inference_source"] = "vlm_sidecar_fallback"
+                state.last_latency_ms = float(retry["latency_ms"])
+                state.last_model_alias = fallback_alias
+                state.last_model_path = fallback_path
+                state.last_error = ""
+                return retry
         raise
 
 
