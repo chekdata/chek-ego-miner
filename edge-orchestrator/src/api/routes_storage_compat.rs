@@ -128,9 +128,7 @@ async fn get_storage_status(
     let inventory = load_storage_inventory(&state)
         .await
         .map_err(internal_error)?;
-    let cleanup_state = load_cleanup_state(storage_state_dir(&state))
-        .await
-        .unwrap_or_default();
+    let cleanup_state = load_cleanup_state(&state).await.unwrap_or_default();
     let active_session_id = active_session_id(&state);
     let rolling_sessions = inventory
         .iter()
@@ -278,7 +276,7 @@ async fn post_storage_sweep_apply(
             Some(last_error_messages.join(" | "))
         },
     };
-    write_cleanup_state(storage_state_dir(&state), &cleanup_state)
+    write_cleanup_state(&state, &cleanup_state)
         .await
         .map_err(internal_error)?;
 
@@ -341,7 +339,7 @@ async fn post_storage_consumption_receipt(
         generated_unix_ms: None,
         consumed_at: None,
     };
-    append_consumption_receipt(storage_state_dir(&state), &receipt)
+    append_consumption_receipt(&state, &receipt)
         .await
         .map_err(internal_error)?;
 
@@ -369,23 +367,20 @@ async fn post_storage_consumption_receipt(
 }
 
 async fn load_storage_inventory(state: &AppState) -> Result<Vec<SessionStorageInventory>, String> {
-    let session_root = session_root(state);
-    let session_dirs = collect_session_dirs(&session_root).await?;
-    let latest_receipts = load_latest_consumption_receipts(storage_state_dir(state)).await?;
+    let session_dirs = collect_session_dirs(state).await?;
+    let latest_receipts = load_latest_consumption_receipts(state).await?;
     let active_session_id = active_session_id(state);
     let mut inventory = Vec::new();
 
     for base_dir in session_dirs {
-        let upload_manifest = load_optional_json::<UploadManifestFile>(
-            &base_dir.join("upload").join("upload_manifest.json"),
-        )
-        .await?;
-        let upload_queue = load_optional_json::<UploadQueueFile>(
-            &base_dir.join("upload").join("upload_queue.json"),
-        )
-        .await?;
+        let upload_manifest =
+            load_optional_json::<UploadManifestFile>(&base_dir, "upload/upload_manifest.json")
+                .await?;
+        let upload_queue =
+            load_optional_json::<UploadQueueFile>(&base_dir, "upload/upload_queue.json").await?;
         let local_quality = load_optional_json::<LocalQualityReportSummary>(
-            &base_dir.join("qa").join("local_quality_report.json"),
+            &base_dir,
+            "qa/local_quality_report.json",
         )
         .await?;
         let fallback_session_id = base_dir
@@ -481,18 +476,21 @@ fn cleanup_candidates(inventory: &[SessionStorageInventory]) -> Vec<&SessionStor
     candidates
 }
 
-async fn collect_session_dirs(session_root: &Path) -> Result<Vec<PathBuf>, String> {
-    let exists = tokio::fs::try_exists(session_root).await.map_err(|error| {
-        format!(
-            "检查 session 目录失败: {} ({error})",
-            session_root.display()
-        )
-    })?;
+async fn collect_session_dirs(state: &AppState) -> Result<Vec<PathBuf>, String> {
+    let session_root = canonical_data_child_dir(state, "session").await?;
+    let exists = tokio::fs::try_exists(&session_root)
+        .await
+        .map_err(|error| {
+            format!(
+                "检查 session 目录失败: {} ({error})",
+                session_root.display()
+            )
+        })?;
     if !exists {
         return Ok(Vec::new());
     }
 
-    let mut entries = tokio::fs::read_dir(session_root).await.map_err(|error| {
+    let mut entries = tokio::fs::read_dir(&session_root).await.map_err(|error| {
         format!(
             "读取 session 目录失败: {} ({error})",
             session_root.display()
@@ -518,24 +516,39 @@ async fn collect_session_dirs(session_root: &Path) -> Result<Vec<PathBuf>, Strin
                 .ok_or_else(|| "session 目录名必须是 UTF-8".to_string())?
                 .to_string();
             let safe_session_id = path_safety::validate_path_component(&file_name, "session_id")?;
-            session_dirs.push(session_root.join(safe_session_id));
+            let candidate = session_root.join(safe_session_id);
+            let canonical_candidate =
+                tokio::fs::canonicalize(&candidate).await.map_err(|error| {
+                    format!("解析 session 目录失败: {} ({error})", candidate.display())
+                })?;
+            if !canonical_candidate.starts_with(&session_root) {
+                return Err(format!(
+                    "session 目录越界: {} not under {}",
+                    canonical_candidate.display(),
+                    session_root.display()
+                ));
+            }
+            session_dirs.push(canonical_candidate);
         }
     }
     session_dirs.sort();
     Ok(session_dirs)
 }
 
-async fn load_optional_json<T>(path: &Path) -> Result<Option<T>, String>
+async fn load_optional_json<T>(trusted_root: &Path, relpath: &str) -> Result<Option<T>, String>
 where
     T: DeserializeOwned,
 {
-    let exists = tokio::fs::try_exists(path)
+    let Some(path) = optional_child_file_path(trusted_root, relpath).await? else {
+        return Ok(None);
+    };
+    let exists = tokio::fs::try_exists(&path)
         .await
         .map_err(|error| format!("检查文件是否存在失败: {} ({error})", path.display()))?;
     if !exists {
         return Ok(None);
     }
-    let content = tokio::fs::read_to_string(path)
+    let content = tokio::fs::read_to_string(&path)
         .await
         .map_err(|error| format!("读取文件失败: {} ({error})", path.display()))?;
     match serde_json::from_str::<T>(&content) {
@@ -681,30 +694,74 @@ fn protected_pool_status(used_bytes: u64, budget_bytes: u64) -> &'static str {
     }
 }
 
-fn storage_state_dir(state: &AppState) -> PathBuf {
-    Path::new(&state.config.data_dir).join("storage")
-}
-
-fn session_root(state: &AppState) -> PathBuf {
-    Path::new(&state.config.data_dir).join("session")
-}
-
 fn active_session_id(state: &AppState) -> String {
     normalize_non_empty(&state.session.snapshot().session_id).unwrap_or_default()
 }
 
-fn consumption_receipts_path(storage_state_dir: &Path) -> PathBuf {
-    storage_state_dir.join("consumption_receipts.jsonl")
+async fn canonical_data_dir(state: &AppState) -> Result<PathBuf, String> {
+    let data_dir = Path::new(&state.config.data_dir);
+    let canonical = tokio::fs::canonicalize(data_dir)
+        .await
+        .map_err(|error| format!("解析 data_dir 失败: {} ({error})", data_dir.display()))?;
+    path_safety::ensure_no_relative_escape(&canonical, "data_dir")?;
+    Ok(canonical)
 }
 
-fn cleanup_state_path(storage_state_dir: &Path) -> PathBuf {
-    storage_state_dir.join("cleanup_state.json")
+async fn canonical_data_child_dir(state: &AppState, child: &str) -> Result<PathBuf, String> {
+    let data_dir = canonical_data_dir(state).await?;
+    let safe_child = path_safety::validate_path_component(child, "data_child")?;
+    Ok(data_dir.join(safe_child))
+}
+
+async fn optional_child_file_path(root: &Path, relpath: &str) -> Result<Option<PathBuf>, String> {
+    let rel = path_safety::validate_relative_path(relpath, "storage relpath")?;
+    let path = root.join(rel);
+    let parent = path
+        .parent()
+        .ok_or_else(|| format!("文件路径缺少父目录: {}", path.display()))?;
+    let parent_exists = tokio::fs::try_exists(parent)
+        .await
+        .map_err(|error| format!("检查父目录是否存在失败: {} ({error})", parent.display()))?;
+    if !parent_exists {
+        return Ok(None);
+    }
+    let canonical_root = tokio::fs::canonicalize(root)
+        .await
+        .map_err(|error| format!("解析根目录失败: {} ({error})", root.display()))?;
+    let canonical_parent = tokio::fs::canonicalize(parent)
+        .await
+        .map_err(|error| format!("解析父目录失败: {} ({error})", parent.display()))?;
+    if !canonical_parent.starts_with(&canonical_root) {
+        return Err(format!(
+            "文件父目录越界: {} not under {}",
+            canonical_parent.display(),
+            canonical_root.display()
+        ));
+    }
+    let file_name = path
+        .file_name()
+        .ok_or_else(|| format!("文件路径缺少文件名: {}", path.display()))?;
+    Ok(Some(canonical_parent.join(file_name)))
+}
+
+fn child_file_path(root: &Path, filename: &str) -> Result<PathBuf, String> {
+    let safe_filename = path_safety::validate_path_component(filename, "filename")?;
+    Ok(root.join(safe_filename))
+}
+
+async fn canonical_storage_state_dir(state: &AppState) -> Result<PathBuf, String> {
+    canonical_data_child_dir(state, "storage").await
 }
 
 async fn load_latest_consumption_receipts(
-    storage_state_dir: PathBuf,
+    state: &AppState,
 ) -> Result<HashMap<String, StoredConsumptionReceipt>, String> {
-    let path = consumption_receipts_path(&storage_state_dir);
+    let storage_state_dir = canonical_storage_state_dir(state).await?;
+    let Some(path) =
+        optional_child_file_path(&storage_state_dir, "consumption_receipts.jsonl").await?
+    else {
+        return Ok(HashMap::new());
+    };
     let exists = tokio::fs::try_exists(&path).await.map_err(|error| {
         format!(
             "检查 consumption receipts 失败: {} ({error})",
@@ -743,9 +800,10 @@ async fn load_latest_consumption_receipts(
 }
 
 async fn append_consumption_receipt(
-    storage_state_dir: PathBuf,
+    state: &AppState,
     receipt: &StoredConsumptionReceipt,
 ) -> Result<(), String> {
+    let storage_state_dir = canonical_storage_state_dir(state).await?;
     tokio::fs::create_dir_all(&storage_state_dir)
         .await
         .map_err(|error| {
@@ -754,7 +812,16 @@ async fn append_consumption_receipt(
                 storage_state_dir.display()
             )
         })?;
-    let path = consumption_receipts_path(&storage_state_dir);
+    let canonical_storage_state_dir =
+        tokio::fs::canonicalize(&storage_state_dir)
+            .await
+            .map_err(|error| {
+                format!(
+                    "解析 storage state 目录失败: {} ({error})",
+                    storage_state_dir.display()
+                )
+            })?;
+    let path = child_file_path(&canonical_storage_state_dir, "consumption_receipts.jsonl")?;
     let mut file = tokio::fs::OpenOptions::new()
         .create(true)
         .append(true)
@@ -776,17 +843,17 @@ async fn append_consumption_receipt(
     })
 }
 
-async fn load_cleanup_state(storage_state_dir: PathBuf) -> Result<CleanupStateFile, String> {
-    let path = cleanup_state_path(&storage_state_dir);
-    Ok(load_optional_json::<CleanupStateFile>(&path)
-        .await?
-        .unwrap_or_default())
+async fn load_cleanup_state(state: &AppState) -> Result<CleanupStateFile, String> {
+    let storage_state_dir = canonical_storage_state_dir(state).await?;
+    Ok(
+        load_optional_json::<CleanupStateFile>(&storage_state_dir, "cleanup_state.json")
+            .await?
+            .unwrap_or_default(),
+    )
 }
 
-async fn write_cleanup_state(
-    storage_state_dir: PathBuf,
-    state: &CleanupStateFile,
-) -> Result<(), String> {
+async fn write_cleanup_state(app_state: &AppState, state: &CleanupStateFile) -> Result<(), String> {
+    let storage_state_dir = canonical_storage_state_dir(app_state).await?;
     tokio::fs::create_dir_all(&storage_state_dir)
         .await
         .map_err(|error| {
@@ -795,7 +862,16 @@ async fn write_cleanup_state(
                 storage_state_dir.display()
             )
         })?;
-    let path = cleanup_state_path(&storage_state_dir);
+    let canonical_storage_state_dir =
+        tokio::fs::canonicalize(&storage_state_dir)
+            .await
+            .map_err(|error| {
+                format!(
+                    "解析 storage state 目录失败: {} ({error})",
+                    storage_state_dir.display()
+                )
+            })?;
+    let path = child_file_path(&canonical_storage_state_dir, "cleanup_state.json")?;
     let bytes = serde_json::to_vec_pretty(state).map_err(|error| error.to_string())?;
     tokio::fs::write(&path, bytes)
         .await
