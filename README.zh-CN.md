@@ -13,7 +13,7 @@
   - [Claude 指南](./docs/agent-guides/claude.md)
   - [OpenClaw 指南](./docs/agent-guides/openclaw.md)
 - 检索和下载大家贡献的数据：
-  - [EGO Dataset 数据门户](https://www-dev.chekkk.com/humanoid/ego-dataset)
+  - [EGO Dataset 数据门户](https://www.chekkk.com/humanoid/ego-dataset)
 
 ## 你可以用它做什么
 
@@ -214,7 +214,7 @@ VLM 资产，再由 `systemd-user` 启 sidecar：
 
 可以通过下面的入口检索和下载大家贡献的数据：
 
-- [https://www-dev.chekkk.com/humanoid/ego-dataset](https://www-dev.chekkk.com/humanoid/ego-dataset)
+- [https://www.chekkk.com/humanoid/ego-dataset](https://www.chekkk.com/humanoid/ego-dataset)
 
 ## 现在可以做什么
 
