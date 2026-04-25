@@ -273,6 +273,9 @@ async fn post_storage_sweep_apply(
     let mut last_error_messages: Vec<String> = Vec::new();
 
     for session in &candidates {
+        // Keep /session/start from making this candidate active between the
+        // protection recheck and the destructive directory removal.
+        let _storage_sweep_guard = state.storage_sweep_guard.lock().await;
         if session_became_protected(&state, session).await? {
             skipped_session_ids.push(session.session_id.clone());
             continue;

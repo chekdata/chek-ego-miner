@@ -369,6 +369,74 @@ async fn contract_storage_cleanup_apply_reclaims_only_rolling_sessions() -> anyh
 }
 
 #[tokio::test]
+async fn contract_storage_cleanup_apply_keeps_session_started_after_dry_run() -> anyhow::Result<()>
+{
+    let server = support::TestServer::spawn().await?;
+    let client = reqwest::Client::new();
+    let session_id = "sess-storage-race-apply-001";
+
+    seed_storage_session_fixture(
+        &server.data_dir,
+        "trip-storage-race-apply-001",
+        session_id,
+        4_096,
+        "pass",
+        true,
+        "acked",
+    )?;
+
+    let dry_run = client
+        .post(format!("{}/edge/storage/sweeps/dry-run", server.http_base))
+        .bearer_auth(&server.edge_token)
+        .json(&serde_json::json!({}))
+        .send()
+        .await?
+        .error_for_status()?
+        .json::<serde_json::Value>()
+        .await?;
+    assert_eq!(
+        dry_run
+            .get("selected_session_ids")
+            .and_then(|value| value.as_array())
+            .and_then(|items| items.first())
+            .and_then(|value| value.as_str()),
+        Some(session_id)
+    );
+
+    client
+        .post(format!("{}/session/start", server.http_base))
+        .bearer_auth(&server.edge_token)
+        .json(&serde_json::json!({
+            "schema_version": "1.0.0",
+            "trip_id": "trip-storage-race-apply-001",
+            "session_id": session_id,
+            "device_id": "device-storage-race-apply-001",
+        }))
+        .send()
+        .await?
+        .error_for_status()?;
+
+    let apply = client
+        .post(format!("{}/edge/storage/sweeps/apply", server.http_base))
+        .bearer_auth(&server.edge_token)
+        .json(&serde_json::json!({}))
+        .send()
+        .await?
+        .error_for_status()?
+        .json::<serde_json::Value>()
+        .await?;
+    assert_eq!(
+        apply
+            .get("applied_session_count")
+            .and_then(|value| value.as_u64()),
+        Some(0)
+    );
+    assert!(server.data_dir.join("session").join(session_id).exists());
+
+    Ok(())
+}
+
+#[tokio::test]
 async fn contract_storage_compat_accepts_legacy_consumption_receipts() -> anyhow::Result<()> {
     let server = support::TestServer::spawn().await?;
     let client = reqwest::Client::new();

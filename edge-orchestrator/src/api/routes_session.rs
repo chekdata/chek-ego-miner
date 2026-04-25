@@ -64,12 +64,6 @@ async fn start(
         task_ids,
     } = req;
 
-    state
-        .session
-        .set_active(trip_id.clone(), session_id.clone());
-    state
-        .session
-        .set_mode(state.config.default_session_mode().to_string());
     let recorder = state.recorder.clone();
     let protocol = state.protocol.clone();
     let config = state.config.clone();
@@ -79,6 +73,14 @@ async fn start(
         task_id,
         task_ids: task_ids.unwrap_or_default(),
     };
+
+    let _storage_sweep_guard = state.storage_sweep_guard.lock().await;
+    state
+        .session
+        .set_active(trip_id.clone(), session_id.clone());
+    state
+        .session
+        .set_mode(state.config.default_session_mode().to_string());
 
     if let Err(error) = recorder
         .ensure_session(&trip_id, &session_id, &protocol, &config)

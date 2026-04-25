@@ -58,6 +58,7 @@ pub struct AppState {
     pub operator: Arc<operator::OperatorStore>,
     pub iphone_stereo_calibration: Arc<calibration::IphoneStereoCalibrationStore>,
     pub wifi_stereo_calibration: Arc<calibration::WifiStereoCalibrationStore>,
+    pub storage_sweep_guard: Arc<tokio::sync::Mutex<()>>,
 
     pub fusion_state_tx: broadcast::Sender<FusionStatePacket>,
     pub chunk_ack_tx: broadcast::Sender<ChunkAckPacket>,
@@ -128,6 +129,7 @@ async fn main() -> anyhow::Result<()> {
     let wifi_stereo_calibration = Arc::new(calibration::WifiStereoCalibrationStore::new(
         config.wifi_stereo_extrinsic_path.clone(),
     ));
+    let storage_sweep_guard = Arc::new(tokio::sync::Mutex::new(()));
 
     let (fusion_state_tx, _) = broadcast::channel(config.fusion_broadcast_capacity);
     let (chunk_ack_tx, _) = broadcast::channel(config.chunk_ack_broadcast_capacity);
@@ -158,6 +160,7 @@ async fn main() -> anyhow::Result<()> {
         operator,
         iphone_stereo_calibration,
         wifi_stereo_calibration,
+        storage_sweep_guard,
         fusion_state_tx,
         chunk_ack_tx,
         teleop_tx,
