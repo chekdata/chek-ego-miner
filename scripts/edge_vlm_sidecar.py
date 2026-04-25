@@ -245,9 +245,10 @@ class RuntimeState:
     runtime_device_override_permanent: bool = False
 
     def health_payload(self) -> Dict[str, Any]:
+        """Build a non-mutating snapshot safe for liveness probes."""
         now_ms = int(time.time() * 1000)
         fallback_active = self.fallback_until_ms > now_ms
-        effective_runtime_device = self.effective_runtime_device()
+        effective_runtime_device = self.effective_runtime_device_snapshot(now_ms)
         runtime_device_override = self.runtime_device_override or None
         runtime_device_override_reason = self.runtime_device_override_reason or None
         return {
@@ -274,6 +275,13 @@ class RuntimeState:
                 "image_seq_len": self.config.image_seq_len,
             },
         }
+
+    def effective_runtime_device_snapshot(self, now_ms: Optional[int] = None) -> str:
+        if self.runtime_device_override:
+            now_ms = now_ms if now_ms is not None else int(time.time() * 1000)
+            if self.runtime_device_override_permanent or self.runtime_device_override_until_ms > now_ms:
+                return self.runtime_device_override
+        return self.config.runtime_device
 
     def current_slot(self) -> Tuple[str, str, bool]:
         now_ms = int(time.time() * 1000)
@@ -563,8 +571,7 @@ class SidecarHandler(BaseHTTPRequestHandler):
     def do_GET(self) -> None:
         parsed = urlparse(self.path)
         if parsed.path == "/health":
-            with self.runtime_state.lock:
-                payload = self.runtime_state.health_payload()
+            payload = self.runtime_state.health_payload()
             self._write_json(HTTPStatus.OK, payload)
             return
         self._write_json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "not_found"})

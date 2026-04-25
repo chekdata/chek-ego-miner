@@ -156,9 +156,11 @@ async fn get_storage_status(
         .iter()
         .map(|session| session.byte_size)
         .sum::<u64>();
-    let cleanup_candidates = cleanup_candidates(&inventory, &StorageSweepRequest::default());
-    let evictable_bytes = cleanup_candidates
+    let dry_run_cleanup_candidates =
+        cleanup_candidates(&inventory, &StorageSweepRequest::default());
+    let evictable_bytes = inventory
         .iter()
+        .filter(|session| is_cleanup_candidate(session))
         .map(|session| session.byte_size)
         .sum::<u64>();
     let current_blockers = inventory
@@ -201,7 +203,7 @@ async fn get_storage_status(
             "auto_sweep_enabled": true,
             "last_run_at": cleanup_state.last_run_at,
             "last_reclaimed_bytes": cleanup_state.last_reclaimed_bytes,
-            "dry_run_selected_sessions": cleanup_candidates.iter().map(|session| session.session_id.clone()).collect::<Vec<_>>(),
+            "dry_run_selected_sessions": dry_run_cleanup_candidates.iter().map(|session| session.session_id.clone()).collect::<Vec<_>>(),
             "current_blockers": current_blockers,
             "last_error": cleanup_state.last_error,
         },

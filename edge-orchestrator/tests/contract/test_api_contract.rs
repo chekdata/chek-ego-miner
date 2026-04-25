@@ -77,6 +77,15 @@ async fn contract_storage_status_and_sessions_compatibility() -> anyhow::Result<
         true,
         "acked",
     )?;
+    seed_storage_session_fixture(
+        &server.data_dir,
+        "trip-storage-rolling-002",
+        "sess-storage-rolling-002",
+        16_384,
+        "pass",
+        true,
+        "acked",
+    )?;
 
     client
         .post(format!(
@@ -119,7 +128,14 @@ async fn contract_storage_status_and_sessions_compatibility() -> anyhow::Result<
             .get("rolling_pool")
             .and_then(|value| value.get("session_count"))
             .and_then(|value| value.as_u64()),
-        Some(1)
+        Some(2)
+    );
+    assert_eq!(
+        status
+            .get("rolling_pool")
+            .and_then(|value| value.get("evictable_bytes"))
+            .and_then(|value| value.as_u64()),
+        Some(24_576)
     );
     assert_eq!(
         status
@@ -140,7 +156,14 @@ async fn contract_storage_status_and_sessions_compatibility() -> anyhow::Result<
             .get("rolling_pool")
             .and_then(|value| value.get("session_count"))
             .and_then(|value| value.as_u64()),
-        Some(1)
+        Some(2)
+    );
+    assert_eq!(
+        status_alias
+            .get("rolling_pool")
+            .and_then(|value| value.get("evictable_bytes"))
+            .and_then(|value| value.as_u64()),
+        Some(24_576)
     );
     assert_eq!(
         status_alias
@@ -185,6 +208,8 @@ async fn contract_storage_status_and_sessions_compatibility() -> anyhow::Result<
     let active = session_item(&items, "sess-storage-active-001").expect("active session item");
     let held = session_item(&items, "sess-storage-held-001").expect("held session item");
     let rolling = session_item(&items, "sess-storage-rolling-001").expect("rolling session item");
+    let rolling_extra =
+        session_item(&items, "sess-storage-rolling-002").expect("extra rolling session item");
     assert_eq!(
         active.get("storage_pool").and_then(|value| value.as_str()),
         Some("protected")
@@ -200,6 +225,12 @@ async fn contract_storage_status_and_sessions_compatibility() -> anyhow::Result<
     );
     assert_eq!(
         rolling
+            .get("upload_queue_status")
+            .and_then(|value| value.as_str()),
+        Some("acked")
+    );
+    assert_eq!(
+        rolling_extra
             .get("upload_queue_status")
             .and_then(|value| value.as_str()),
         Some("acked")
