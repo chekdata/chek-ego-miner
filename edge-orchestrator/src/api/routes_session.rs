@@ -54,28 +54,50 @@ async fn start(
     State(state): State<AppState>,
     Json(req): Json<SessionStartRequest>,
 ) -> Json<OkResponse> {
-    state.session.set_active(req.trip_id, req.session_id);
+    let SessionStartRequest {
+        schema_version: _,
+        trip_id,
+        session_id,
+        device_id,
+        operator_id,
+        task_id,
+        task_ids,
+    } = req;
+
+    state
+        .session
+        .set_active(trip_id.clone(), session_id.clone());
     state
         .session
         .set_mode(state.config.default_session_mode().to_string());
-    let session = state.session.snapshot();
     let recorder = state.recorder.clone();
     let protocol = state.protocol.clone();
     let config = state.config.clone();
-    let trip_id = session.trip_id.clone();
-    let session_id = session.session_id.clone();
     let context_update = SessionContextUpdate {
-        capture_device_id: Some(req.device_id),
-        operator_id: req.operator_id,
-        task_id: req.task_id,
-        task_ids: req.task_ids.unwrap_or_default(),
+        capture_device_id: Some(device_id),
+        operator_id,
+        task_id,
+        task_ids: task_ids.unwrap_or_default(),
     };
-    let _ = recorder
-        .ensure_session(&trip_id, &session_id, &protocol, &config)
-        .await;
-    recorder
-        .update_session_context(&protocol, &config, &trip_id, &session_id, context_update)
-        .await;
+
+    tokio::spawn(async move {
+        if let Err(error) = recorder
+            .ensure_session(&trip_id, &session_id, &protocol, &config)
+            .await
+        {
+            tracing::warn!(
+                error = %error,
+                trip_id,
+                session_id,
+                "session/start recorder ensure_session failed"
+            );
+            return;
+        }
+        recorder
+            .update_session_context(&protocol, &config, &trip_id, &session_id, context_update)
+            .await;
+    });
+
     metrics::counter!("session_start_count").increment(1);
     Json(OkResponse { ok: true })
 }

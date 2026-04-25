@@ -19,8 +19,10 @@ from urllib.parse import urlparse
 
 
 DEFAULT_PROMPT = (
-    "Describe this ego-view image in one short sentence. Focus on people, actions, "
-    "and salient objects. Do not mention that this is an AI task."
+    "Describe only what is literally visible in this image in one short sentence. "
+    "Focus on salient people, objects, text, or UI when they are clearly present. "
+    "If the image looks like a screen, webpage, dashboard, or document, say that directly. "
+    "Do not invent people or actions that are not clearly visible, and do not mention that this is an AI task."
 )
 _TORCHVISION_COMPAT_LIB = None
 
@@ -112,6 +114,20 @@ def normalize_caption(text: str) -> str:
     return collapsed.rstrip(".,;:") + "."
 
 
+def is_cuda_runtime_error(error: Exception) -> bool:
+    message = str(error).strip().lower()
+    return any(
+        token in message
+        for token in (
+            "cuda",
+            "cudacachingallocator",
+            "nvml",
+            "device-side assert",
+            "driver/library version mismatch",
+        )
+    )
+
+
 def infer_action_from_caption(caption: str) -> str:
     lowered = caption.lower()
     if any(token in lowered for token in ("reach", "reaching", "grab", "picking", "pick up")):
@@ -134,6 +150,14 @@ def caption_keywords(caption: str) -> Tuple[list[str], list[str]]:
         "people": "person_visible",
         "hand": "hand_visible",
         "hands": "hand_visible",
+        "screen": "screen_ui",
+        "webpage": "screen_ui",
+        "website": "screen_ui",
+        "dashboard": "screen_ui",
+        "button": "screen_ui",
+        "page": "screen_ui",
+        "text": "text_heavy_scene",
+        "document": "text_heavy_scene",
         "desk": "desk_scene",
         "table": "desk_scene",
         "office": "office_scene",
@@ -157,6 +181,10 @@ def caption_keywords(caption: str) -> Tuple[list[str], list[str]]:
         "sanitizer",
         "bag",
         "screen",
+        "page",
+        "dashboard",
+        "button",
+        "text",
     ]
     for token, tag in tag_keywords.items():
         if token in lowered and tag not in tags:
@@ -210,10 +238,13 @@ class RuntimeState:
     last_model_alias: str = ""
     last_model_path: str = ""
     last_fallback_reason: str = ""
+    runtime_device_override: str = ""
+    runtime_device_override_reason: str = ""
 
     def health_payload(self) -> Dict[str, Any]:
         now_ms = int(time.time() * 1000)
         fallback_active = self.fallback_until_ms > now_ms
+        effective_runtime_device = self.runtime_device_override or self.config.runtime_device
         return {
             "ok": True,
             "service": "edge_vlm_sidecar",
@@ -222,7 +253,10 @@ class RuntimeState:
             "fallback_model_id": self.config.fallback_model_id,
             "active_model_id": self.last_model_alias or self.config.primary_model_id,
             "active_model_path": self.last_model_path,
-            "runtime_device": self.config.runtime_device,
+            "runtime_device": effective_runtime_device,
+            "runtime_device_requested": self.config.runtime_device,
+            "runtime_device_override": self.runtime_device_override or None,
+            "runtime_device_override_reason": self.runtime_device_override_reason or None,
             "fallback_active": fallback_active,
             "fallback_until_ms": self.fallback_until_ms if fallback_active else None,
             "fallback_reason": self.last_fallback_reason or None,
@@ -247,6 +281,13 @@ class RuntimeState:
             return
         self.fallback_until_ms = int(time.time() * 1000) + self.config.auto_fallback_cooldown_ms
         self.last_fallback_reason = reason
+
+    def effective_runtime_device(self) -> str:
+        return self.runtime_device_override or self.config.runtime_device
+
+    def override_runtime_device(self, device: str, reason: str) -> None:
+        self.runtime_device_override = device
+        self.runtime_device_override_reason = reason
 
 
 def load_runtime_modules() -> Tuple[Any, Any, Any, Any]:
@@ -274,7 +315,7 @@ def load_model(state: RuntimeState, model_alias: str, model_path: str) -> Loaded
 
     torch, _, auto_config_cls, auto_classes = load_runtime_modules()
     auto_processor_cls, auto_model_cls = auto_classes
-    device = resolve_torch_device(torch, state.config.runtime_device)
+    device = resolve_torch_device(torch, state.effective_runtime_device())
     dtype = torch_dtype_for_device(torch, device)
 
     config = auto_config_cls.from_pretrained(model_path)
@@ -431,6 +472,19 @@ def infer_with_fallback(state: RuntimeState, payload: Dict[str, Any]) -> Dict[st
     except Exception as error:
         state.consecutive_failures += 1
         state.last_error = str(error)
+        if is_cuda_runtime_error(error) and state.effective_runtime_device() != "cpu":
+            release_loaded_runtime(state)
+            state.override_runtime_device("cpu", f"cuda_runtime_error:{error}")
+            retry = infer_once(state, payload, model_alias, model_path)
+            state.consecutive_failures = 0
+            state.last_error = ""
+            state.last_latency_ms = float(retry["latency_ms"])
+            state.last_model_alias = model_alias
+            state.last_model_path = model_path
+            retry["fallback_active"] = False
+            retry["degraded_reasons"] = []
+            retry["inference_source"] = "vlm_sidecar"
+            return retry
         if state.config.fallback_model_path and model_path != state.config.fallback_model_path:
             degraded_reasons.append("primary_runtime_error")
             release_loaded_runtime(state)

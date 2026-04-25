@@ -50,6 +50,33 @@
 `services/`、install backend 或共享 UI panel 里就不应该长期双写，而应该继续往
 shared building block、模板或版本化资产去收口。
 
+## 能力归边
+
+从公开产品入口的角度看，`chek-ego-miner` 需要把 `SLAM`、`VLM`、`时间同步`
+这三类能力都暴露成用户可安装、可启动、可诊断、可操作的入口，这样用户自己组装
+边缘机或只用电脑安装时，才能真的把链路跑起来。
+
+但这不等于这三类能力都应该在 `chek-ego-miner` 里各维护一套长期独立实现：
+
+- `SLAM`
+  - 目前仍然更强地耦合在内部整机工程线，尤其是 sensing bring-up、标定、
+    replay、训练门槛和工程观测这几块
+  - `chek-ego-miner` 应该提供 public 安装与操作入口，但不应该再分叉出第二套
+    长期维护的核心 SLAM 栈
+- `VLM`
+  - 必须能直接通过 `chek-ego-miner` 被用户使用，包括模型下载、sidecar 启动、
+    service 接线和 public 诊断链路
+  - 但底层 runtime 语义仍应和内部整机工程线持续收敛，而不是演变成两套不同的
+    VLM 实现
+- `时间同步`
+  - 本质上是两条产品线都会依赖的采集质量能力
+  - `chek-ego-miner` 负责 public 安装、校验和用户可见反馈
+  - 更深的整机标定、工程观测和工厂集成能力可以继续放在 `chek-edge-runtime`
+
+后面的总规则很简单：如果两边表达的是同一个能力，在 `modules/`、`profiles/`、
+`services/`、install backend 或共享 UI panel 里就不应该长期双写，而应该继续往
+shared building block、模板或版本化资产去收口。
+
 ## 系统视图
 
 ```mermaid

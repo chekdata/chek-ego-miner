@@ -9,10 +9,6 @@ Type=simple
 WorkingDirectory=__EDGE_ROOT__
 Environment=CHEK_EDGE_ROOT=__CHEK_EDGE_ROOT__
 Environment=EDGE_VLM_SIDECAR_BASE=http://127.0.0.1:3032
-Environment=EDGE_VLM_MODEL_ID=SmolVLM2-500M
-Environment=EDGE_VLM_FALLBACK_MODEL_ID=SmolVLM2-256M
-Environment=EDGE_VLM_PRIMARY_MODEL_PATH=__EDGE_ROOT__/model-candidates/huggingface/SmolVLM2-500M-Video-Instruct
-Environment=EDGE_VLM_FALLBACK_MODEL_PATH=__EDGE_ROOT__/model-candidates/huggingface/SmolVLM2-256M-Video-Instruct
 Environment=EDGE_VLM_SIDECAR_PYTHON_BIN=__EDGE_ROOT__/runtime/vlm-venv/bin/python
 Environment=EDGE_VLM_RUNTIME_DEVICE=auto
 Environment=PATH=%h/.local/bin:%h/.cargo/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin

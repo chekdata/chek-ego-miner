@@ -3278,6 +3278,19 @@ impl ActiveSession {
         true
     }
 
+    fn clear_semantic_degraded_stages(&mut self, stages: &[&str], cfg: &Config) -> bool {
+        let original_len = self.semantic.preview_manifest.degraded_reasons.len();
+        self.semantic
+            .preview_manifest
+            .degraded_reasons
+            .retain(|item| !stages.iter().any(|stage| item.stage == *stage));
+        let changed = self.semantic.preview_manifest.degraded_reasons.len() != original_len;
+        if changed {
+            self.refresh_semantic_status(cfg);
+        }
+        changed
+    }
+
     fn refresh_semantic_status(&mut self, cfg: &Config) {
         if cfg.preview_generation_enabled {
             self.semantic.preview_manifest.status =
@@ -3608,6 +3621,11 @@ impl ActiveSession {
             for reason in &result.degraded_reasons {
                 changed |= self.mark_semantic_degraded("vlm_runtime", reason, cfg);
             }
+        } else if result.inference_source == "vlm_sidecar" {
+            changed |= self.clear_semantic_degraded_stages(
+                &["vlm_sidecar_inference", "vlm_runtime"],
+                cfg,
+            );
         }
 
         if meta.roll_segment_before_event {
@@ -3848,25 +3866,31 @@ impl ActiveSession {
             .to_string();
         let action_guess = semantic_action_guess(v);
 
+        let edge_time_reset = self
+            .semantic
+            .last_keyframe_edge_time_ns
+            .is_some_and(|last| edge_time_ns <= last);
         let first_sample = self.semantic.last_keyframe_edge_time_ns.is_none();
         let interval_ns = cfg.vlm_keyframe_interval_ms.saturating_mul(1_000_000);
         let fixed_due = self
             .semantic
             .last_keyframe_edge_time_ns
-            .map(|last| edge_time_ns.saturating_sub(last) >= interval_ns)
+            .map(|last| edge_time_reset || edge_time_ns.saturating_sub(last) >= interval_ns)
             .unwrap_or(true);
-        let camera_mode_change_due = cfg.vlm_event_trigger_enabled
+        let camera_mode_change_due = !edge_time_reset
+            && cfg.vlm_event_trigger_enabled
             && cfg.vlm_event_trigger_camera_mode_change_enabled
             && !first_sample
             && self.semantic.last_camera_mode != camera_mode;
-        let action_change_due = cfg.vlm_event_trigger_enabled
+        let action_change_due = !edge_time_reset
+            && cfg.vlm_event_trigger_enabled
             && self
                 .semantic
                 .current_segment
                 .as_ref()
                 .and_then(|segment| segment.actions.last())
                 .is_some_and(|last_action| last_action != &action_guess);
-        let event_due = first_sample || camera_mode_change_due || action_change_due;
+        let event_due = first_sample || edge_time_reset || camera_mode_change_due || action_change_due;
         if !fixed_due && !event_due {
             return false;
         }
@@ -3899,6 +3923,9 @@ impl ActiveSession {
             }
             if first_sample {
                 reasons.push("session_start".to_string());
+            }
+            if edge_time_reset {
+                reasons.push("edge_time_reset".to_string());
             }
             if event_due {
                 reasons.push("event_trigger".to_string());
