@@ -725,12 +725,24 @@ async fn optional_child_file_path(root: &Path, relpath: &str) -> Result<Option<P
     if !parent_exists {
         return Ok(None);
     }
-    let canonical_root = tokio::fs::canonicalize(root)
-        .await
-        .map_err(|error| format!("解析根目录失败: {} ({error})", root.display()))?;
-    let canonical_parent = tokio::fs::canonicalize(parent)
-        .await
-        .map_err(|error| format!("解析父目录失败: {} ({error})", parent.display()))?;
+    let canonical_root = match tokio::fs::canonicalize(root).await {
+        Ok(path) => path,
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => {
+            return Ok(None);
+        }
+        Err(error) => {
+            return Err(format!("解析根目录失败: {} ({error})", root.display()));
+        }
+    };
+    let canonical_parent = match tokio::fs::canonicalize(parent).await {
+        Ok(path) => path,
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => {
+            return Ok(None);
+        }
+        Err(error) => {
+            return Err(format!("解析父目录失败: {} ({error})", parent.display()));
+        }
+    };
     if !canonical_parent.starts_with(&canonical_root) {
         return Err(format!(
             "文件父目录越界: {} not under {}",

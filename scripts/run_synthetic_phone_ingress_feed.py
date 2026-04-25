@@ -13,8 +13,6 @@ import urllib.request
 from pathlib import Path
 from typing import Any
 
-from PIL import Image
-
 
 TINY_JPEG_B64 = (
     "/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8U"

@@ -90,16 +90,11 @@ async fn start(
             session_id,
             "session/start recorder ensure_session failed"
         );
-    } else {
-        let recorder = recorder.clone();
-        let protocol = protocol.clone();
-        let config = config.clone();
-        tokio::spawn(async move {
-            recorder
-                .update_session_context(&protocol, &config, &trip_id, &session_id, context_update)
-                .await;
-        });
     }
+
+    recorder
+        .update_session_context(&protocol, &config, &trip_id, &session_id, context_update)
+        .await;
 
     metrics::counter!("session_start_count").increment(1);
     Json(OkResponse { ok: true })

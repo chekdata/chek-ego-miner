@@ -322,17 +322,22 @@ def decode_pil_image(image_b64: str, image_cls: Any) -> Any:
 
 
 def load_model(state: RuntimeState, model_alias: str, model_path: str) -> LoadedRuntime:
-    torch, _, auto_config_cls, auto_classes = load_runtime_modules()
-    auto_processor_cls, auto_model_cls = auto_classes
-    device = resolve_torch_device(torch, state.effective_runtime_device())
+    device = None
     if (
         state.loaded
         and state.loaded.model_alias == model_alias
         and state.loaded.model_path == model_path
-        and state.loaded.device == device
     ):
-        return state.loaded
+        torch, _, _, _ = load_runtime_modules()
+        resolved_device = resolve_torch_device(torch, state.effective_runtime_device())
+        if state.loaded.device == resolved_device:
+            return state.loaded
+        device = resolved_device
 
+    torch, _, auto_config_cls, auto_classes = load_runtime_modules()
+    auto_processor_cls, auto_model_cls = auto_classes
+    if device is None:
+        device = resolve_torch_device(torch, state.effective_runtime_device())
     release_loaded_runtime(state)
     dtype = torch_dtype_for_device(torch, device)
 
