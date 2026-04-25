@@ -242,6 +242,7 @@ class RuntimeState:
     last_fallback_reason: str = ""
     runtime_device_override: str = ""
     runtime_device_override_reason: str = ""
+    runtime_device_override_permanent: bool = False
 
     def health_payload(self) -> Dict[str, Any]:
         now_ms = int(time.time() * 1000)
@@ -261,6 +262,7 @@ class RuntimeState:
             "runtime_device_requested": self.config.runtime_device,
             "runtime_device_override": runtime_device_override,
             "runtime_device_override_reason": runtime_device_override_reason,
+            "runtime_device_override_permanent": self.runtime_device_override_permanent,
             "fallback_active": fallback_active,
             "fallback_until_ms": self.fallback_until_ms if fallback_active else None,
             "fallback_reason": self.last_fallback_reason or None,
@@ -289,18 +291,22 @@ class RuntimeState:
     def effective_runtime_device(self) -> str:
         if self.runtime_device_override:
             now_ms = int(time.time() * 1000)
-            if self.runtime_device_override_until_ms > now_ms:
+            if self.runtime_device_override_permanent or self.runtime_device_override_until_ms > now_ms:
                 return self.runtime_device_override
             self.runtime_device_override = ""
             self.runtime_device_override_reason = ""
             self.runtime_device_override_until_ms = 0
+            self.runtime_device_override_permanent = False
         return self.config.runtime_device
 
-    def override_runtime_device(self, device: str, reason: str) -> None:
+    def override_runtime_device(self, device: str, reason: str, *, permanent: bool = False) -> None:
         self.runtime_device_override = device
         self.runtime_device_override_reason = reason
-        self.runtime_device_override_until_ms = int(time.time() * 1000) + int(
-            self.config.auto_fallback_cooldown_ms
+        self.runtime_device_override_permanent = permanent
+        self.runtime_device_override_until_ms = (
+            0
+            if permanent
+            else int(time.time() * 1000) + int(self.config.auto_fallback_cooldown_ms)
         )
 
 
@@ -497,7 +503,7 @@ def infer_with_fallback(state: RuntimeState, payload: Dict[str, Any]) -> Dict[st
         state.last_error = str(error)
         if is_cuda_runtime_error(error) and state.effective_runtime_device() != "cpu":
             release_loaded_runtime(state)
-            state.override_runtime_device("cpu", f"cuda_runtime_error:{error}")
+            state.override_runtime_device("cpu", f"cuda_runtime_error:{error}", permanent=True)
             try:
                 retry = infer_once(state, payload, model_alias, model_path)
             except Exception as cpu_error:

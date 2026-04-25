@@ -4131,9 +4131,17 @@ impl ActiveSession {
         if self.has_iphone_calibration {
             calibration_snapshot_paths.push("calibration/iphone_capture.json".to_string());
         }
-        // The upload manifest tracks actual file existence; this bundle list stays declarative
-        // so it never derives a filesystem path from session-scoped input during refresh.
-        if self.has_iphone_calibration && self.lines.raw_iphone_media > 0 {
+        let iphone_fisheye_calibration = self
+            .artifact_spec(
+                "iphone_fisheye_calibration",
+                "calibration/iphone_fisheye.json",
+                "file",
+                false,
+                "mandatory_structured",
+                None,
+            )
+            .await?;
+        if iphone_fisheye_calibration.exists {
             calibration_snapshot_paths.push("calibration/iphone_fisheye.json".to_string());
         }
         if self.has_stereo_calibration {

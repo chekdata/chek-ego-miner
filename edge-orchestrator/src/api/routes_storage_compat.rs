@@ -19,6 +19,8 @@ const PRESSURE_WARNING_FREE_RATIO: f64 = 0.20;
 const PRESSURE_CRITICAL_FREE_RATIO: f64 = 0.10;
 const PROTECTED_POOL_BUDGET_RATIO: f64 = 0.20;
 const MIN_PROTECTED_POOL_BUDGET_BYTES: u64 = 1_073_741_824;
+const DEFAULT_SWEEP_MAX_SESSIONS: usize = 1;
+const MAX_SWEEP_MAX_SESSIONS: usize = 100;
 
 pub fn public_router(state: AppState) -> Router {
     Router::new()
@@ -122,6 +124,14 @@ struct StorageConsumptionReceiptRequest {
     note: String,
 }
 
+#[derive(Debug, Default, Deserialize)]
+struct StorageSweepRequest {
+    #[serde(default)]
+    target_reclaim_bytes: Option<u64>,
+    #[serde(default)]
+    max_sessions: Option<usize>,
+}
+
 async fn get_storage_status(
     State(state): State<AppState>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
@@ -146,8 +156,11 @@ async fn get_storage_status(
         .iter()
         .map(|session| session.byte_size)
         .sum::<u64>();
-    let evictable_bytes = rolling_used_bytes;
-    let cleanup_candidates = cleanup_candidates(&inventory);
+    let cleanup_candidates = cleanup_candidates(&inventory, &StorageSweepRequest::default());
+    let evictable_bytes = cleanup_candidates
+        .iter()
+        .map(|session| session.byte_size)
+        .sum::<u64>();
     let current_blockers = inventory
         .iter()
         .filter_map(|session| {
@@ -223,27 +236,32 @@ async fn get_storage_sessions(
 
 async fn post_storage_sweep_dry_run(
     State(state): State<AppState>,
-    Json(_body): Json<serde_json::Value>,
+    Json(body): Json<StorageSweepRequest>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
     let inventory = load_storage_inventory(&state)
         .await
         .map_err(internal_error)?;
-    let candidates = cleanup_candidates(&inventory);
+    let candidates = cleanup_candidates(&inventory, &body);
     Ok(Json(serde_json::json!({
         "selected_session_count": candidates.len(),
         "selected_bytes": candidates.iter().map(|session| session.byte_size).sum::<u64>(),
         "selected_session_ids": candidates.iter().map(|session| session.session_id.clone()).collect::<Vec<_>>(),
+        "policy": {
+            "max_sessions": sweep_max_sessions(&body),
+            "target_reclaim_bytes": body.target_reclaim_bytes.unwrap_or(0),
+            "requires_upload_queue_status": "acked",
+        },
     })))
 }
 
 async fn post_storage_sweep_apply(
     State(state): State<AppState>,
-    Json(_body): Json<serde_json::Value>,
+    Json(body): Json<StorageSweepRequest>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
     let inventory = load_storage_inventory(&state)
         .await
         .map_err(internal_error)?;
-    let candidates = cleanup_candidates(&inventory);
+    let candidates = cleanup_candidates(&inventory, &body);
     let selected_session_count = candidates.len();
     let selected_session_ids = candidates
         .iter()
@@ -284,6 +302,11 @@ async fn post_storage_sweep_apply(
         "selected_session_count": selected_session_count,
         "applied_reclaimed_bytes": applied_reclaimed_bytes,
         "selected_session_ids": selected_session_ids,
+        "policy": {
+            "max_sessions": sweep_max_sessions(&body),
+            "target_reclaim_bytes": body.target_reclaim_bytes.unwrap_or(0),
+            "requires_upload_queue_status": "acked",
+        },
     })))
 }
 
@@ -463,17 +486,45 @@ async fn load_storage_inventory(state: &AppState) -> Result<Vec<SessionStorageIn
     Ok(inventory)
 }
 
-fn cleanup_candidates(inventory: &[SessionStorageInventory]) -> Vec<&SessionStorageInventory> {
+fn cleanup_candidates<'a>(
+    inventory: &'a [SessionStorageInventory],
+    request: &StorageSweepRequest,
+) -> Vec<&'a SessionStorageInventory> {
     let mut candidates = inventory
         .iter()
-        .filter(|session| session.storage_pool == "rolling")
+        .filter(|session| is_cleanup_candidate(session))
         .collect::<Vec<_>>();
     candidates.sort_by(|left, right| {
         left.modified_unix_ms
             .cmp(&right.modified_unix_ms)
             .then_with(|| left.session_id.cmp(&right.session_id))
     });
-    candidates
+    let max_sessions = sweep_max_sessions(request);
+    let target_reclaim_bytes = request.target_reclaim_bytes.unwrap_or(0);
+    let mut selected = Vec::new();
+    let mut selected_bytes = 0_u64;
+    for session in candidates {
+        if selected.len() >= max_sessions {
+            break;
+        }
+        selected_bytes = selected_bytes.saturating_add(session.byte_size);
+        selected.push(session);
+        if target_reclaim_bytes > 0 && selected_bytes >= target_reclaim_bytes {
+            break;
+        }
+    }
+    selected
+}
+
+fn sweep_max_sessions(request: &StorageSweepRequest) -> usize {
+    request
+        .max_sessions
+        .unwrap_or(DEFAULT_SWEEP_MAX_SESSIONS)
+        .clamp(1, MAX_SWEEP_MAX_SESSIONS)
+}
+
+fn is_cleanup_candidate(session: &SessionStorageInventory) -> bool {
+    session.storage_pool == "rolling" && session.upload_queue_status == "acked"
 }
 
 async fn collect_session_dirs(state: &AppState) -> Result<Vec<PathBuf>, String> {

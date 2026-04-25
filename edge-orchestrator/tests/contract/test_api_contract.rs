@@ -251,6 +251,15 @@ async fn contract_storage_cleanup_apply_reclaims_only_rolling_sessions() -> anyh
         4_096,
         "pass",
         true,
+        "acked",
+    )?;
+    seed_storage_session_fixture(
+        &server.data_dir,
+        "trip-storage-queued-apply-001",
+        "sess-storage-queued-apply-001",
+        8_192,
+        "pass",
+        true,
         "queued",
     )?;
 
@@ -328,6 +337,11 @@ async fn contract_storage_cleanup_apply_reclaims_only_rolling_sessions() -> anyh
         .join("session")
         .join("sess-storage-rolling-apply-001")
         .exists());
+    assert!(server
+        .data_dir
+        .join("session")
+        .join("sess-storage-queued-apply-001")
+        .exists());
 
     let status = client
         .get(format!("{}/storage/status", server.http_base))
@@ -348,7 +362,7 @@ async fn contract_storage_cleanup_apply_reclaims_only_rolling_sessions() -> anyh
             .get("rolling_pool")
             .and_then(|value| value.get("session_count"))
             .and_then(|value| value.as_u64()),
-        Some(0)
+        Some(1)
     );
 
     Ok(())
