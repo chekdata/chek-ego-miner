@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import base64
+import io
 import json
 import struct
 import time
@@ -11,6 +12,8 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 from typing import Any
+
+from PIL import Image
 
 
 TINY_JPEG_B64 = (
@@ -46,6 +49,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--operator-track-id", default="operator-synthetic")
     parser.add_argument("--deadman-device-id", default="benchmark-synthetic-feed")
     parser.add_argument("--camera-mode", default="synthetic_phone_depth")
+    parser.add_argument(
+        "--image-path",
+        help="Optional local image path. When provided, the image is re-encoded as JPEG and sent as the primary frame.",
+    )
     parser.add_argument("--report-path")
     return parser.parse_args()
 
@@ -87,7 +94,62 @@ def build_keepalive_packet(args: argparse.Namespace, seq: int) -> dict[str, Any]
     }
 
 
-def build_phone_frame_packet(args: argparse.Namespace, frame_id: int) -> dict[str, Any]:
+def load_primary_image_payload(args: argparse.Namespace) -> dict[str, Any]:
+    if not args.image_path:
+        return {
+            "image_w": 2,
+            "image_h": 2,
+            "sensor_image_w": 2,
+            "sensor_image_h": 2,
+            "camera_has_depth": True,
+            "camera_calibration": {
+                "fxPx": 1.0,
+                "fyPx": 1.0,
+                "cxPx": 1.0,
+                "cyPx": 1.0,
+                "referenceImageW": 2,
+                "referenceImageH": 2,
+            },
+            "primary_image_jpeg_b64": TINY_JPEG_B64,
+            "depth_f32_b64": TINY_DEPTH_F32_B64,
+            "depth_w": 2,
+            "depth_h": 2,
+        }
+
+    image_path = Path(args.image_path).expanduser().resolve()
+    with Image.open(image_path) as image:
+        rgb_image = image.convert("RGB")
+        image_w, image_h = rgb_image.size
+        buffer = io.BytesIO()
+        rgb_image.save(buffer, format="JPEG", quality=90)
+        jpeg_b64 = base64.b64encode(buffer.getvalue()).decode("ascii")
+
+    return {
+        "image_w": image_w,
+        "image_h": image_h,
+        "sensor_image_w": image_w,
+        "sensor_image_h": image_h,
+        "camera_has_depth": False,
+        "camera_calibration": {
+            "fxPx": float(max(image_w, 1)),
+            "fyPx": float(max(image_h, 1)),
+            "cxPx": float(image_w) / 2.0,
+            "cyPx": float(image_h) / 2.0,
+            "referenceImageW": image_w,
+            "referenceImageH": image_h,
+        },
+        "primary_image_jpeg_b64": jpeg_b64,
+        "depth_f32_b64": None,
+        "depth_w": None,
+        "depth_h": None,
+    }
+
+
+def build_phone_frame_packet(
+    args: argparse.Namespace,
+    frame_id: int,
+    image_payload: dict[str, Any],
+) -> dict[str, Any]:
     return {
         "schema_version": "1.0.0",
         "tripId": args.trip_id,
@@ -97,20 +159,13 @@ def build_phone_frame_packet(args: argparse.Namespace, frame_id: int) -> dict[st
         "sourceTimeNs": int(time.time_ns()),
         "frameId": frame_id,
         "cameraMode": args.camera_mode,
-        "imageW": 2,
-        "imageH": 2,
-        "sensorImageW": 2,
-        "sensorImageH": 2,
+        "imageW": image_payload["image_w"],
+        "imageH": image_payload["image_h"],
+        "sensorImageW": image_payload["sensor_image_w"],
+        "sensorImageH": image_payload["sensor_image_h"],
         "normalizedWasRotatedRight": False,
-        "cameraHasDepth": True,
-        "cameraCalibration": {
-            "fxPx": 1.0,
-            "fyPx": 1.0,
-            "cxPx": 1.0,
-            "cyPx": 1.0,
-            "referenceImageW": 2,
-            "referenceImageH": 2,
-        },
+        "cameraHasDepth": image_payload["camera_has_depth"],
+        "cameraCalibration": image_payload["camera_calibration"],
         "devicePose": {
             "position_m": [0.1, 0.2, 0.3],
             "rotation_deg": [1.0, 2.0, 3.0],
@@ -121,15 +176,16 @@ def build_phone_frame_packet(args: argparse.Namespace, frame_id: int) -> dict[st
             "accel": [0.01, 0.02, 0.03],
             "gyro": [0.11, 0.12, 0.13],
         },
-        "primaryImageJpegB64": TINY_JPEG_B64,
-        "depthF32B64": TINY_DEPTH_F32_B64,
-        "depthW": 2,
-        "depthH": 2,
+        "primaryImageJpegB64": image_payload["primary_image_jpeg_b64"],
+        "depthF32B64": image_payload["depth_f32_b64"],
+        "depthW": image_payload["depth_w"],
+        "depthH": image_payload["depth_h"],
     }
 
 
 def main() -> int:
     args = parse_args()
+    image_payload = load_primary_image_payload(args)
     started_at = time.time()
     deadline = started_at + max(args.duration_seconds, 0.1)
     seq = 1
@@ -159,7 +215,7 @@ def main() -> int:
                 "/ingest/phone_vision_frame",
                 method="POST",
                 token=args.edge_token,
-                payload=build_phone_frame_packet(args, frame_id),
+                payload=build_phone_frame_packet(args, frame_id, image_payload),
             )
             frame_ok += 1
         except urllib.error.HTTPError as exc:

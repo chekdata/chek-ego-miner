@@ -491,9 +491,8 @@ impl SessionRecorder {
             }
             active.flush_pending_csi_chunk(cfg).await?;
         }
-        *guard = Some(
-            ActiveSession::start(data_dir, trip_id, safe_session_id, protocol, cfg).await?,
-        );
+        *guard =
+            Some(ActiveSession::start(data_dir, trip_id, safe_session_id, protocol, cfg).await?);
         Ok(())
     }
 
@@ -3278,6 +3277,19 @@ impl ActiveSession {
         true
     }
 
+    fn clear_semantic_degraded_stages(&mut self, stages: &[&str], cfg: &Config) -> bool {
+        let original_len = self.semantic.preview_manifest.degraded_reasons.len();
+        self.semantic
+            .preview_manifest
+            .degraded_reasons
+            .retain(|item| !stages.iter().any(|stage| item.stage == *stage));
+        let changed = self.semantic.preview_manifest.degraded_reasons.len() != original_len;
+        if changed {
+            self.refresh_semantic_status(cfg);
+        }
+        changed
+    }
+
     fn refresh_semantic_status(&mut self, cfg: &Config) {
         if cfg.preview_generation_enabled {
             self.semantic.preview_manifest.status =
@@ -3608,6 +3620,9 @@ impl ActiveSession {
             for reason in &result.degraded_reasons {
                 changed |= self.mark_semantic_degraded("vlm_runtime", reason, cfg);
             }
+        } else if result.inference_source == "vlm_sidecar" {
+            changed |=
+                self.clear_semantic_degraded_stages(&["vlm_sidecar_inference", "vlm_runtime"], cfg);
         }
 
         if meta.roll_segment_before_event {
@@ -3848,25 +3863,33 @@ impl ActiveSession {
             .to_string();
         let action_guess = semantic_action_guess(v);
 
+        let edge_time_reset = self
+            .semantic
+            .last_keyframe_edge_time_ns
+            .is_some_and(|last| edge_time_ns < last);
         let first_sample = self.semantic.last_keyframe_edge_time_ns.is_none();
         let interval_ns = cfg.vlm_keyframe_interval_ms.saturating_mul(1_000_000);
-        let fixed_due = self
+        let fixed_interval_due = self
             .semantic
             .last_keyframe_edge_time_ns
             .map(|last| edge_time_ns.saturating_sub(last) >= interval_ns)
-            .unwrap_or(true);
-        let camera_mode_change_due = cfg.vlm_event_trigger_enabled
+            .unwrap_or(false);
+        let fixed_due = first_sample || fixed_interval_due;
+        let camera_mode_change_due = !edge_time_reset
+            && cfg.vlm_event_trigger_enabled
             && cfg.vlm_event_trigger_camera_mode_change_enabled
             && !first_sample
             && self.semantic.last_camera_mode != camera_mode;
-        let action_change_due = cfg.vlm_event_trigger_enabled
+        let action_change_due = !edge_time_reset
+            && cfg.vlm_event_trigger_enabled
             && self
                 .semantic
                 .current_segment
                 .as_ref()
                 .and_then(|segment| segment.actions.last())
                 .is_some_and(|last_action| last_action != &action_guess);
-        let event_due = first_sample || camera_mode_change_due || action_change_due;
+        let event_due =
+            first_sample || edge_time_reset || camera_mode_change_due || action_change_due;
         if !fixed_due && !event_due {
             return false;
         }
@@ -3894,11 +3917,14 @@ impl ActiveSession {
 
         let sample_reasons = {
             let mut reasons = Vec::new();
-            if fixed_due {
+            if fixed_interval_due {
                 reasons.push("fixed_interval".to_string());
             }
             if first_sample {
                 reasons.push("session_start".to_string());
+            }
+            if edge_time_reset {
+                reasons.push("edge_time_reset".to_string());
             }
             if event_due {
                 reasons.push("event_trigger".to_string());
@@ -3984,12 +4010,8 @@ impl ActiveSession {
 
     async fn ensure_semantic_bundle_scaffold(&self, cfg: &Config) -> Result<(), String> {
         let base_dir = self.base_dir.clone();
-        if base_dir
-            .components()
-            .any(|component| matches!(component, Component::CurDir | Component::ParentDir))
-        {
-            return Err(format!("非法 session 目录: {}", base_dir.display()));
-        }
+        path_safety::ensure_session_dir_path(&base_dir)?;
+        path_safety::ensure_no_relative_escape(&base_dir, "session_dir")?;
         let derived_vision_dir = base_dir.join("derived").join("vision");
         let derived_vision_embeddings_dir = derived_vision_dir.join("embeddings");
         let preview_dir = base_dir.join("preview");
@@ -4110,14 +4132,17 @@ impl ActiveSession {
         if self.has_iphone_calibration {
             calibration_snapshot_paths.push("calibration/iphone_capture.json".to_string());
         }
-        if tokio::fs::metadata(
-            base_dir
-                .join("calibration")
-                .join("iphone_fisheye.json"),
-        )
-        .await
-        .is_ok()
-        {
+        let iphone_fisheye_calibration = self
+            .artifact_spec(
+                "iphone_fisheye_calibration",
+                "calibration/iphone_fisheye.json",
+                "file",
+                false,
+                "mandatory_structured",
+                None,
+            )
+            .await?;
+        if iphone_fisheye_calibration.exists {
             calibration_snapshot_paths.push("calibration/iphone_fisheye.json".to_string());
         }
         if self.has_stereo_calibration {
@@ -4374,11 +4399,7 @@ impl ActiveSession {
             artifacts,
         };
         let value = serde_json::to_value(manifest).map_err(|e| e.to_string())?;
-        Self::write_json_pretty(
-            base_dir.join("upload").join("upload_manifest.json"),
-            &value,
-        )
-        .await
+        Self::write_json_pretty(base_dir.join("upload").join("upload_manifest.json"), &value).await
     }
 
     async fn refresh_upload_policy(&self, cfg: &Config) -> Result<(), String> {
@@ -4443,15 +4464,22 @@ impl ActiveSession {
         }
         let line_counters = self.disk_line_counters().await?;
         let media_tracks_present = !self.collect_media_tracks().await?.is_empty();
-        let csi_packets_path = canonical_base_dir.join("raw").join("csi").join("packets.bin");
+        let csi_packets_path = canonical_base_dir
+            .join("raw")
+            .join("csi")
+            .join("packets.bin");
         let csi_packets_bytes = tokio::fs::metadata(&csi_packets_path)
             .await
             .map(|meta| meta.len())
             .unwrap_or(0);
         let (has_iphone_calibration, _, _) = self.calibration_flags().await;
-        let csi_index_summary =
-            summarize_csi_index(canonical_base_dir.join("raw").join("csi").join("index.jsonl"))
-                .await?;
+        let csi_index_summary = summarize_csi_index(
+            canonical_base_dir
+                .join("raw")
+                .join("csi")
+                .join("index.jsonl"),
+        )
+        .await?;
         let fisheye_summary = summarize_media_index_frames(
             canonical_base_dir
                 .join("raw")
@@ -5170,7 +5198,9 @@ impl ActiveSession {
                 Component::CurDir
                 | Component::ParentDir
                 | Component::RootDir
-                | Component::Prefix(_) => return Err("artifact relpath 必须是受限的相对路径".to_string()),
+                | Component::Prefix(_) => {
+                    return Err("artifact relpath 必须是受限的相对路径".to_string())
+                }
             }
         }
         let path = base_dir.join(&safe_relpath);

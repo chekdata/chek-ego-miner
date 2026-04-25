@@ -19,8 +19,10 @@ from urllib.parse import urlparse
 
 
 DEFAULT_PROMPT = (
-    "Describe this ego-view image in one short sentence. Focus on people, actions, "
-    "and salient objects. Do not mention that this is an AI task."
+    "Describe only what is literally visible in this image in one short sentence. "
+    "Focus on salient people, objects, text, or UI when they are clearly present. "
+    "If the image looks like a screen, webpage, dashboard, or document, say that directly. "
+    "Do not invent people or actions that are not clearly visible, and do not mention that this is an AI task."
 )
 _TORCHVISION_COMPAT_LIB = None
 
@@ -112,6 +114,21 @@ def normalize_caption(text: str) -> str:
     return collapsed.rstrip(".,;:") + "."
 
 
+def is_cuda_runtime_error(error: Exception) -> bool:
+    message = str(error).strip().lower()
+    return any(
+        token in message
+        for token in (
+            "cuda runtime error",
+            "cublas error",
+            "cudacachingallocator",
+            "nvml",
+            "device-side assert",
+            "driver/library version mismatch",
+        )
+    )
+
+
 def infer_action_from_caption(caption: str) -> str:
     lowered = caption.lower()
     if any(token in lowered for token in ("reach", "reaching", "grab", "picking", "pick up")):
@@ -134,6 +151,14 @@ def caption_keywords(caption: str) -> Tuple[list[str], list[str]]:
         "people": "person_visible",
         "hand": "hand_visible",
         "hands": "hand_visible",
+        "screen": "screen_ui",
+        "webpage": "screen_ui",
+        "website": "screen_ui",
+        "dashboard": "screen_ui",
+        "button": "screen_ui",
+        "page": "screen_ui",
+        "text": "text_heavy_scene",
+        "document": "text_heavy_scene",
         "desk": "desk_scene",
         "table": "desk_scene",
         "office": "office_scene",
@@ -157,6 +182,10 @@ def caption_keywords(caption: str) -> Tuple[list[str], list[str]]:
         "sanitizer",
         "bag",
         "screen",
+        "page",
+        "dashboard",
+        "button",
+        "text",
     ]
     for token, tag in tag_keywords.items():
         if token in lowered and tag not in tags:
@@ -203,6 +232,7 @@ class RuntimeState:
     config: SidecarConfig
     lock: threading.Lock = field(default_factory=threading.Lock)
     loaded: Optional[LoadedRuntime] = None
+    runtime_device_override_until_ms: int = 0
     fallback_until_ms: int = 0
     consecutive_failures: int = 0
     last_error: str = ""
@@ -210,10 +240,17 @@ class RuntimeState:
     last_model_alias: str = ""
     last_model_path: str = ""
     last_fallback_reason: str = ""
+    runtime_device_override: str = ""
+    runtime_device_override_reason: str = ""
+    runtime_device_override_permanent: bool = False
 
     def health_payload(self) -> Dict[str, Any]:
+        """Build a non-mutating snapshot safe for liveness probes."""
         now_ms = int(time.time() * 1000)
         fallback_active = self.fallback_until_ms > now_ms
+        effective_runtime_device = self.effective_runtime_device_snapshot(now_ms)
+        runtime_device_override = self.runtime_device_override or None
+        runtime_device_override_reason = self.runtime_device_override_reason or None
         return {
             "ok": True,
             "service": "edge_vlm_sidecar",
@@ -222,7 +259,11 @@ class RuntimeState:
             "fallback_model_id": self.config.fallback_model_id,
             "active_model_id": self.last_model_alias or self.config.primary_model_id,
             "active_model_path": self.last_model_path,
-            "runtime_device": self.config.runtime_device,
+            "runtime_device": effective_runtime_device,
+            "runtime_device_requested": self.config.runtime_device,
+            "runtime_device_override": runtime_device_override,
+            "runtime_device_override_reason": runtime_device_override_reason,
+            "runtime_device_override_permanent": self.runtime_device_override_permanent,
             "fallback_active": fallback_active,
             "fallback_until_ms": self.fallback_until_ms if fallback_active else None,
             "fallback_reason": self.last_fallback_reason or None,
@@ -234,6 +275,13 @@ class RuntimeState:
                 "image_seq_len": self.config.image_seq_len,
             },
         }
+
+    def effective_runtime_device_snapshot(self, now_ms: Optional[int] = None) -> str:
+        if self.runtime_device_override:
+            now_ms = now_ms if now_ms is not None else int(time.time() * 1000)
+            if self.runtime_device_override_permanent or self.runtime_device_override_until_ms > now_ms:
+                return self.runtime_device_override
+        return self.config.runtime_device
 
     def current_slot(self) -> Tuple[str, str, bool]:
         now_ms = int(time.time() * 1000)
@@ -247,6 +295,27 @@ class RuntimeState:
             return
         self.fallback_until_ms = int(time.time() * 1000) + self.config.auto_fallback_cooldown_ms
         self.last_fallback_reason = reason
+
+    def effective_runtime_device(self) -> str:
+        if self.runtime_device_override:
+            now_ms = int(time.time() * 1000)
+            if self.runtime_device_override_permanent or self.runtime_device_override_until_ms > now_ms:
+                return self.runtime_device_override
+            self.runtime_device_override = ""
+            self.runtime_device_override_reason = ""
+            self.runtime_device_override_until_ms = 0
+            self.runtime_device_override_permanent = False
+        return self.config.runtime_device
+
+    def override_runtime_device(self, device: str, reason: str, *, permanent: bool = False) -> None:
+        self.runtime_device_override = device
+        self.runtime_device_override_reason = reason
+        self.runtime_device_override_permanent = permanent
+        self.runtime_device_override_until_ms = (
+            0
+            if permanent
+            else int(time.time() * 1000) + int(self.config.auto_fallback_cooldown_ms)
+        )
 
 
 def load_runtime_modules() -> Tuple[Any, Any, Any, Any]:
@@ -267,14 +336,23 @@ def decode_pil_image(image_b64: str, image_cls: Any) -> Any:
 
 
 def load_model(state: RuntimeState, model_alias: str, model_path: str) -> LoadedRuntime:
-    if state.loaded and state.loaded.model_alias == model_alias and state.loaded.model_path == model_path:
-        return state.loaded
-
-    release_loaded_runtime(state)
+    device = None
+    if (
+        state.loaded
+        and state.loaded.model_alias == model_alias
+        and state.loaded.model_path == model_path
+    ):
+        torch, _, _, _ = load_runtime_modules()
+        resolved_device = resolve_torch_device(torch, state.effective_runtime_device())
+        if state.loaded.device == resolved_device:
+            return state.loaded
+        device = resolved_device
 
     torch, _, auto_config_cls, auto_classes = load_runtime_modules()
     auto_processor_cls, auto_model_cls = auto_classes
-    device = resolve_torch_device(torch, state.config.runtime_device)
+    if device is None:
+        device = resolve_torch_device(torch, state.effective_runtime_device())
+    release_loaded_runtime(state)
     dtype = torch_dtype_for_device(torch, device)
 
     config = auto_config_cls.from_pretrained(model_path)
@@ -431,6 +509,24 @@ def infer_with_fallback(state: RuntimeState, payload: Dict[str, Any]) -> Dict[st
     except Exception as error:
         state.consecutive_failures += 1
         state.last_error = str(error)
+        if is_cuda_runtime_error(error) and state.effective_runtime_device() != "cpu":
+            release_loaded_runtime(state)
+            state.override_runtime_device("cpu", f"cuda_runtime_error:{error}", permanent=True)
+            try:
+                retry = infer_once(state, payload, model_alias, model_path)
+            except Exception as cpu_error:
+                state.last_error = str(cpu_error)
+            else:
+                state.consecutive_failures = 0
+                state.last_error = ""
+                state.last_latency_ms = float(retry["latency_ms"])
+                state.last_model_alias = model_alias
+                state.last_model_path = model_path
+                retry["fallback_active"] = True
+                retry["degraded_reasons"] = retry.get("degraded_reasons", [])
+                retry["degraded_reasons"].append("cuda_runtime_fallback_to_cpu")
+                retry["inference_source"] = "vlm_sidecar"
+                return retry
         if state.config.fallback_model_path and model_path != state.config.fallback_model_path:
             degraded_reasons.append("primary_runtime_error")
             release_loaded_runtime(state)
@@ -440,15 +536,19 @@ def infer_with_fallback(state: RuntimeState, payload: Dict[str, Any]) -> Dict[st
                 degraded_reasons.append("fallback_retry_without_cooldown")
             fallback_alias = state.config.fallback_model_id
             fallback_path = state.config.fallback_model_path
-            retry = infer_once(state, payload, fallback_alias, fallback_path)
-            retry["fallback_active"] = True
-            retry["degraded_reasons"] = degraded_reasons
-            retry["inference_source"] = "vlm_sidecar_fallback"
-            state.last_latency_ms = float(retry["latency_ms"])
-            state.last_model_alias = fallback_alias
-            state.last_model_path = fallback_path
-            state.last_error = ""
-            return retry
+            try:
+                retry = infer_once(state, payload, fallback_alias, fallback_path)
+            except Exception as fallback_error:
+                state.last_error = str(fallback_error)
+            else:
+                retry["fallback_active"] = True
+                retry["degraded_reasons"] = degraded_reasons
+                retry["inference_source"] = "vlm_sidecar_fallback"
+                state.last_latency_ms = float(retry["latency_ms"])
+                state.last_model_alias = fallback_alias
+                state.last_model_path = fallback_path
+                state.last_error = ""
+                return retry
         raise
 
 
@@ -471,7 +571,8 @@ class SidecarHandler(BaseHTTPRequestHandler):
     def do_GET(self) -> None:
         parsed = urlparse(self.path)
         if parsed.path == "/health":
-            self._write_json(HTTPStatus.OK, self.runtime_state.health_payload())
+            payload = self.runtime_state.health_payload()
+            self._write_json(HTTPStatus.OK, payload)
             return
         self._write_json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "not_found"})
 
