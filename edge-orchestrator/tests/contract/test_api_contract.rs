@@ -432,6 +432,36 @@ async fn contract_storage_compat_accepts_legacy_consumption_receipts() -> anyhow
 }
 
 #[tokio::test]
+async fn contract_storage_compat_rejects_traversal_session_ids() -> anyhow::Result<()> {
+    let server = support::TestServer::spawn().await?;
+    let client = reqwest::Client::new();
+
+    let response = client
+        .post(format!(
+            "{}/edge/storage/consumption-receipt",
+            server.http_base
+        ))
+        .bearer_auth(&server.edge_token)
+        .json(&serde_json::json!({
+            "session_id": "../outside",
+            "signal_kind": "manual_hold",
+            "note": "must-not-write-outside-session-root",
+        }))
+        .send()
+        .await?;
+
+    assert_eq!(response.status(), reqwest::StatusCode::BAD_REQUEST);
+    assert!(!server
+        .data_dir
+        .join("storage")
+        .join("consumption_receipts.jsonl")
+        .exists());
+    assert!(!server.data_dir.join("outside").exists());
+
+    Ok(())
+}
+
+#[tokio::test]
 async fn contract_control_arm_disarm() -> anyhow::Result<()> {
     let server = support::TestServer::spawn().await?;
     let client = reqwest::Client::new();

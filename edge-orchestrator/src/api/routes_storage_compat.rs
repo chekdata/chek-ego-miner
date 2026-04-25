@@ -12,6 +12,7 @@ use sysinfo::Disks;
 use tokio::io::AsyncWriteExt;
 use walkdir::WalkDir;
 
+use crate::path_safety;
 use crate::AppState;
 
 const PRESSURE_WARNING_FREE_RATIO: f64 = 0.20;
@@ -302,7 +303,20 @@ async fn post_storage_consumption_receipt(
         ));
     }
 
-    let session_dir = session_root(&state).join(req.session_id.trim());
+    let session_id =
+        path_safety::validate_path_component(&req.session_id, "session_id").map_err(|message| {
+            (
+                StatusCode::BAD_REQUEST,
+                Json(err("invalid_session_id", message)),
+            )
+        })?;
+    let session_dir = path_safety::session_base_dir(Path::new(&state.config.data_dir), &session_id)
+        .map_err(|message| {
+            (
+                StatusCode::BAD_REQUEST,
+                Json(err("invalid_session_id", message)),
+            )
+        })?;
     let exists = tokio::fs::try_exists(&session_dir).await.map_err(|error| {
         internal_error(format!(
             "检查 session 目录失败: {} ({error})",
@@ -314,13 +328,13 @@ async fn post_storage_consumption_receipt(
             StatusCode::NOT_FOUND,
             Json(err(
                 "session_not_found",
-                format!("session 不存在: {}", req.session_id.trim()),
+                format!("session 不存在: {}", session_id),
             )),
         ));
     }
 
     let receipt = StoredConsumptionReceipt {
-        session_id: req.session_id.trim().to_string(),
+        session_id,
         signal_kind: req.signal_kind.trim().to_string(),
         note: req.note.trim().to_string(),
         recorded_unix_ms: Some(now_unix_ms()),
@@ -498,7 +512,13 @@ async fn collect_session_dirs(session_root: &Path) -> Result<Vec<PathBuf>, Strin
             )
         })?;
         if file_type.is_dir() {
-            session_dirs.push(entry.path());
+            let file_name = entry
+                .file_name()
+                .to_str()
+                .ok_or_else(|| "session 目录名必须是 UTF-8".to_string())?
+                .to_string();
+            let safe_session_id = path_safety::validate_path_component(&file_name, "session_id")?;
+            session_dirs.push(session_root.join(safe_session_id));
         }
     }
     session_dirs.sort();

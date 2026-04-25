@@ -4009,12 +4009,8 @@ impl ActiveSession {
 
     async fn ensure_semantic_bundle_scaffold(&self, cfg: &Config) -> Result<(), String> {
         let base_dir = self.base_dir.clone();
-        if base_dir
-            .components()
-            .any(|component| matches!(component, Component::CurDir | Component::ParentDir))
-        {
-            return Err(format!("非法 session 目录: {}", base_dir.display()));
-        }
+        path_safety::ensure_session_dir_path(&base_dir)?;
+        path_safety::ensure_no_relative_escape(&base_dir, "session_dir")?;
         let derived_vision_dir = base_dir.join("derived").join("vision");
         let derived_vision_embeddings_dir = derived_vision_dir.join("embeddings");
         let preview_dir = base_dir.join("preview");
@@ -4135,10 +4131,12 @@ impl ActiveSession {
         if self.has_iphone_calibration {
             calibration_snapshot_paths.push("calibration/iphone_capture.json".to_string());
         }
-        if tokio::fs::metadata(base_dir.join("calibration").join("iphone_fisheye.json"))
-            .await
-            .is_ok()
-        {
+        let iphone_fisheye_path = path_safety::join_relative(
+            &base_dir,
+            "calibration/iphone_fisheye.json",
+            "iphone_fisheye_path",
+        )?;
+        if tokio::fs::metadata(iphone_fisheye_path).await.is_ok() {
             calibration_snapshot_paths.push("calibration/iphone_fisheye.json".to_string());
         }
         if self.has_stereo_calibration {
