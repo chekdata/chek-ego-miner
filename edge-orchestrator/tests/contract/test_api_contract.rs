@@ -403,6 +403,17 @@ async fn contract_storage_cleanup_apply_keeps_session_started_after_dry_run() ->
         Some(session_id)
     );
 
+    let storage_state_dir = server.data_dir.join("storage");
+    fs::create_dir_all(&storage_state_dir)?;
+    fs::write(
+        storage_state_dir.join("cleanup_state.json"),
+        serde_json::to_vec_pretty(&serde_json::json!({
+            "last_run_at": 123,
+            "last_reclaimed_bytes": 999,
+            "last_error": "previous delete failure",
+        }))?,
+    )?;
+
     client
         .post(format!("{}/session/start", server.http_base))
         .bearer_auth(&server.edge_token)
@@ -411,6 +422,97 @@ async fn contract_storage_cleanup_apply_keeps_session_started_after_dry_run() ->
             "trip_id": "trip-storage-race-apply-001",
             "session_id": session_id,
             "device_id": "device-storage-race-apply-001",
+        }))
+        .send()
+        .await?
+        .error_for_status()?;
+
+    let apply = client
+        .post(format!("{}/edge/storage/sweeps/apply", server.http_base))
+        .bearer_auth(&server.edge_token)
+        .json(&serde_json::json!({}))
+        .send()
+        .await?
+        .error_for_status()?
+        .json::<serde_json::Value>()
+        .await?;
+    assert_eq!(
+        apply
+            .get("applied_session_count")
+            .and_then(|value| value.as_u64()),
+        Some(0)
+    );
+    assert!(server.data_dir.join("session").join(session_id).exists());
+
+    let status = client
+        .get(format!("{}/storage/status", server.http_base))
+        .send()
+        .await?
+        .error_for_status()?
+        .json::<serde_json::Value>()
+        .await?;
+    assert_eq!(
+        status
+            .get("cleanup")
+            .and_then(|value| value.get("last_reclaimed_bytes"))
+            .and_then(|value| value.as_u64()),
+        Some(999)
+    );
+    assert_eq!(
+        status
+            .get("cleanup")
+            .and_then(|value| value.get("last_error"))
+            .and_then(|value| value.as_str()),
+        Some("previous delete failure")
+    );
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn contract_storage_cleanup_apply_keeps_session_held_after_dry_run() -> anyhow::Result<()> {
+    let server = support::TestServer::spawn().await?;
+    let client = reqwest::Client::new();
+    let session_id = "sess-storage-receipt-race-001";
+
+    seed_storage_session_fixture(
+        &server.data_dir,
+        "trip-storage-receipt-race-001",
+        session_id,
+        4_096,
+        "pass",
+        true,
+        "acked",
+    )?;
+
+    let dry_run = client
+        .post(format!("{}/edge/storage/sweeps/dry-run", server.http_base))
+        .bearer_auth(&server.edge_token)
+        .json(&serde_json::json!({}))
+        .send()
+        .await?
+        .error_for_status()?
+        .json::<serde_json::Value>()
+        .await?;
+    assert_eq!(
+        dry_run
+            .get("selected_session_ids")
+            .and_then(|value| value.as_array())
+            .and_then(|items| items.first())
+            .and_then(|value| value.as_str()),
+        Some(session_id)
+    );
+
+    client
+        .post(format!(
+            "{}/edge/storage/consumption-receipt",
+            server.http_base
+        ))
+        .bearer_auth(&server.edge_token)
+        .json(&serde_json::json!({
+            "session_id": session_id,
+            "signal_kind": "manual_hold",
+            "note": "operator protected after dry run",
         }))
         .send()
         .await?

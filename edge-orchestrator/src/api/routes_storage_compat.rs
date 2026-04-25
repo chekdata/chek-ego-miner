@@ -273,8 +273,8 @@ async fn post_storage_sweep_apply(
     let mut last_error_messages: Vec<String> = Vec::new();
 
     for session in &candidates {
-        // Keep /session/start from making this candidate active between the
-        // protection recheck and the destructive directory removal.
+        // Keep session starts and protection receipts from changing this
+        // candidate between the recheck and destructive directory removal.
         let _storage_sweep_guard = state.storage_sweep_guard.lock().await;
         if session_became_protected(&state, session).await? {
             skipped_session_ids.push(session.session_id.clone());
@@ -295,18 +295,20 @@ async fn post_storage_sweep_apply(
         }
     }
 
-    let cleanup_state = CleanupStateFile {
-        last_run_at: Some(now_unix_ms()),
-        last_reclaimed_bytes: applied_reclaimed_bytes,
-        last_error: if last_error_messages.is_empty() {
-            None
-        } else {
-            Some(last_error_messages.join(" | "))
-        },
-    };
-    write_cleanup_state(&state, &cleanup_state)
-        .await
-        .map_err(internal_error)?;
+    if !applied_session_ids.is_empty() || !last_error_messages.is_empty() {
+        let cleanup_state = CleanupStateFile {
+            last_run_at: Some(now_unix_ms()),
+            last_reclaimed_bytes: applied_reclaimed_bytes,
+            last_error: if last_error_messages.is_empty() {
+                None
+            } else {
+                Some(last_error_messages.join(" | "))
+            },
+        };
+        write_cleanup_state(&state, &cleanup_state)
+            .await
+            .map_err(internal_error)?;
+    }
 
     Ok(Json(serde_json::json!({
         "selected_session_count": selected_session_count,
@@ -351,6 +353,7 @@ async fn post_storage_consumption_receipt(
                 Json(err("invalid_session_id", message)),
             )
         })?;
+    let _storage_sweep_guard = state.storage_sweep_guard.lock().await;
     let exists = tokio::fs::try_exists(&session_dir).await.map_err(|error| {
         internal_error(format!(
             "检查 session 目录失败: {} ({error})",
