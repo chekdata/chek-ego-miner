@@ -481,8 +481,9 @@ def infer_with_fallback(state: RuntimeState, payload: Dict[str, Any]) -> Dict[st
             state.last_latency_ms = float(retry["latency_ms"])
             state.last_model_alias = model_alias
             state.last_model_path = model_path
-            retry["fallback_active"] = False
-            retry["degraded_reasons"] = []
+            retry["fallback_active"] = True
+            retry["degraded_reasons"] = retry.get("degraded_reasons", [])
+            retry["degraded_reasons"].append("cuda_runtime_fallback_to_cpu")
             retry["inference_source"] = "vlm_sidecar"
             return retry
         if state.config.fallback_model_path and model_path != state.config.fallback_model_path:

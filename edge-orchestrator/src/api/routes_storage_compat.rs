@@ -124,8 +124,12 @@ struct StorageConsumptionReceiptRequest {
 async fn get_storage_status(
     State(state): State<AppState>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
-    let inventory = load_storage_inventory(&state).await.map_err(internal_error)?;
-    let cleanup_state = load_cleanup_state(storage_state_dir(&state)).await.unwrap_or_default();
+    let inventory = load_storage_inventory(&state)
+        .await
+        .map_err(internal_error)?;
+    let cleanup_state = load_cleanup_state(storage_state_dir(&state))
+        .await
+        .unwrap_or_default();
     let active_session_id = active_session_id(&state);
     let rolling_sessions = inventory
         .iter()
@@ -135,7 +139,10 @@ async fn get_storage_status(
         .iter()
         .filter(|session| session.storage_pool == "protected")
         .collect::<Vec<_>>();
-    let rolling_used_bytes = rolling_sessions.iter().map(|session| session.byte_size).sum::<u64>();
+    let rolling_used_bytes = rolling_sessions
+        .iter()
+        .map(|session| session.byte_size)
+        .sum::<u64>();
     let protected_used_bytes = protected_sessions
         .iter()
         .map(|session| session.byte_size)
@@ -195,7 +202,9 @@ async fn get_storage_status(
 async fn get_storage_sessions(
     State(state): State<AppState>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
-    let inventory = load_storage_inventory(&state).await.map_err(internal_error)?;
+    let inventory = load_storage_inventory(&state)
+        .await
+        .map_err(internal_error)?;
     Ok(Json(serde_json::json!({
         "sessions": inventory.iter().map(|session| serde_json::json!({
             "session_id": session.session_id,
@@ -217,7 +226,9 @@ async fn post_storage_sweep_dry_run(
     State(state): State<AppState>,
     Json(_body): Json<serde_json::Value>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
-    let inventory = load_storage_inventory(&state).await.map_err(internal_error)?;
+    let inventory = load_storage_inventory(&state)
+        .await
+        .map_err(internal_error)?;
     let candidates = cleanup_candidates(&inventory);
     Ok(Json(serde_json::json!({
         "selected_session_count": candidates.len(),
@@ -230,40 +241,45 @@ async fn post_storage_sweep_apply(
     State(state): State<AppState>,
     Json(_body): Json<serde_json::Value>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
-    let inventory = load_storage_inventory(&state).await.map_err(internal_error)?;
+    let inventory = load_storage_inventory(&state)
+        .await
+        .map_err(internal_error)?;
     let candidates = cleanup_candidates(&inventory);
     let selected_session_count = candidates.len();
-    let reclaimed_bytes = candidates.iter().map(|session| session.byte_size).sum::<u64>();
     let selected_session_ids = candidates
         .iter()
         .map(|session| session.session_id.clone())
         .collect::<Vec<_>>();
+    let mut applied_reclaimed_bytes: u64 = 0;
+    let mut last_error: Option<String> = None;
 
     for session in &candidates {
-        tokio::fs::remove_dir_all(&session.base_dir)
-            .await
-            .map_err(|error| {
-                internal_error(format!(
+        match tokio::fs::remove_dir_all(&session.base_dir).await {
+            Ok(()) => {
+                applied_reclaimed_bytes = applied_reclaimed_bytes.saturating_add(session.byte_size);
+            }
+            Err(error) => {
+                let message = format!(
                     "删除 session 目录失败: {} ({error})",
                     session.base_dir.display()
-                ))
-            })?;
+                );
+                last_error = Some(message);
+            }
+        }
     }
 
-    write_cleanup_state(
-        storage_state_dir(&state),
-        &CleanupStateFile {
-            last_run_at: Some(now_unix_ms()),
-            last_reclaimed_bytes: reclaimed_bytes,
-            last_error: None,
-        },
-    )
-    .await
-    .map_err(internal_error)?;
+    let cleanup_state = CleanupStateFile {
+        last_run_at: Some(now_unix_ms()),
+        last_reclaimed_bytes: applied_reclaimed_bytes,
+        last_error,
+    };
+    write_cleanup_state(storage_state_dir(&state), &cleanup_state)
+        .await
+        .map_err(internal_error)?;
 
     Ok(Json(serde_json::json!({
         "selected_session_count": selected_session_count,
-        "applied_reclaimed_bytes": reclaimed_bytes,
+        "applied_reclaimed_bytes": applied_reclaimed_bytes,
         "selected_session_ids": selected_session_ids,
     })))
 }
@@ -283,9 +299,12 @@ async fn post_storage_consumption_receipt(
     }
 
     let session_dir = session_root(&state).join(req.session_id.trim());
-    let exists = tokio::fs::try_exists(&session_dir)
-        .await
-        .map_err(|error| internal_error(format!("检查 session 目录失败: {} ({error})", session_dir.display())))?;
+    let exists = tokio::fs::try_exists(&session_dir).await.map_err(|error| {
+        internal_error(format!(
+            "检查 session 目录失败: {} ({error})",
+            session_dir.display()
+        ))
+    })?;
     if !exists {
         return Err((
             StatusCode::NOT_FOUND,
@@ -308,13 +327,24 @@ async fn post_storage_consumption_receipt(
         .await
         .map_err(internal_error)?;
 
+    let signal_kind = normalize_non_empty(&receipt.signal_kind).unwrap_or_default();
+    let protected = is_protected_signal_kind(&signal_kind);
+
     Ok(Json(serde_json::json!({
         "ok": true,
         "session": {
             "session_id": receipt.session_id,
-            "storage_pool": "protected",
-            "local_storage_class": receipt.signal_kind,
-            "last_cleanup_skipped_reason": "manual_hold",
+            "storage_pool": if protected { "protected" } else { "rolling" },
+            "local_storage_class": if protected {
+                signal_kind.clone()
+            } else {
+                "rolling_candidate".to_string()
+            },
+            "last_cleanup_skipped_reason": if protected {
+                signal_kind.clone()
+            } else {
+                String::new()
+            },
         },
         "receipt": receipt,
     })))
@@ -325,6 +355,9 @@ async fn load_storage_inventory(state: &AppState) -> Result<Vec<SessionStorageIn
     let session_dirs = collect_session_dirs(&session_root).await?;
     let latest_receipts = load_latest_consumption_receipts(storage_state_dir(state)).await?;
     let active_session_id = active_session_id(state);
+    let (disk_total_bytes, disk_free_bytes) =
+        disk_capacity_for_path(Path::new(&state.config.data_dir));
+    let protected_budget_bytes = protected_pool_budget_bytes(disk_total_bytes);
     let mut inventory = Vec::new();
 
     for base_dir in session_dirs {
@@ -332,9 +365,10 @@ async fn load_storage_inventory(state: &AppState) -> Result<Vec<SessionStorageIn
             &base_dir.join("upload").join("upload_manifest.json"),
         )
         .await?;
-        let upload_queue =
-            load_optional_json::<UploadQueueFile>(&base_dir.join("upload").join("upload_queue.json"))
-                .await?;
+        let upload_queue = load_optional_json::<UploadQueueFile>(
+            &base_dir.join("upload").join("upload_queue.json"),
+        )
+        .await?;
         let local_quality = load_optional_json::<LocalQualityReportSummary>(
             &base_dir.join("qa").join("local_quality_report.json"),
         )
@@ -433,21 +467,22 @@ fn cleanup_candidates(inventory: &[SessionStorageInventory]) -> Vec<&SessionStor
 }
 
 async fn collect_session_dirs(session_root: &Path) -> Result<Vec<PathBuf>, String> {
-    let exists = tokio::fs::try_exists(session_root)
-        .await
-        .map_err(|error| {
-            format!(
-                "检查 session 目录失败: {} ({error})",
-                session_root.display()
-            )
-        })?;
+    let exists = tokio::fs::try_exists(session_root).await.map_err(|error| {
+        format!(
+            "检查 session 目录失败: {} ({error})",
+            session_root.display()
+        )
+    })?;
     if !exists {
         return Ok(Vec::new());
     }
 
-    let mut entries = tokio::fs::read_dir(session_root)
-        .await
-        .map_err(|error| format!("读取 session 目录失败: {} ({error})", session_root.display()))?;
+    let mut entries = tokio::fs::read_dir(session_root).await.map_err(|error| {
+        format!(
+            "读取 session 目录失败: {} ({error})",
+            session_root.display()
+        )
+    })?;
     let mut session_dirs = Vec::new();
     while let Some(entry) = entries.next_entry().await.map_err(|error| {
         format!(
@@ -473,18 +508,26 @@ async fn load_optional_json<T>(path: &Path) -> Result<Option<T>, String>
 where
     T: DeserializeOwned,
 {
-    let exists = tokio::fs::try_exists(path).await.map_err(|error| {
-        format!("检查文件是否存在失败: {} ({error})", path.display())
-    })?;
+    let exists = tokio::fs::try_exists(path)
+        .await
+        .map_err(|error| format!("检查文件是否存在失败: {} ({error})", path.display()))?;
     if !exists {
         return Ok(None);
     }
     let content = tokio::fs::read_to_string(path)
         .await
         .map_err(|error| format!("读取文件失败: {} ({error})", path.display()))?;
-    serde_json::from_str::<T>(&content)
-        .map(Some)
-        .map_err(|error| format!("解析 JSON 失败: {} ({error})", path.display()))
+    match serde_json::from_str::<T>(&content) {
+        Ok(value) => Ok(Some(value)),
+        Err(error) => {
+            tracing::warn!(
+                error = %error,
+                path = %path.display(),
+                "storage compat: 忽略无法解析的 JSON 文件"
+            );
+            Ok(None)
+        }
+    }
 }
 
 fn upload_manifest_byte_size(manifest: &UploadManifestFile) -> u64 {
@@ -504,11 +547,19 @@ fn upload_queue_status(queue: &UploadQueueFile) -> String {
     } else if queue.entries.iter().all(|entry| entry.status == "acked") && !queue.entries.is_empty()
     {
         "acked".to_string()
-    } else if queue.entries.iter().any(|entry| entry.status == "uploading") {
+    } else if queue
+        .entries
+        .iter()
+        .any(|entry| entry.status == "uploading")
+    {
         "uploading".to_string()
     } else if queue.entries.iter().any(|entry| entry.status == "queued") {
         "queued".to_string()
-    } else if queue.entries.iter().any(|entry| entry.status == "pending_artifact") {
+    } else if queue
+        .entries
+        .iter()
+        .any(|entry| entry.status == "pending_artifact")
+    {
         "pending_artifact".to_string()
     } else if queue.entries.is_empty() {
         "queued".to_string()
@@ -545,26 +596,29 @@ fn dir_size_bytes_sync(path: &Path) -> u64 {
 }
 
 fn disk_capacity_for_path(path: &Path) -> (u64, u64) {
-    let disks = Disks::new_with_refreshed_list();
-    let mut best_match: Option<(usize, u64, u64)> = None;
-    for disk in disks.iter() {
-        let mount_point = disk.mount_point();
-        if !path.starts_with(mount_point) {
-            continue;
+    let path = path.to_path_buf();
+    tokio::task::block_in_place(|| {
+        let disks = Disks::new_with_refreshed_list();
+        let mut best_match: Option<(usize, u64, u64)> = None;
+        for disk in disks.iter() {
+            let mount_point = disk.mount_point();
+            if !path.starts_with(mount_point) {
+                continue;
+            }
+            let match_len = mount_point.as_os_str().len();
+            let candidate = (match_len, disk.total_space(), disk.available_space());
+            if best_match
+                .as_ref()
+                .map(|(best_len, _, _)| match_len > *best_len)
+                .unwrap_or(true)
+            {
+                best_match = Some(candidate);
+            }
         }
-        let match_len = mount_point.as_os_str().len();
-        let candidate = (match_len, disk.total_space(), disk.available_space());
-        if best_match
-            .as_ref()
-            .map(|(best_len, _, _)| match_len > *best_len)
-            .unwrap_or(true)
-        {
-            best_match = Some(candidate);
-        }
-    }
-    best_match
-        .map(|(_, total_space, available_space)| (total_space, available_space))
-        .unwrap_or((0, 0))
+        best_match
+            .map(|(_, total_space, available_space)| (total_space, available_space))
+            .unwrap_or((0, 0))
+    })
 }
 
 fn disk_pressure_level(total_bytes: u64, free_bytes: u64) -> &'static str {
@@ -581,7 +635,11 @@ fn disk_pressure_level(total_bytes: u64, free_bytes: u64) -> &'static str {
     }
 }
 
-fn rolling_pool_status(pressure_level: &str, used_bytes: u64, evictable_bytes: u64) -> &'static str {
+fn rolling_pool_status(
+    pressure_level: &str,
+    used_bytes: u64,
+    evictable_bytes: u64,
+) -> &'static str {
     if used_bytes == 0 {
         "tracked"
     } else if evictable_bytes == 0 {
@@ -632,27 +690,39 @@ async fn load_latest_consumption_receipts(
     storage_state_dir: PathBuf,
 ) -> Result<HashMap<String, StoredConsumptionReceipt>, String> {
     let path = consumption_receipts_path(&storage_state_dir);
-    let exists = tokio::fs::try_exists(&path)
-        .await
-        .map_err(|error| format!("检查 consumption receipts 失败: {} ({error})", path.display()))?;
+    let exists = tokio::fs::try_exists(&path).await.map_err(|error| {
+        format!(
+            "检查 consumption receipts 失败: {} ({error})",
+            path.display()
+        )
+    })?;
     if !exists {
         return Ok(HashMap::new());
     }
-    let content = tokio::fs::read_to_string(&path)
-        .await
-        .map_err(|error| format!("读取 consumption receipts 失败: {} ({error})", path.display()))?;
+    let content = tokio::fs::read_to_string(&path).await.map_err(|error| {
+        format!(
+            "读取 consumption receipts 失败: {} ({error})",
+            path.display()
+        )
+    })?;
     let mut receipts = HashMap::new();
     for (index, line) in content.lines().enumerate() {
         if line.trim().is_empty() {
             continue;
         }
-        let receipt = serde_json::from_str::<StoredConsumptionReceipt>(line).map_err(|error| {
-            format!(
-                "解析 consumption receipts 第 {} 行失败: {error}",
-                index.saturating_add(1)
-            )
-        })?;
-        receipts.insert(receipt.session_id.clone(), receipt);
+        match serde_json::from_str::<StoredConsumptionReceipt>(line) {
+            Ok(receipt) => {
+                receipts.insert(receipt.session_id.clone(), receipt);
+            }
+            Err(error) => {
+                tracing::warn!(
+                    error = %error,
+                    line_index = index.saturating_add(1),
+                    "storage compat: 忽略无法解析的 consumption receipt 行"
+                );
+                continue;
+            }
+        }
     }
     Ok(receipts)
 }
@@ -675,12 +745,20 @@ async fn append_consumption_receipt(
         .append(true)
         .open(&path)
         .await
-        .map_err(|error| format!("打开 consumption receipts 失败: {} ({error})", path.display()))?;
+        .map_err(|error| {
+            format!(
+                "打开 consumption receipts 失败: {} ({error})",
+                path.display()
+            )
+        })?;
     let mut line = serde_json::to_vec(receipt).map_err(|error| error.to_string())?;
     line.push(b'\n');
-    file.write_all(&line)
-        .await
-        .map_err(|error| format!("写入 consumption receipt 失败: {} ({error})", path.display()))
+    file.write_all(&line).await.map_err(|error| {
+        format!(
+            "写入 consumption receipt 失败: {} ({error})",
+            path.display()
+        )
+    })
 }
 
 async fn load_cleanup_state(storage_state_dir: PathBuf) -> Result<CleanupStateFile, String> {
