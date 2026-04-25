@@ -13,7 +13,7 @@
 ./cli/chek-ego-miner readiness --tier lite --json
 ./cli/chek-ego-miner quickstart --tier lite
 curl -I -L -s -o /dev/null -w '%{http_code} %{url_effective}\n' 'https://testflight.apple.com/join/RrYdeDUv'
-curl -I -L -s -o /dev/null -w '%{http_code} %{url_effective}\n' 'https://www-dev.chekkk.com/humanoid/ego-dataset'
+curl -I -L -s -o /dev/null -w '%{http_code} %{url_effective}\n' 'https://www.chekkk.com/humanoid/ego-dataset'
 ```
 
 ## What success looks like

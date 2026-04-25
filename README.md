@@ -14,7 +14,7 @@ and browse reusable datasets.
   - [Claude Guide](./docs/agent-guides/claude.md)
   - [OpenClaw Guide](./docs/agent-guides/openclaw.md)
 - Browse and download contributed datasets:
-  - [EGO Dataset Portal](https://www-dev.chekkk.com/humanoid/ego-dataset)
+  - [EGO Dataset Portal](https://www.chekkk.com/humanoid/ego-dataset)
 
 ## What You Can Do
 
@@ -240,7 +240,7 @@ Notes:
 
 Search and download contributed data from:
 
-- [https://www-dev.chekkk.com/humanoid/ego-dataset](https://www-dev.chekkk.com/humanoid/ego-dataset)
+- [https://www.chekkk.com/humanoid/ego-dataset](https://www.chekkk.com/humanoid/ego-dataset)
 
 ## What You Can Do Today
 
