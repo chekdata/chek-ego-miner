@@ -630,7 +630,10 @@ fn dir_size_bytes_sync(path: &Path) -> u64 {
 }
 
 fn disk_capacity_for_path(path: &Path) -> (u64, u64) {
-    let path = path.to_path_buf();
+    let path = match std::fs::canonicalize(path) {
+        Ok(canonical) => canonical,
+        Err(_) => path.to_path_buf(),
+    };
     tokio::task::block_in_place(|| {
         let disks = Disks::new_with_refreshed_list();
         let mut best_match: Option<(usize, u64, u64)> = None;
