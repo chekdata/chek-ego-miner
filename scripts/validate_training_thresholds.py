@@ -263,7 +263,7 @@ def summarize_vlm(root: Path, threshold: dict[str, Any], tier: str) -> dict[str,
         ),
         build_check(
             "vlm_no_fallback_inference",
-            not threshold.get("disallow_fallback_inference") or not fallback_rows,
+            (not required) or not threshold.get("disallow_fallback_inference") or not fallback_rows,
             f"fallback_rows={len(fallback_rows)}",
         ),
     ]
