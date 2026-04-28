@@ -15,6 +15,10 @@ pub struct SessionStartRequest {
     pub operator_id: Option<String>,
     pub task_id: Option<String>,
     pub task_ids: Option<Vec<String>>,
+    pub runtime_profile: Option<String>,
+    pub upload_policy_mode: Option<String>,
+    pub raw_residency: Option<String>,
+    pub preview_residency: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -62,6 +66,10 @@ async fn start(
         operator_id,
         task_id,
         task_ids,
+        runtime_profile,
+        upload_policy_mode,
+        raw_residency,
+        preview_residency,
     } = req;
 
     let recorder = state.recorder.clone();
@@ -72,6 +80,10 @@ async fn start(
         operator_id,
         task_id,
         task_ids: task_ids.unwrap_or_default(),
+        runtime_profile,
+        upload_policy_mode,
+        raw_residency,
+        preview_residency,
     };
 
     let _storage_sweep_guard = state.storage_sweep_guard.lock().await;

@@ -53,6 +53,10 @@ pub struct SessionContextUpdate {
     pub operator_id: Option<String>,
     pub task_id: Option<String>,
     pub task_ids: Vec<String>,
+    pub runtime_profile: Option<String>,
+    pub upload_policy_mode: Option<String>,
+    pub raw_residency: Option<String>,
+    pub preview_residency: Option<String>,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -548,6 +552,10 @@ impl SessionRecorder {
                 .and_then(|value| value.as_str())
                 .map(ToOwned::to_owned),
             task_ids: Vec::new(),
+            runtime_profile: None,
+            upload_policy_mode: None,
+            raw_residency: None,
+            preview_residency: None,
         });
         if context_changed {
             if let Err(e) = active.refresh_demo_bundle(protocol, cfg).await {
@@ -653,6 +661,10 @@ impl SessionRecorder {
                 operator_id: None,
                 task_id: None,
                 task_ids: Vec::new(),
+                runtime_profile: None,
+                upload_policy_mode: None,
+                raw_residency: None,
+                preview_residency: None,
             });
         if let Some(snapshot) = active.build_iphone_calibration_snapshot(v) {
             if let Err(e) = ActiveSession::write_json_pretty(
@@ -733,6 +745,10 @@ impl SessionRecorder {
                 operator_id: None,
                 task_id: None,
                 task_ids: Vec::new(),
+                runtime_profile: None,
+                upload_policy_mode: None,
+                raw_residency: None,
+                preview_residency: None,
             });
 
         if let Some(camera_calibration) = v.get("camera_calibration") {
@@ -2183,6 +2199,42 @@ impl SessionCrowdContext {
     }
 }
 
+fn local_quality_core_artifact_ids_for(
+    cfg: &Config,
+    session_context: &SessionCrowdContext,
+) -> Vec<&'static str> {
+    let profile = session_context
+        .runtime_profile
+        .as_deref()
+        .filter(|value| !value.trim().is_empty())
+        .filter(|value| {
+            matches!(
+                *value,
+                "raw_capture_only" | "capture_plus_facts" | "capture_plus_vlm" | "teleop_fullstack"
+            )
+        })
+        .unwrap_or_else(|| cfg.runtime_profile_name());
+    let flags = if session_context.runtime_flags.is_empty() {
+        SessionRuntimeFlags::from_config(cfg)
+    } else {
+        session_context.runtime_flags.clone()
+    };
+
+    let mut core = Vec::new();
+    if flags.phone_ingest_enabled {
+        core.push("capture_pose_present");
+        core.push("iphone_calibration_present");
+    }
+    if flags.fusion_enabled || flags.stereo_enabled || flags.wifi_enabled || flags.control_enabled {
+        core.push("time_sync_present");
+    }
+    if profile == "teleop_fullstack" && flags.control_enabled {
+        core.push("human_demo_pose_present");
+        core.push("teleop_frame_present");
+    }
+    core
+}
+
 #[derive(Serialize)]
 struct DemoBundleFrames {
     operator_frame: String,
@@ -3019,6 +3071,33 @@ impl ActiveSession {
         if self.session_context.task_id.is_none() {
             if let Some(first_task_id) = self.session_context.task_ids.first().cloned() {
                 self.session_context.task_id = Some(first_task_id);
+                changed = true;
+            }
+        }
+        if let Some(runtime_profile) = normalize_non_empty(update.runtime_profile) {
+            if self.session_context.runtime_profile.as_deref() != Some(runtime_profile.as_str()) {
+                self.session_context.runtime_profile = Some(runtime_profile);
+                changed = true;
+            }
+        }
+        if let Some(upload_policy_mode) = normalize_non_empty(update.upload_policy_mode) {
+            if self.session_context.upload_policy_mode.as_deref()
+                != Some(upload_policy_mode.as_str())
+            {
+                self.session_context.upload_policy_mode = Some(upload_policy_mode);
+                changed = true;
+            }
+        }
+        if let Some(raw_residency) = normalize_non_empty(update.raw_residency) {
+            if self.session_context.raw_residency.as_deref() != Some(raw_residency.as_str()) {
+                self.session_context.raw_residency = Some(raw_residency);
+                changed = true;
+            }
+        }
+        if let Some(preview_residency) = normalize_non_empty(update.preview_residency) {
+            if self.session_context.preview_residency.as_deref() != Some(preview_residency.as_str())
+            {
+                self.session_context.preview_residency = Some(preview_residency);
                 changed = true;
             }
         }
@@ -4312,25 +4391,13 @@ impl ActiveSession {
             })
             .collect::<Vec<_>>();
 
-        let core_missing = [
-            "capture_pose_present",
-            "iphone_calibration_present",
-            "time_sync_present",
-            "human_demo_pose_present",
-            "teleop_frame_present",
-        ]
-        .iter()
-        .any(|id| missing_artifacts.iter().any(|missing| missing == id));
-        let optional_missing = missing_artifacts.iter().any(|id| {
-            ![
-                "capture_pose_present",
-                "iphone_calibration_present",
-                "time_sync_present",
-                "human_demo_pose_present",
-                "teleop_frame_present",
-            ]
-            .contains(&id.as_str())
-        });
+        let core_artifacts = local_quality_core_artifact_ids_for(cfg, &self.session_context);
+        let core_missing = core_artifacts
+            .iter()
+            .any(|id| missing_artifacts.iter().any(|missing| missing == id));
+        let optional_missing = missing_artifacts
+            .iter()
+            .any(|id| !core_artifacts.contains(&id.as_str()));
         let status = if core_missing {
             "reject_local"
         } else if optional_missing {
@@ -6857,9 +6924,72 @@ async fn read_jsonl_range(
 
 #[cfg(test)]
 mod tests {
-    use super::SessionRecorder;
+    use super::{local_quality_core_artifact_ids_for, SessionCrowdContext, SessionRecorder};
     use crate::config::Config;
     use crate::protocol::version_guard::ProtocolVersionInfo;
+
+    fn config_for_quality_core_test() -> Config {
+        let data_dir = std::env::temp_dir().join("edge-orchestrator-quality-core-test");
+        std::env::set_var("EDGE_DATA_DIR", data_dir.to_string_lossy().to_string());
+        std::env::set_var(
+            "IPHONE_STEREO_EXTRINSIC_PATH",
+            data_dir
+                .join("runtime")
+                .join("iphone_stereo_extrinsic.json")
+                .to_string_lossy()
+                .to_string(),
+        );
+        std::env::set_var(
+            "WIFI_STEREO_EXTRINSIC_PATH",
+            data_dir
+                .join("runtime")
+                .join("wifi_stereo_extrinsic.json")
+                .to_string_lossy()
+                .to_string(),
+        );
+        Config::from_env().expect("config")
+    }
+
+    #[test]
+    fn ego_capture_quality_core_should_not_require_teleop_or_robot_artifacts() {
+        let mut cfg = config_for_quality_core_test();
+        cfg.phone_ingest_enabled = true;
+        cfg.stereo_enabled = true;
+        cfg.wifi_enabled = true;
+        cfg.fusion_enabled = true;
+        cfg.control_enabled = true;
+
+        let mut session_context = SessionCrowdContext::from_config(&cfg);
+        session_context.runtime_profile = Some("capture_plus_vlm".to_string());
+
+        let core = local_quality_core_artifact_ids_for(&cfg, &session_context);
+        assert!(core.contains(&"capture_pose_present"));
+        assert!(core.contains(&"iphone_calibration_present"));
+        assert!(core.contains(&"time_sync_present"));
+        assert!(!core.contains(&"human_demo_pose_present"));
+        assert!(!core.contains(&"teleop_frame_present"));
+        assert!(!core.contains(&"robot_state_present"));
+    }
+
+    #[test]
+    fn teleop_fullstack_quality_core_should_keep_teleop_artifacts_strict() {
+        let mut cfg = config_for_quality_core_test();
+        cfg.phone_ingest_enabled = true;
+        cfg.stereo_enabled = true;
+        cfg.wifi_enabled = true;
+        cfg.fusion_enabled = true;
+        cfg.control_enabled = true;
+
+        let mut session_context = SessionCrowdContext::from_config(&cfg);
+        session_context.runtime_profile = Some("teleop_fullstack".to_string());
+
+        let core = local_quality_core_artifact_ids_for(&cfg, &session_context);
+        assert!(core.contains(&"capture_pose_present"));
+        assert!(core.contains(&"iphone_calibration_present"));
+        assert!(core.contains(&"time_sync_present"));
+        assert!(core.contains(&"human_demo_pose_present"));
+        assert!(core.contains(&"teleop_frame_present"));
+    }
 
     #[tokio::test]
     async fn repair_existing_sessions_should_migrate_legacy_iphone_layout_and_rebuild_metadata() {

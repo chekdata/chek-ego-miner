@@ -50,9 +50,10 @@ STEREO_TRACK_PERSISTENCE_WINDOW = 4
 STEREO_TRACK_PERSISTENCE_DECAY = 0.88
 STEREO_TRACK_PERSISTENCE_MIN_SEPARATION_M = 0.28
 LOW_ROI_TRACK_STABILIZE_WINDOW = 5
-LOW_ROI_TRACK_STABILIZE_BLEND = 0.42
 LOW_ROI_TRACK_STABILIZE_MAX_GAP_M = 0.75
 LOW_ROI_TRACK_STABILIZE_MIN_GAP_M = 0.06
+
+BodyPoint3D = list[float] | None
 
 
 @dataclass
@@ -102,7 +103,8 @@ class SelectedStereoCandidate:
     right_index: int
     left_candidate: PersonCandidate
     right_candidate: PersonCandidate
-    body_3d: list[list[float]]
+    body_3d: list[BodyPoint3D]
+    body_3d_valid: list[bool]
     triangulated_ratio: float
     stereo_confidence: float
     operator_track_id: str
@@ -126,7 +128,7 @@ class StereoTrackMemory:
     track_candidates: dict[str, SelectedStereoCandidate] = field(default_factory=dict)
     seen_seq: int = 0
 
-    def _local_continuity_gap_m(self, body_3d: list[list[float]]) -> float | None:
+    def _local_continuity_gap_m(self, body_3d: list[BodyPoint3D]) -> float | None:
         center = body_center_point(body_3d)
         if center is not None and self.last_body_center is not None:
             return math.dist(center, self.last_body_center)
@@ -138,7 +140,7 @@ class StereoTrackMemory:
 
     def _nearest_cached_track_id(
         self,
-        body_3d: list[list[float]],
+        body_3d: list[BodyPoint3D],
         reserved_track_ids: set[str] | None = None,
     ) -> str | None:
         center = body_center_point(body_3d)
@@ -201,7 +203,7 @@ class StereoTrackMemory:
 
     def propose_track_id(
         self,
-        body_3d: list[list[float]],
+        body_3d: list[BodyPoint3D],
         hint: AssociationHint | None,
         hand_hint_gap_m: float | None,
         continuity_gap_m: float | None,
@@ -271,7 +273,7 @@ class StereoTrackMemory:
                         break
         return track_id
 
-    def _record_track_observation(self, track_id: str, body_3d: list[list[float]]) -> None:
+    def _record_track_observation(self, track_id: str, body_3d: list[BodyPoint3D]) -> None:
         if track_id.startswith("stereo-person-"):
             suffix = track_id.removeprefix("stereo-person-")
             if suffix.isdigit():
@@ -663,7 +665,25 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--body-score-threshold", type=float, default=0.35)
     parser.add_argument("--joint-score-threshold", type=float, default=0.25)
     parser.add_argument("--min-disparity-px", type=float, default=2.0)
+    parser.add_argument(
+        "--max-epipolar-y-delta-px",
+        type=float,
+        default=36.0,
+        help="左右目同名关节允许的最大 y 像素差；超过则不生成该关节 3D。",
+    )
+    parser.add_argument(
+        "--min-depth-m",
+        type=float,
+        default=0.35,
+        help="双目三角化允许的最小人体关节深度，防止错误配对生成近场假 3D。",
+    )
     parser.add_argument("--max-depth-m", type=float, default=5.0)
+    parser.add_argument(
+        "--min-triangulated-joints",
+        type=int,
+        default=6,
+        help="单个人体候选至少需要多少个几何自洽的双目关节。",
+    )
     parser.add_argument("--baseline-m", type=float, default=0.060)
     parser.add_argument("--fx-px", type=float, default=721.1)
     parser.add_argument("--fy-px", type=float, default=720.8)
@@ -1438,31 +1458,25 @@ def base_pair_cost(left: PersonCandidate, right: PersonCandidate) -> float:
 
 
 def candidate_hand_gap_m(
-    body_3d: list[list[float]],
+    body_3d: list[BodyPoint3D],
     left_hint: tuple[float, float, float] | None,
     right_hint: tuple[float, float, float] | None,
 ) -> float | None:
     gaps: list[float] = []
-    if left_hint is not None and len(body_3d) > 9 and any(abs(v) > 1e-6 for v in body_3d[9]):
-        gaps.append(
-            math.dist(
-                tuple(float(v) for v in body_3d[9]),
-                left_hint,
-            )
-        )
-    if right_hint is not None and len(body_3d) > 10 and any(abs(v) > 1e-6 for v in body_3d[10]):
-        gaps.append(
-            math.dist(
-                tuple(float(v) for v in body_3d[10]),
-                right_hint,
-            )
-        )
+    if left_hint is not None and len(body_3d) > 9:
+        left_point = parse_hint_point(body_3d[9])
+        if left_point is not None:
+            gaps.append(math.dist(left_point, left_hint))
+    if right_hint is not None and len(body_3d) > 10:
+        right_point = parse_hint_point(body_3d[10])
+        if right_point is not None:
+            gaps.append(math.dist(right_point, right_hint))
     if not gaps:
         return None
     return float(sum(gaps) / len(gaps))
 
 
-def body_center_point(body_3d: list[list[float]]) -> tuple[float, float, float] | None:
+def body_center_point(body_3d: list[BodyPoint3D]) -> tuple[float, float, float] | None:
     center_points: list[tuple[float, float, float]] = []
     for index in TORSO_INDICES:
         if index >= len(body_3d):
@@ -1481,7 +1495,7 @@ def body_center_point(body_3d: list[list[float]]) -> tuple[float, float, float] 
     )
 
 
-def body_signature(body_3d: list[list[float]]) -> tuple[float, float] | None:
+def body_signature(body_3d: list[BodyPoint3D]) -> tuple[float, float] | None:
     points = [parse_hint_point(point) for point in body_3d]
     valid_points = [point for point in points if point is not None]
     if not valid_points:
@@ -1509,25 +1523,6 @@ def body_signature_distance(
     return shoulder_delta * 0.6 + height_delta * 0.4
 
 
-def translate_body_points(
-    body_3d: list[list[float]],
-    delta_xyz: tuple[float, float, float],
-) -> list[list[float]]:
-    dx, dy, dz = delta_xyz
-    translated: list[list[float]] = []
-    for point in body_3d:
-        parsed = parse_hint_point(point)
-        if parsed is None:
-            translated.append(list(point))
-            continue
-        translated.append([
-            float(parsed[0] + dx),
-            float(parsed[1] + dy),
-            float(parsed[2] + dz),
-        ])
-    return translated
-
-
 def stabilize_low_roi_candidate(
     candidate: SelectedStereoCandidate,
     track_memory: StereoTrackMemory,
@@ -1546,37 +1541,14 @@ def stabilize_low_roi_candidate(
     gap_m = math.dist(current_center, predicted_center)
     if gap_m <= LOW_ROI_TRACK_STABILIZE_MIN_GAP_M or gap_m > LOW_ROI_TRACK_STABILIZE_MAX_GAP_M:
         return candidate
-    blend = max(0.18, LOW_ROI_TRACK_STABILIZE_BLEND - 0.05 * max(age - 1, 0))
-    target_center = tuple(
-        float(current_center[i] * (1.0 - blend) + predicted_center[i] * blend)
-        for i in range(3)
-    )
-    delta_xyz = tuple(target_center[i] - current_center[i] for i in range(3))
-    candidate.body_3d = translate_body_points(candidate.body_3d, delta_xyz)
     candidate.continuity_gap_m = (
         min(candidate.continuity_gap_m, gap_m) if candidate.continuity_gap_m is not None else gap_m
     )
     if candidate.selection_reason == "geometry_score":
-        candidate.selection_reason = "geometry_score+low_roi_track_stabilized"
+        candidate.selection_reason = "geometry_score+low_roi_track_continuity"
     else:
-        candidate.selection_reason = f"{candidate.selection_reason}+low_roi_track_stabilized"
+        candidate.selection_reason = f"{candidate.selection_reason}+low_roi_track_continuity"
     return candidate
-
-
-def candidate_center_depth(
-    left: PersonCandidate,
-    right: PersonCandidate,
-    calibration: StereoCalibration,
-    min_disparity_px: float,
-    max_depth_m: float,
-) -> float | None:
-    disparity = float(left.center_xy[0] - right.center_xy[0])
-    if disparity <= min_disparity_px:
-        return None
-    depth = calibration.left.fx_px * calibration.baseline_m / disparity
-    if not math.isfinite(depth) or depth <= 0.0 or depth > max_depth_m:
-        return None
-    return float(depth)
 
 
 def is_depth_outlier(depth: float, reference_depth: float) -> bool:
@@ -1618,13 +1590,16 @@ def enumerate_candidate_pairs(
             if disparity <= 1.0:
                 continue
             try:
-                body_3d, triangulated_ratio = triangulate_body(
+                body_3d, body_3d_valid, triangulated_ratio = triangulate_body(
                     left,
                     right,
                     calibration,
                     args.joint_score_threshold,
                     args.min_disparity_px,
+                    args.max_epipolar_y_delta_px,
+                    args.min_depth_m,
                     args.max_depth_m,
+                    args.min_triangulated_joints,
                 )
             except RuntimeError:
                 continue
@@ -1682,6 +1657,7 @@ def enumerate_candidate_pairs(
                     left_candidate=left,
                     right_candidate=right,
                     body_3d=body_3d,
+                    body_3d_valid=body_3d_valid,
                     triangulated_ratio=triangulated_ratio,
                     stereo_confidence=stereo_confidence,
                     operator_track_id="",
@@ -1740,10 +1716,7 @@ def select_best_pairs(
         if len(selected) >= max_persons:
             break
 
-    selected = [
-        stabilize_low_roi_candidate(candidate, track_memory)
-        for candidate in selected
-    ]
+    selected = [stabilize_low_roi_candidate(candidate, track_memory) for candidate in selected]
     track_memory.commit_track_candidates(selected)
     return track_memory.inject_persisted_candidates(selected, max_persons)
 
@@ -1754,9 +1727,12 @@ def triangulate_body(
     calibration: StereoCalibration,
     joint_score_threshold: float,
     min_disparity_px: float,
+    max_epipolar_y_delta_px: float,
+    min_depth_m: float,
     max_depth_m: float,
-) -> tuple[list[list[float]], float]:
-    body_3d: list[list[float] | None] = [None] * COCO_BODY_17
+    min_triangulated_joints: int,
+) -> tuple[list[BodyPoint3D], list[bool], float]:
+    body_3d: list[BodyPoint3D] = [None] * COCO_BODY_17
     valid_depths: list[float] = []
     low_roi_relaxed = left.source_tag.startswith("low_roi") or right.source_tag.startswith("low_roi")
     left_joint_threshold = (
@@ -1774,15 +1750,22 @@ def triangulate_body(
         if low_roi_relaxed
         else float(min_disparity_px)
     )
+    effective_max_epipolar_y_delta_px = max(0.0, float(max_epipolar_y_delta_px))
+    if low_roi_relaxed:
+        effective_max_epipolar_y_delta_px *= 1.5
+    effective_min_depth_m = max(0.0, float(min_depth_m))
 
     for index in range(COCO_BODY_17):
         if left.scores[index] < left_joint_threshold or right.scores[index] < right_joint_threshold:
+            continue
+        epipolar_y_delta = abs(float(left.keypoints[index, 1]) - float(right.keypoints[index, 1]))
+        if epipolar_y_delta > effective_max_epipolar_y_delta_px:
             continue
         disparity = float(left.keypoints[index, 0] - right.keypoints[index, 0])
         if disparity <= effective_min_disparity_px:
             continue
         depth = calibration.left.fx_px * calibration.baseline_m / disparity
-        if not math.isfinite(depth) or depth <= 0 or depth > max_depth_m:
+        if not math.isfinite(depth) or depth < effective_min_depth_m or depth > max_depth_m:
             continue
         x = (float(left.keypoints[index, 0]) - calibration.left.cx_px) * depth / calibration.left.fx_px
         y = (calibration.left.cy_px - float(left.keypoints[index, 1])) * depth / calibration.left.fy_px
@@ -1790,35 +1773,20 @@ def triangulate_body(
         valid_depths.append(depth)
 
     fallback_depth = torso_median_depth(body_3d) or (float(np.median(valid_depths)) if valid_depths else None)
-    if fallback_depth is None and low_roi_relaxed:
-        fallback_depth = candidate_center_depth(
-            left,
-            right,
-            calibration,
-            max(0.75, effective_min_disparity_px * 0.8),
-            max_depth_m,
-        )
-    if fallback_depth is None:
-        raise RuntimeError("无法从双目得到足够稳定的深度，当前帧跳过")
+    if fallback_depth is not None:
+        for index, point in enumerate(body_3d):
+            if point is None:
+                continue
+            if is_depth_outlier(float(point[2]), fallback_depth):
+                body_3d[index] = None
 
-    for index, point in enumerate(body_3d):
-        if point is None:
-            continue
-        if not low_roi_relaxed and is_depth_outlier(float(point[2]), fallback_depth):
-            body_3d[index] = None
+    valid_joint_count = sum(point is not None for point in body_3d)
+    if valid_joint_count < max(1, int(min_triangulated_joints)):
+        raise RuntimeError("双目几何自洽关节不足，当前候选跳过")
 
-    for index in range(COCO_BODY_17):
-        if body_3d[index] is not None:
-            continue
-        if left.scores[index] < left_joint_threshold:
-            continue
-        x = (float(left.keypoints[index, 0]) - calibration.left.cx_px) * fallback_depth / calibration.left.fx_px
-        y = (calibration.left.cy_px - float(left.keypoints[index, 1])) * fallback_depth / calibration.left.fy_px
-        body_3d[index] = [x, y, fallback_depth]
-
-    final_body = [point if point is not None else [0.0, 0.0, 0.0] for point in body_3d]
-    triangulated_ratio = sum(point is not None for point in body_3d) / float(COCO_BODY_17)
-    return final_body, triangulated_ratio
+    body_3d_valid = [point is not None for point in body_3d]
+    triangulated_ratio = valid_joint_count / float(COCO_BODY_17)
+    return body_3d, body_3d_valid, triangulated_ratio
 
 
 def torso_median_depth(points: list[list[float] | None]) -> float | None:
@@ -1841,6 +1809,24 @@ def build_packet(
     source_time_ns: int,
 ) -> dict:
     body_3d = primary_candidate.body_3d
+
+    def serialize_body_points_3d(body_points: list[BodyPoint3D]) -> list[list[float]]:
+        serialized: list[list[float]] = []
+        for point in body_points[:COCO_BODY_17]:
+            parsed = parse_hint_point(point)
+            if parsed is None:
+                serialized.append([0.0, 0.0, 0.0])
+                continue
+            serialized.append([float(parsed[0]), float(parsed[1]), float(parsed[2])])
+        while len(serialized) < COCO_BODY_17:
+            serialized.append([0.0, 0.0, 0.0])
+        return serialized
+
+    def missing_body_indices(valid_mask: list[bool]) -> list[int]:
+        padded = list(valid_mask[:COCO_BODY_17])
+        while len(padded) < COCO_BODY_17:
+            padded.append(False)
+        return [index for index, valid in enumerate(padded) if not valid]
 
     def normalize_body_points_2d(
         keypoints_2d: np.ndarray,
@@ -1869,7 +1855,9 @@ def build_packet(
     def serialize_candidate(candidate: SelectedStereoCandidate) -> dict:
         return {
             "operator_track_id": candidate.operator_track_id,
-            "body_kpts_3d": candidate.body_3d,
+            "body_kpts_3d": serialize_body_points_3d(candidate.body_3d),
+            "body_kpts_3d_valid": candidate.body_3d_valid,
+            "body_kpts_3d_missing_indices": missing_body_indices(candidate.body_3d_valid),
             "hand_kpts_3d": [],
             "left_body_kpts_2d": normalize_body_points_2d(
                 candidate.left_candidate.keypoints,
@@ -1902,7 +1890,9 @@ def build_packet(
         "left_frame_id": frame_seq,
         "right_frame_id": frame_seq,
         "body_layout": "coco_body_17",
-        "body_kpts_3d": body_3d,
+        "body_kpts_3d": serialize_body_points_3d(body_3d),
+        "body_kpts_3d_valid": primary_candidate.body_3d_valid,
+        "body_kpts_3d_missing_indices": missing_body_indices(primary_candidate.body_3d_valid),
         "hand_kpts_3d": [],
         "left_body_kpts_2d": normalize_body_points_2d(
             primary_candidate.left_candidate.keypoints,
