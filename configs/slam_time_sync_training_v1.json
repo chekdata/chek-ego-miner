@@ -1,0 +1,54 @@
+{
+  "schema_version": "1.0.0",
+  "version": "slam-time-sync-training-v1",
+  "status": "candidate",
+  "notes": [
+    "Public CHEK EGO Miner contract for deciding whether a capture bundle is a SLAM + time-sync training candidate.",
+    "status=candidate means the validator can fail unsafe bundles and produce evidence, but must not claim final training-ready until frozen thresholds and ground-truth benchmarks are available.",
+    "Absolute clock offsets may use different epochs per sensor. Judge offset span within a source kind, not the raw offset magnitude."
+  ],
+  "time_sync": {
+    "minimum_source_kinds": {
+      "basic": 1,
+      "stereo": 1,
+      "pro": 2
+    },
+    "min_accepted_for_mapping_ratio": 0.9,
+    "max_rtt_ms": 20,
+    "per_source_rtt_ok_ms": {
+      "stereo_pair": 20,
+      "stereo_camera": 20,
+      "wifi_pose": 20,
+      "iphone_capture": 30,
+      "device_pose": 30,
+      "phone_capture": 30,
+      "wifi_csi_node": 50
+    },
+    "max_clock_offset_span_ms": 25
+  },
+  "vlm": {
+    "required_for_tiers": ["stereo", "pro"],
+    "min_event_count": 1,
+    "min_segment_count": 1,
+    "max_p95_latency_ms": 2000,
+    "disallow_fallback_inference": true
+  },
+  "spatial": {
+    "require_phone_pose": true,
+    "require_stereo_pose_tiers": ["stereo", "pro"],
+    "require_wifi_pose_tiers": ["pro"],
+    "require_fisheye_track_tiers": ["pro"],
+    "min_pose_rows": 1,
+    "min_media_track_rows": 1
+  },
+  "training": {
+    "require_frozen_thresholds_for_training_ready": true,
+    "require_slam_benchmark_report": true,
+    "required_slam_metrics": [
+      "trajectory_drift_percent",
+      "reprojection_error_px_p95",
+      "pose_graph_residual_p95",
+      "body_tracking_coverage_percent"
+    ]
+  }
+}

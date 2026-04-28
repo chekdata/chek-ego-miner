@@ -181,6 +181,37 @@ python3 -m pip install --user --break-system-packages -r scripts/edge_phone_visi
   staging 到 `~/.chek-edge/runtime/macos/basic`。
 - 单手机 basic 路径里 `time_sync_samples` 可以为空。
 
+## 训练阈值验证
+
+raw 上传和下载成功，不等于这条 session 已经达到训练可用阈值。要检查下载出来的
+session 包是否满足 public 的 SLAM + time-sync 候选门禁：
+
+```bash
+python3 scripts/validate_training_thresholds.py \
+  --bundle /path/to/raw_bundle.tar.gz \
+  --tier pro \
+  --json
+```
+
+验证器会检查：
+
+- VLM 事件、片段、fallback 使用情况和延迟
+- time-sync 样本量、accepted mapping 比例、分 source RTT 和 offset span
+- phone pose、stereo pose、Wi-Fi pose、fisheye track 完整性
+- 是否存在带 drift / residual 指标的 SLAM benchmark 报告
+
+只有 `training_ready=true` 时才返回 exit code `0`；未完成或仅达到候选信号的包会
+返回 exit code `2`，并列出阻塞项。`clock_offset_ns` 可能跨不同 clock domain，
+不能直接当同步误差读，验证器会按 source kind 看 offset span / 稳定性。
+
+它会刻意区分：
+
+- `signal_candidate_ready`：这条数据是否具备进入候选评审的实时信号
+- `training_ready`：是否已经通过冻结阈值和必需 SLAM benchmark 指标
+
+在 `configs/slam_time_sync_training_v1.json` 冻结、且真实 benchmark 指标齐全之前，
+工具不会宣称最终 training-ready。
+
 ## Jetson 上的 Pro 安装路径
 
 如果你要走 Jetson 的完整 `Pro` 运行面，可以先执行 bootstrap。它会接入：
