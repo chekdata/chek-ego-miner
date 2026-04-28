@@ -4,8 +4,7 @@ from __future__ import annotations
 import argparse
 import json
 import math
-import statistics
-import sys
+import shutil
 import tarfile
 import tempfile
 from pathlib import Path
@@ -68,6 +67,7 @@ def percentile(values: list[float], pct: float) -> float | None:
 
 def safe_extract_tar(tar_path: Path, target_dir: Path) -> Path:
     target_root = target_dir.resolve()
+    target_root.mkdir(parents=True, exist_ok=True)
     with tarfile.open(tar_path, "r:*") as archive:
         for member in archive.getmembers():
             member_path = (target_dir / member.name).resolve()
@@ -79,7 +79,20 @@ def safe_extract_tar(tar_path: Path, target_dir: Path) -> Path:
                 raise ValueError(f"device tar members are not supported: {member.name}")
             if member.issym() or member.islnk():
                 raise ValueError(f"link tar members are not supported: {member.name}")
-        archive.extractall(target_dir)
+            if member.isdir():
+                member_path.mkdir(parents=True, exist_ok=True)
+                continue
+            if not member.isfile():
+                raise ValueError(f"unsupported tar member type: {member.name}")
+            member_path.parent.mkdir(parents=True, exist_ok=True)
+            source = archive.extractfile(member)
+            if source is None:
+                raise ValueError(f"unable to read tar member: {member.name}")
+            with source, member_path.open("wb") as output:
+                shutil.copyfileobj(source, output)
+            mode = member.mode & 0o777
+            if mode:
+                member_path.chmod(mode)
     return target_dir
 
 
