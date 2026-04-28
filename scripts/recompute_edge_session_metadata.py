@@ -200,6 +200,33 @@ def recommended_action(missing: str) -> str:
     return mapping.get(missing, f"检查 `{missing}` 对应的采集链路。")
 
 
+def local_quality_core_ids(manifest: dict[str, Any], upload_manifest: dict[str, Any]) -> set[str]:
+    session_context = manifest.get("session_context") or upload_manifest.get("session_context") or {}
+    runtime_profile = str(session_context.get("runtime_profile") or "teleop_fullstack").strip()
+    if runtime_profile not in {
+        "raw_capture_only",
+        "capture_plus_facts",
+        "capture_plus_vlm",
+        "teleop_fullstack",
+    }:
+        runtime_profile = "teleop_fullstack"
+    runtime_flags = session_context.get("runtime_flags") or {}
+    phone_ingest_enabled = bool(runtime_flags.get("phone_ingest_enabled", True))
+    fusion_enabled = bool(runtime_flags.get("fusion_enabled", True))
+    stereo_enabled = bool(runtime_flags.get("stereo_enabled", runtime_profile == "teleop_fullstack"))
+    wifi_enabled = bool(runtime_flags.get("wifi_enabled", runtime_profile == "teleop_fullstack"))
+    control_enabled = bool(runtime_flags.get("control_enabled", runtime_profile == "teleop_fullstack"))
+
+    core_ids: set[str] = set()
+    if phone_ingest_enabled:
+        core_ids.update({"capture_pose_present", "iphone_calibration_present"})
+    if fusion_enabled or stereo_enabled or wifi_enabled or control_enabled:
+        core_ids.add("time_sync_present")
+    if runtime_profile == "teleop_fullstack" and control_enabled:
+        core_ids.update({"human_demo_pose_present", "teleop_frame_present"})
+    return core_ids
+
+
 def recompute_session(session_root: Path, write: bool) -> dict[str, Any]:
     qa_path = session_root / "qa" / "local_quality_report.json"
     upload_manifest_path = session_root / "upload" / "upload_manifest.json"
@@ -215,13 +242,7 @@ def recompute_session(session_root: Path, write: bool) -> dict[str, Any]:
     total = max(len(checks), 1)
     passed = sum(1 for check in checks if check["ok"])
     score_percent = round((passed / total) * 100.0, 2)
-    core_ids = {
-        "capture_pose_present",
-        "iphone_calibration_present",
-        "time_sync_present",
-        "human_demo_pose_present",
-        "teleop_frame_present",
-    }
+    core_ids = local_quality_core_ids(manifest, upload_manifest)
     core_missing = any(item in core_ids for item in missing_artifacts)
     optional_missing = any(item not in core_ids for item in missing_artifacts)
     status = "reject_local" if core_missing else "retry_recommended" if optional_missing else "pass"

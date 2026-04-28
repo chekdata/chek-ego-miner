@@ -160,6 +160,10 @@ async fn arm(
                 operator_id: Some(req.operator_id.clone()),
                 task_id: None,
                 task_ids: Vec::new(),
+                runtime_profile: None,
+                upload_policy_mode: None,
+                raw_residency: None,
+                preview_residency: None,
             },
         )
         .await;
