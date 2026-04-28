@@ -663,7 +663,25 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--body-score-threshold", type=float, default=0.35)
     parser.add_argument("--joint-score-threshold", type=float, default=0.25)
     parser.add_argument("--min-disparity-px", type=float, default=2.0)
+    parser.add_argument(
+        "--max-epipolar-y-delta-px",
+        type=float,
+        default=36.0,
+        help="左右目同名关节允许的最大 y 像素差；超过则不生成该关节 3D。",
+    )
+    parser.add_argument(
+        "--min-depth-m",
+        type=float,
+        default=0.35,
+        help="双目三角化允许的最小人体关节深度，防止错误配对生成近场假 3D。",
+    )
     parser.add_argument("--max-depth-m", type=float, default=5.0)
+    parser.add_argument(
+        "--min-triangulated-joints",
+        type=int,
+        default=6,
+        help="单个人体候选至少需要多少个几何自洽的双目关节。",
+    )
     parser.add_argument("--baseline-m", type=float, default=0.060)
     parser.add_argument("--fx-px", type=float, default=721.1)
     parser.add_argument("--fy-px", type=float, default=720.8)
@@ -1546,20 +1564,13 @@ def stabilize_low_roi_candidate(
     gap_m = math.dist(current_center, predicted_center)
     if gap_m <= LOW_ROI_TRACK_STABILIZE_MIN_GAP_M or gap_m > LOW_ROI_TRACK_STABILIZE_MAX_GAP_M:
         return candidate
-    blend = max(0.18, LOW_ROI_TRACK_STABILIZE_BLEND - 0.05 * max(age - 1, 0))
-    target_center = tuple(
-        float(current_center[i] * (1.0 - blend) + predicted_center[i] * blend)
-        for i in range(3)
-    )
-    delta_xyz = tuple(target_center[i] - current_center[i] for i in range(3))
-    candidate.body_3d = translate_body_points(candidate.body_3d, delta_xyz)
     candidate.continuity_gap_m = (
         min(candidate.continuity_gap_m, gap_m) if candidate.continuity_gap_m is not None else gap_m
     )
     if candidate.selection_reason == "geometry_score":
-        candidate.selection_reason = "geometry_score+low_roi_track_stabilized"
+        candidate.selection_reason = "geometry_score+low_roi_track_continuity"
     else:
-        candidate.selection_reason = f"{candidate.selection_reason}+low_roi_track_stabilized"
+        candidate.selection_reason = f"{candidate.selection_reason}+low_roi_track_continuity"
     return candidate
 
 
@@ -1624,7 +1635,10 @@ def enumerate_candidate_pairs(
                     calibration,
                     args.joint_score_threshold,
                     args.min_disparity_px,
+                    args.max_epipolar_y_delta_px,
+                    args.min_depth_m,
                     args.max_depth_m,
+                    args.min_triangulated_joints,
                 )
             except RuntimeError:
                 continue
@@ -1754,7 +1768,10 @@ def triangulate_body(
     calibration: StereoCalibration,
     joint_score_threshold: float,
     min_disparity_px: float,
+    max_epipolar_y_delta_px: float,
+    min_depth_m: float,
     max_depth_m: float,
+    min_triangulated_joints: int,
 ) -> tuple[list[list[float]], float]:
     body_3d: list[list[float] | None] = [None] * COCO_BODY_17
     valid_depths: list[float] = []
@@ -1774,15 +1791,24 @@ def triangulate_body(
         if low_roi_relaxed
         else float(min_disparity_px)
     )
+    effective_max_epipolar_y_delta_px = (
+        max(float(max_epipolar_y_delta_px), float(max_epipolar_y_delta_px) * 1.5)
+        if low_roi_relaxed
+        else float(max_epipolar_y_delta_px)
+    )
+    effective_min_depth_m = max(0.0, float(min_depth_m))
 
     for index in range(COCO_BODY_17):
         if left.scores[index] < left_joint_threshold or right.scores[index] < right_joint_threshold:
+            continue
+        epipolar_y_delta = abs(float(left.keypoints[index, 1]) - float(right.keypoints[index, 1]))
+        if epipolar_y_delta > effective_max_epipolar_y_delta_px:
             continue
         disparity = float(left.keypoints[index, 0] - right.keypoints[index, 0])
         if disparity <= effective_min_disparity_px:
             continue
         depth = calibration.left.fx_px * calibration.baseline_m / disparity
-        if not math.isfinite(depth) or depth <= 0 or depth > max_depth_m:
+        if not math.isfinite(depth) or depth < effective_min_depth_m or depth > max_depth_m:
             continue
         x = (float(left.keypoints[index, 0]) - calibration.left.cx_px) * depth / calibration.left.fx_px
         y = (calibration.left.cy_px - float(left.keypoints[index, 1])) * depth / calibration.left.fy_px
@@ -1790,31 +1816,16 @@ def triangulate_body(
         valid_depths.append(depth)
 
     fallback_depth = torso_median_depth(body_3d) or (float(np.median(valid_depths)) if valid_depths else None)
-    if fallback_depth is None and low_roi_relaxed:
-        fallback_depth = candidate_center_depth(
-            left,
-            right,
-            calibration,
-            max(0.75, effective_min_disparity_px * 0.8),
-            max_depth_m,
-        )
-    if fallback_depth is None:
-        raise RuntimeError("无法从双目得到足够稳定的深度，当前帧跳过")
+    if fallback_depth is not None:
+        for index, point in enumerate(body_3d):
+            if point is None:
+                continue
+            if is_depth_outlier(float(point[2]), fallback_depth):
+                body_3d[index] = None
 
-    for index, point in enumerate(body_3d):
-        if point is None:
-            continue
-        if not low_roi_relaxed and is_depth_outlier(float(point[2]), fallback_depth):
-            body_3d[index] = None
-
-    for index in range(COCO_BODY_17):
-        if body_3d[index] is not None:
-            continue
-        if left.scores[index] < left_joint_threshold:
-            continue
-        x = (float(left.keypoints[index, 0]) - calibration.left.cx_px) * fallback_depth / calibration.left.fx_px
-        y = (calibration.left.cy_px - float(left.keypoints[index, 1])) * fallback_depth / calibration.left.fy_px
-        body_3d[index] = [x, y, fallback_depth]
+    valid_joint_count = sum(point is not None for point in body_3d)
+    if valid_joint_count < max(1, int(min_triangulated_joints)):
+        raise RuntimeError("双目几何自洽关节不足，当前候选跳过")
 
     final_body = [point if point is not None else [0.0, 0.0, 0.0] for point in body_3d]
     triangulated_ratio = sum(point is not None for point in body_3d) / float(COCO_BODY_17)

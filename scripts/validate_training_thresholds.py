@@ -146,12 +146,28 @@ def build_check(check_id: str, ok: bool, detail: str, **extra: Any) -> dict[str,
 def summarize_time_sync(root: Path, threshold: dict[str, Any], tier: str) -> dict[str, Any]:
     rows = jsonl_rows(root / "sync" / "time_sync_samples.jsonl")
     accepted = [row for row in rows if row.get("accepted") is True]
-    accepted_for_mapping = [row for row in rows if row.get("accepted_for_mapping") is True]
+    has_mapping_gate = any("accepted_for_mapping" in row for row in rows)
+    accepted_for_mapping = (
+        [row for row in rows if row.get("accepted_for_mapping") is True]
+        if has_mapping_gate
+        else list(rows)
+    )
     ratio = (len(accepted_for_mapping) / len(rows)) if rows else 0.0
     by_source: dict[str, dict[str, Any]] = {}
     for row in rows:
         source_kind = str(row.get("source_kind") or "unknown")
-        bucket = by_source.setdefault(source_kind, {"rows": [], "rtt_ms": [], "offset_ms": []})
+        bucket = by_source.setdefault(
+            source_kind,
+            {
+                "rows": [],
+                "gate_rows": [],
+                "rtt_ms": [],
+                "offset_ms": [],
+                "gate_rtt_ms": [],
+                "gate_offset_ms": [],
+                "mapping_rejected_reasons": {},
+            },
+        )
         bucket["rows"].append(row)
         rtt_ns = row.get("rtt_ns")
         if isinstance(rtt_ns, (int, float)):
@@ -159,6 +175,16 @@ def summarize_time_sync(root: Path, threshold: dict[str, Any], tier: str) -> dic
         offset_ns = row.get("clock_offset_ns")
         if isinstance(offset_ns, (int, float)):
             bucket["offset_ms"].append(float(offset_ns) / 1_000_000.0)
+        if (not has_mapping_gate) or row.get("accepted_for_mapping") is True:
+            bucket["gate_rows"].append(row)
+            if isinstance(rtt_ns, (int, float)):
+                bucket["gate_rtt_ms"].append(float(rtt_ns) / 1_000_000.0)
+            if isinstance(offset_ns, (int, float)):
+                bucket["gate_offset_ms"].append(float(offset_ns) / 1_000_000.0)
+        elif has_mapping_gate:
+            reason = str(row.get("mapping_rejected_reason") or "unknown")
+            reasons = bucket["mapping_rejected_reasons"]
+            reasons[reason] = int(reasons.get(reason, 0)) + 1
 
     per_source_rtt = threshold.get("per_source_rtt_ok_ms") if isinstance(threshold.get("per_source_rtt_ok_ms"), dict) else {}
     default_rtt = float(threshold.get("max_rtt_ms") or 0.0)
@@ -167,20 +193,26 @@ def summarize_time_sync(root: Path, threshold: dict[str, Any], tier: str) -> dic
     rtt_violations: list[str] = []
     offset_span_violations: list[str] = []
     for source_kind, bucket in sorted(by_source.items()):
-        rtt_values = bucket["rtt_ms"]
-        offset_values = bucket["offset_ms"]
+        rtt_values = bucket["gate_rtt_ms"]
+        offset_values = bucket["gate_offset_ms"]
         rtt_p95 = percentile(rtt_values, 0.95)
         offset_span = (max(offset_values) - min(offset_values)) if offset_values else None
+        raw_rtt_values = bucket["rtt_ms"]
+        raw_offset_values = bucket["offset_ms"]
+        raw_offset_span = (max(raw_offset_values) - min(raw_offset_values)) if raw_offset_values else None
         override_rtt = per_source_rtt.get(source_kind)
         rtt_budget = float(default_rtt if override_rtt is None else override_rtt)
         rtt_ok = rtt_p95 is not None and (rtt_budget <= 0 or rtt_p95 <= rtt_budget)
         offset_ok = offset_span is not None and (max_offset_span_ms <= 0 or offset_span <= max_offset_span_ms)
         if not rtt_ok:
-            rtt_violations.append(f"{source_kind}:p95={rtt_p95} budget={rtt_budget}")
+            rtt_violations.append(f"{source_kind}:accepted_p95={rtt_p95} budget={rtt_budget}")
         if not offset_ok:
-            offset_span_violations.append(f"{source_kind}:span={offset_span} budget={max_offset_span_ms}")
+            offset_span_violations.append(f"{source_kind}:accepted_span={offset_span} budget={max_offset_span_ms}")
         source_summaries[source_kind] = {
             "sample_count": len(bucket["rows"]),
+            "accepted_for_mapping_count": len(bucket["gate_rows"]),
+            "mapping_rejected_count": len(bucket["rows"]) - len(bucket["gate_rows"]),
+            "mapping_rejected_reasons": bucket["mapping_rejected_reasons"],
             "rtt_ms_p50": percentile(rtt_values, 0.50),
             "rtt_ms_p95": rtt_p95,
             "rtt_budget_ms": rtt_budget,
@@ -188,6 +220,9 @@ def summarize_time_sync(root: Path, threshold: dict[str, Any], tier: str) -> dic
             "offset_span_budget_ms": max_offset_span_ms,
             "rtt_ok": rtt_ok,
             "offset_span_ok": offset_ok,
+            "raw_rtt_ms_p50": percentile(raw_rtt_values, 0.50),
+            "raw_rtt_ms_p95": percentile(raw_rtt_values, 0.95),
+            "raw_offset_span_ms": raw_offset_span,
         }
 
     min_source_kinds = threshold.get("minimum_source_kinds") if isinstance(threshold.get("minimum_source_kinds"), dict) else {}
@@ -212,12 +247,12 @@ def summarize_time_sync(root: Path, threshold: dict[str, Any], tier: str) -> dic
         build_check(
             "time_sync_rtt_p95_within_budget",
             not rtt_violations and bool(by_source),
-            "; ".join(rtt_violations) or "all source p95 RTT values within budget",
+            "; ".join(rtt_violations) or "all accepted-for-mapping source p95 RTT values within budget",
         ),
         build_check(
             "time_sync_offset_span_within_budget",
             not offset_span_violations and bool(by_source),
-            "; ".join(offset_span_violations) or "all source offset spans within budget",
+            "; ".join(offset_span_violations) or "all accepted-for-mapping source offset spans within budget",
         ),
     ]
     return {
