@@ -50,7 +50,6 @@ STEREO_TRACK_PERSISTENCE_WINDOW = 4
 STEREO_TRACK_PERSISTENCE_DECAY = 0.88
 STEREO_TRACK_PERSISTENCE_MIN_SEPARATION_M = 0.28
 LOW_ROI_TRACK_STABILIZE_WINDOW = 5
-LOW_ROI_TRACK_STABILIZE_BLEND = 0.42
 LOW_ROI_TRACK_STABILIZE_MAX_GAP_M = 0.75
 LOW_ROI_TRACK_STABILIZE_MIN_GAP_M = 0.06
 
@@ -1527,25 +1526,6 @@ def body_signature_distance(
     return shoulder_delta * 0.6 + height_delta * 0.4
 
 
-def translate_body_points(
-    body_3d: list[list[float]],
-    delta_xyz: tuple[float, float, float],
-) -> list[list[float]]:
-    dx, dy, dz = delta_xyz
-    translated: list[list[float]] = []
-    for point in body_3d:
-        parsed = parse_hint_point(point)
-        if parsed is None:
-            translated.append(list(point))
-            continue
-        translated.append([
-            float(parsed[0] + dx),
-            float(parsed[1] + dy),
-            float(parsed[2] + dz),
-        ])
-    return translated
-
-
 def stabilize_low_roi_candidate(
     candidate: SelectedStereoCandidate,
     track_memory: StereoTrackMemory,
@@ -1572,22 +1552,6 @@ def stabilize_low_roi_candidate(
     else:
         candidate.selection_reason = f"{candidate.selection_reason}+low_roi_track_continuity"
     return candidate
-
-
-def candidate_center_depth(
-    left: PersonCandidate,
-    right: PersonCandidate,
-    calibration: StereoCalibration,
-    min_disparity_px: float,
-    max_depth_m: float,
-) -> float | None:
-    disparity = float(left.center_xy[0] - right.center_xy[0])
-    if disparity <= min_disparity_px:
-        return None
-    depth = calibration.left.fx_px * calibration.baseline_m / disparity
-    if not math.isfinite(depth) or depth <= 0.0 or depth > max_depth_m:
-        return None
-    return float(depth)
 
 
 def is_depth_outlier(depth: float, reference_depth: float) -> bool:
