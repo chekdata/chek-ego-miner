@@ -177,6 +177,41 @@ Notes:
   under `~/.chek-edge/runtime/macos/basic`.
 - `time_sync_samples` can stay empty on the single-phone basic path.
 
+## Training Threshold Validation
+
+Raw upload/download success is not the same as training readiness. To check a
+downloaded session bundle against the public SLAM + time-sync candidate gate:
+
+```bash
+python3 scripts/validate_training_thresholds.py \
+  --bundle /path/to/raw_bundle.tar.gz \
+  --tier pro \
+  --json
+```
+
+The validator checks:
+
+- VLM events, segments, fallback usage, and latency
+- time-sync sample count, accepted mapping ratio, per-source RTT, and offset span
+- phone pose, stereo pose, Wi-Fi pose, and fisheye track completeness
+- whether a SLAM benchmark report with drift/residual metrics exists
+
+It returns exit code `0` only when `training_ready=true`; incomplete or
+candidate-only bundles return exit code `2` and list the blocking checks. Raw
+`clock_offset_ns` values can cross clock domains, so the validator uses per
+source-kind offset span/stability instead of treating the absolute offset as the
+sync error.
+
+It intentionally separates:
+
+- `signal_candidate_ready`: the bundle has enough live signals for a candidate
+  review
+- `training_ready`: the bundle passes frozen thresholds and has required SLAM
+  benchmark metrics
+
+Until `configs/slam_time_sync_training_v1.json` is frozen and real benchmark
+metrics are present, the tool will refuse to claim final training readiness.
+
 ## Pro Setup on Jetson
 
 If you want the full `Pro` runtime path on Jetson, bootstrap the machine first.
