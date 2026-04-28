@@ -167,7 +167,8 @@ def summarize_time_sync(root: Path, threshold: dict[str, Any], tier: str) -> dic
         offset_values = bucket["offset_ms"]
         rtt_p95 = percentile(rtt_values, 0.95)
         offset_span = (max(offset_values) - min(offset_values)) if offset_values else None
-        rtt_budget = float(per_source_rtt.get(source_kind, default_rtt) or default_rtt)
+        override_rtt = per_source_rtt.get(source_kind)
+        rtt_budget = float(default_rtt if override_rtt is None else override_rtt)
         rtt_ok = rtt_p95 is not None and (rtt_budget <= 0 or rtt_p95 <= rtt_budget)
         offset_ok = offset_span is not None and (max_offset_span_ms <= 0 or offset_span <= max_offset_span_ms)
         if not rtt_ok:
@@ -258,7 +259,11 @@ def summarize_vlm(root: Path, threshold: dict[str, Any], tier: str) -> dict[str,
         ),
         build_check(
             "vlm_latency_p95_within_budget",
-            (not required) or (latency_p95 is not None and latency_p95 <= max_p95_latency),
+            (not required)
+            or (
+                latency_p95 is not None
+                and (max_p95_latency <= 0 or latency_p95 <= max_p95_latency)
+            ),
             f"latency_p95_ms={latency_p95} threshold={max_p95_latency}",
         ),
         build_check(
