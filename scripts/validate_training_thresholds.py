@@ -25,6 +25,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--bundle", required=True, help="Extracted bundle directory or .tar.gz raw bundle.")
     parser.add_argument("--tier", choices=["basic", "stereo", "pro"], default="pro")
     parser.add_argument("--threshold-config", default=str(DEFAULT_THRESHOLD_CONFIG))
+    parser.add_argument(
+        "--slam-benchmark-report",
+        help="Optional qa/slam_time_sync_benchmark.json generated outside the bundle.",
+    )
     parser.add_argument("--json", action="store_true")
     parser.add_argument("--report-path")
     return parser.parse_args()
@@ -327,15 +331,40 @@ def summarize_spatial(root: Path, threshold: dict[str, Any], tier: str) -> dict[
     }
 
 
-def summarize_slam_benchmark(root: Path, threshold: dict[str, Any]) -> dict[str, Any]:
+def metric_budget_check(metric: str, value: Any, budgets: dict[str, Any]) -> tuple[bool, str]:
+    if not isinstance(value, (int, float)) or not math.isfinite(float(value)):
+        return False, f"{metric}={value!r}"
+    budget = budgets.get(metric)
+    if not isinstance(budget, dict):
+        return True, f"{metric}={float(value)!r}"
+    min_value = budget.get("min")
+    max_value = budget.get("max")
+    checks: list[str] = [f"{metric}={float(value)!r}"]
+    if isinstance(min_value, (int, float)):
+        checks.append(f"min={float(min_value)!r}")
+        if float(value) < float(min_value):
+            return False, " ".join(checks)
+    if isinstance(max_value, (int, float)):
+        checks.append(f"max={float(max_value)!r}")
+        if float(value) > float(max_value):
+            return False, " ".join(checks)
+    return True, " ".join(checks)
+
+
+def summarize_slam_benchmark(
+    root: Path,
+    threshold: dict[str, Any],
+    report_override: Path | None = None,
+) -> dict[str, Any]:
     candidates = [
         "qa/slam_time_sync_benchmark.json",
         "qa/slam_benchmark_report.json",
         "derived/slam/benchmark.json",
     ]
-    report_path = first_existing(root, candidates)
+    report_path = report_override if report_override is not None else first_existing(root, candidates)
     required = bool(threshold.get("require_slam_benchmark_report"))
     required_metrics = list(threshold.get("required_slam_metrics") or [])
+    metric_budgets = threshold.get("slam_metric_budgets") if isinstance(threshold.get("slam_metric_budgets"), dict) else {}
     if report_path is None:
         checks = [
             build_check(
@@ -359,31 +388,38 @@ def summarize_slam_benchmark(root: Path, threshold: dict[str, Any]) -> dict[str,
         build_check(
             "slam_benchmark_report_present",
             True,
-            str(report_path.relative_to(root)),
+            str(report_path.relative_to(root)) if report_path.is_relative_to(root) else str(report_path),
         )
     ]
     for metric in required_metrics:
+        metric_ok, metric_detail = metric_budget_check(metric, metrics.get(metric), metric_budgets)
         checks.append(
             build_check(
                 f"slam_metric_{metric}",
-                metric in metrics and metrics.get(metric) is not None,
-                f"{metric}={metrics.get(metric)!r}",
+                metric_ok,
+                metric_detail,
             )
         )
     return {
-        "report_relpath": str(report_path.relative_to(root)),
+        "report_relpath": str(report_path.relative_to(root)) if report_path.is_relative_to(root) else str(report_path),
         "metrics": metrics,
         "checks": checks,
         "ok": all(item["ok"] for item in checks),
     }
 
 
-def validate(root: Path, threshold_config: dict[str, Any], tier: str, source_bundle: Path) -> dict[str, Any]:
+def validate(
+    root: Path,
+    threshold_config: dict[str, Any],
+    tier: str,
+    source_bundle: Path,
+    slam_benchmark_report: Path | None = None,
+) -> dict[str, Any]:
     manifest = load_manifest(root)
     time_sync = summarize_time_sync(root, threshold_config.get("time_sync") or {}, tier)
     vlm = summarize_vlm(root, threshold_config.get("vlm") or {}, tier)
     spatial = summarize_spatial(root, threshold_config.get("spatial") or {}, tier)
-    slam = summarize_slam_benchmark(root, threshold_config.get("training") or {})
+    slam = summarize_slam_benchmark(root, threshold_config.get("training") or {}, slam_benchmark_report)
     all_checks = [
         *time_sync["checks"],
         *vlm["checks"],
@@ -440,7 +476,8 @@ def main() -> int:
     threshold_config = load_json(Path(args.threshold_config).expanduser())
     with tempfile.TemporaryDirectory(prefix="chek-ego-threshold-") as temp_dir:
         root = resolve_bundle_root(source_bundle, Path(temp_dir))
-        payload = validate(root, threshold_config, args.tier, source_bundle)
+        slam_benchmark_report = Path(args.slam_benchmark_report).expanduser().resolve() if args.slam_benchmark_report else None
+        payload = validate(root, threshold_config, args.tier, source_bundle, slam_benchmark_report)
     encoded = json.dumps(payload, ensure_ascii=False, indent=2)
     if args.report_path:
         Path(args.report_path).expanduser().write_text(encoded + "\n", encoding="utf-8")

@@ -49,6 +49,20 @@
       "reprojection_error_px_p95",
       "pose_graph_residual_p95",
       "body_tracking_coverage_percent"
-    ]
+    ],
+    "slam_metric_budgets": {
+      "trajectory_drift_percent": {
+        "max": 2.0
+      },
+      "reprojection_error_px_p95": {
+        "max": 8.0
+      },
+      "pose_graph_residual_p95": {
+        "max": 0.05
+      },
+      "body_tracking_coverage_percent": {
+        "min": 95.0
+      }
+    }
   }
 }
