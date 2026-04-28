@@ -183,9 +183,16 @@ Raw upload/download success is not the same as training readiness. To check a
 downloaded session bundle against the public SLAM + time-sync candidate gate:
 
 ```bash
+python3 scripts/generate_slam_time_sync_benchmark.py \
+  --bundle /path/to/raw_bundle.tar.gz \
+  --tier pro \
+  --output /tmp/slam_time_sync_benchmark.json \
+  --json
+
 python3 scripts/validate_training_thresholds.py \
   --bundle /path/to/raw_bundle.tar.gz \
   --tier pro \
+  --slam-benchmark-report /tmp/slam_time_sync_benchmark.json \
   --json
 ```
 
@@ -194,7 +201,14 @@ The validator checks:
 - VLM events, segments, fallback usage, and latency
 - time-sync sample count, accepted mapping ratio, per-source RTT, and offset span
 - phone pose, stereo pose, Wi-Fi pose, and fisheye track completeness
-- whether a SLAM benchmark report with drift/residual metrics exists
+- whether a SLAM benchmark report with drift, reprojection, pose-graph, and
+  body-tracking metrics exists and passes the candidate budgets
+
+The benchmark generator only emits metrics that can be computed from the bundle
+facts. It can compute stereo reprojection error and body-tracking coverage from
+the current raw bundle. It keeps trajectory drift and pose-graph residual as
+explicit blockers until the bundle includes ground truth, loop-closure evidence,
+or a SLAM optimizer report.
 
 It returns exit code `0` only when `training_ready=true`; incomplete or
 candidate-only bundles return exit code `2` and list the blocking checks. Raw
