@@ -9,9 +9,56 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import time
 from pathlib import Path
 from typing import Any
+
+VALID_RUNTIME_PROFILES = {
+    "raw_capture_only",
+    "capture_plus_facts",
+    "capture_plus_vlm",
+    "teleop_fullstack",
+}
+
+DEFAULT_RUNTIME_FLAGS_BY_PROFILE = {
+    "raw_capture_only": {
+        "phone_ingest_enabled": True,
+        "stereo_enabled": False,
+        "wifi_enabled": False,
+        "fusion_enabled": False,
+        "control_enabled": False,
+    },
+    "capture_plus_facts": {
+        "phone_ingest_enabled": True,
+        "stereo_enabled": False,
+        "wifi_enabled": False,
+        "fusion_enabled": True,
+        "control_enabled": False,
+    },
+    "capture_plus_vlm": {
+        "phone_ingest_enabled": True,
+        "stereo_enabled": False,
+        "wifi_enabled": False,
+        "fusion_enabled": True,
+        "control_enabled": False,
+    },
+    "teleop_fullstack": {
+        "phone_ingest_enabled": True,
+        "stereo_enabled": True,
+        "wifi_enabled": False,
+        "fusion_enabled": True,
+        "control_enabled": True,
+    },
+}
+
+ENV_RUNTIME_FLAGS = {
+    "phone_ingest_enabled": "EDGE_PHONE_INGEST_ENABLED",
+    "stereo_enabled": "EDGE_STEREO_ENABLED",
+    "wifi_enabled": "EDGE_WIFI_ENABLED",
+    "fusion_enabled": "EDGE_FUSION_ENABLED",
+    "control_enabled": "EDGE_CONTROL_ENABLED",
+}
 
 
 def now_unix_ms() -> int:
@@ -51,6 +98,40 @@ def load_json(path: Path) -> dict[str, Any]:
 def write_json_pretty(path: Path, value: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(value, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+
+def normalize_runtime_profile(value: Any, default: str = "teleop_fullstack") -> str:
+    profile = str(value or "").strip()
+    if profile in VALID_RUNTIME_PROFILES:
+        return profile
+    return default if default in VALID_RUNTIME_PROFILES else "teleop_fullstack"
+
+
+def parse_bool_like(value: Any, default: bool) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return value != 0
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in {"1", "true", "yes", "on"}:
+            return True
+        if normalized in {"0", "false", "no", "off"}:
+            return False
+    return default
+
+
+def runtime_flags_for_profile(runtime_profile: str) -> dict[str, bool]:
+    profile = normalize_runtime_profile(runtime_profile)
+    flags = dict(DEFAULT_RUNTIME_FLAGS_BY_PROFILE[profile])
+    for key, env_name in ENV_RUNTIME_FLAGS.items():
+        if env_name in os.environ:
+            flags[key] = parse_bool_like(os.environ.get(env_name), flags[key])
+    return flags
+
+
+def default_runtime_profile_from_env() -> str:
+    return normalize_runtime_profile(os.environ.get("EDGE_RUNTIME_PROFILE"), "teleop_fullstack")
 
 
 def build_line_counters(session_root: Path) -> dict[str, int]:
@@ -200,34 +281,47 @@ def recommended_action(missing: str) -> str:
     return mapping.get(missing, f"检查 `{missing}` 对应的采集链路。")
 
 
-def local_quality_core_ids(manifest: dict[str, Any], upload_manifest: dict[str, Any]) -> set[str]:
+def local_quality_core_ids(
+    manifest: dict[str, Any],
+    upload_manifest: dict[str, Any],
+    default_runtime_profile: str | None = None,
+) -> set[str]:
     session_context = manifest.get("session_context") or upload_manifest.get("session_context") or {}
-    runtime_profile = str(session_context.get("runtime_profile") or "teleop_fullstack").strip()
-    if runtime_profile not in {
-        "raw_capture_only",
-        "capture_plus_facts",
-        "capture_plus_vlm",
+    process_default_profile = normalize_runtime_profile(
+        default_runtime_profile or default_runtime_profile_from_env(),
         "teleop_fullstack",
-    }:
-        runtime_profile = "teleop_fullstack"
-    runtime_flags = session_context.get("runtime_flags") or {}
-    phone_ingest_enabled = bool(runtime_flags.get("phone_ingest_enabled", True))
-    fusion_enabled = bool(runtime_flags.get("fusion_enabled", True))
-    stereo_enabled = bool(runtime_flags.get("stereo_enabled", runtime_profile == "teleop_fullstack"))
-    wifi_enabled = bool(runtime_flags.get("wifi_enabled", runtime_profile == "teleop_fullstack"))
-    control_enabled = bool(runtime_flags.get("control_enabled", runtime_profile == "teleop_fullstack"))
+    )
+    runtime_profile = normalize_runtime_profile(
+        session_context.get("runtime_profile"),
+        process_default_profile,
+    )
+    runtime_flags = runtime_flags_for_profile(runtime_profile)
+    session_runtime_flags = session_context.get("runtime_flags") or {}
+    if isinstance(session_runtime_flags, dict):
+        for key, default in list(runtime_flags.items()):
+            if key in session_runtime_flags:
+                runtime_flags[key] = parse_bool_like(session_runtime_flags.get(key), default)
 
     core_ids: set[str] = set()
-    if phone_ingest_enabled:
+    if runtime_flags["phone_ingest_enabled"]:
         core_ids.update({"capture_pose_present", "iphone_calibration_present"})
-    if fusion_enabled or stereo_enabled or wifi_enabled or control_enabled:
+    if (
+        runtime_flags["fusion_enabled"]
+        or runtime_flags["stereo_enabled"]
+        or runtime_flags["wifi_enabled"]
+        or runtime_flags["control_enabled"]
+    ):
         core_ids.add("time_sync_present")
-    if runtime_profile == "teleop_fullstack" and control_enabled:
+    if runtime_profile == "teleop_fullstack" and runtime_flags["control_enabled"]:
         core_ids.update({"human_demo_pose_present", "teleop_frame_present"})
     return core_ids
 
 
-def recompute_session(session_root: Path, write: bool) -> dict[str, Any]:
+def recompute_session(
+    session_root: Path,
+    write: bool,
+    default_runtime_profile: str | None = None,
+) -> dict[str, Any]:
     qa_path = session_root / "qa" / "local_quality_report.json"
     upload_manifest_path = session_root / "upload" / "upload_manifest.json"
     manifest_path = session_root / "manifest.json"
@@ -242,7 +336,7 @@ def recompute_session(session_root: Path, write: bool) -> dict[str, Any]:
     total = max(len(checks), 1)
     passed = sum(1 for check in checks if check["ok"])
     score_percent = round((passed / total) * 100.0, 2)
-    core_ids = local_quality_core_ids(manifest, upload_manifest)
+    core_ids = local_quality_core_ids(manifest, upload_manifest, default_runtime_profile)
     core_missing = any(item in core_ids for item in missing_artifacts)
     optional_missing = any(item not in core_ids for item in missing_artifacts)
     status = "reject_local" if core_missing else "retry_recommended" if optional_missing else "pass"
@@ -292,8 +386,18 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--session-root", required=True, type=Path)
     parser.add_argument("--write", action="store_true")
+    parser.add_argument(
+        "--default-runtime-profile",
+        choices=sorted(VALID_RUNTIME_PROFILES),
+        default=None,
+        help="Fallback profile used only when session_context.runtime_profile is absent; defaults to EDGE_RUNTIME_PROFILE or teleop_fullstack.",
+    )
     args = parser.parse_args()
-    result = recompute_session(args.session_root, write=args.write)
+    result = recompute_session(
+        args.session_root,
+        write=args.write,
+        default_runtime_profile=args.default_runtime_profile,
+    )
     print(json.dumps(result, ensure_ascii=False, indent=2))
 
 
