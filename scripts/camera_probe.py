@@ -324,18 +324,24 @@ def build_camera_report(
         diagnostics["system_profiler_device_count"] = len(profiler_devices)
         diagnostics["ffmpeg_avfoundation"] = ffmpeg_probe
         devices = _dedupe_devices([*ffmpeg_devices, *profiler_devices])
-        smoke = (
-            _capture_smoke_macos(
-                device_index=device_index,
-                timeout=timeout,
-                video_size=video_size,
-                framerate=framerate,
-            )
-            if capture_smoke and 0 <= device_index < len(devices)
-            else {"requested": capture_smoke, "ok": False, "reason": "device_not_found"}
-            if capture_smoke
-            else {"requested": False}
-        )
+        if capture_smoke:
+            if 0 <= device_index < len(devices):
+                selected = devices[device_index]
+                backend = str(selected.get("backend") or "").lower()
+                if backend == "avfoundation":
+                    resolved_index = int(selected.get("index", device_index))
+                    smoke = _capture_smoke_macos(
+                        device_index=resolved_index,
+                        timeout=timeout,
+                        video_size=video_size,
+                        framerate=framerate,
+                    )
+                else:
+                    smoke = {"requested": True, "ok": False, "reason": "device_not_avfoundation"}
+            else:
+                smoke = {"requested": True, "ok": False, "reason": "device_not_found"}
+        else:
+            smoke = {"requested": False}
     elif system_name == "Linux":
         devices = _linux_video_devices()
         smoke = (
