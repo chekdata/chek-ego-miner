@@ -850,21 +850,36 @@ status_stack() {
     fi
     echo ""
     echo "[real-source preflight]"
-    python3 - "${SENSING_HTTP_PORT}" <<'PY'
-import glob
+    python3 - "${ROOT_DIR}" "${SENSING_HTTP_PORT}" <<'PY'
 import json
+import glob
+import platform
+import re
+import shutil
+import subprocess
 import sys
 import urllib.request
 
-sensing_port = sys.argv[1]
-video_devices = sorted(glob.glob("/dev/video*"))
+root_dir = sys.argv[1]
+sensing_port = sys.argv[2]
+
+# Reuse the canonical camera probe to avoid divergence across tools.
+sys.path.insert(0, root_dir)
+sys.path.insert(0, f"{root_dir}/scripts")
+try:
+    from scripts.camera_probe import build_camera_report
+except ModuleNotFoundError:
+    from camera_probe import build_camera_report
+
+camera_report = build_camera_report()
+video_devices = [str(item) for item in list(camera_report.get("video_devices", []))]
 stereo_hint = {
     "host_video_devices": video_devices,
     "stereo_local_producer_ready": len(video_devices) >= 2,
     "stereo_local_reason": (
-        "本机已发现至少 2 个 /dev/video*，可尝试启动 stereo_pose_producer.py"
+        "本机已发现至少 2 个视频设备，可尝试启动 stereo_pose_producer.py"
         if len(video_devices) >= 2
-        else "本机未发现至少 2 个 /dev/video*，stereo_pose_producer.py 无法在当前主机直接起双目采集"
+        else "本机未发现至少 2 个视频设备，stereo_pose_producer.py 无法在当前主机直接起双目采集"
     ),
 }
 wifi_url = f"http://127.0.0.1:{sensing_port}/api/v1/stream/status"

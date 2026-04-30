@@ -4,6 +4,7 @@ import importlib
 import json
 import os
 import platform
+import re
 import shutil
 import subprocess
 import sys
@@ -1481,47 +1482,14 @@ def _service_manager_probe(manager: str) -> dict[str, Any]:
 
 
 def _stereo_device_probe() -> dict[str, Any]:
-    if platform.system().lower() == "windows":
-        shell = _command_probe("pwsh", "powershell")
-        if not shell["available"]:
-            return {
-                "device_count": 0,
-                "devices": [],
-                "ok": False,
-                "reason": "powershell not available",
-            }
-        completed = subprocess.run(
-            [
-                str(shell["path"]),
-                "-NoProfile",
-                "-Command",
-                (
-                    "$devices = Get-CimInstance Win32_PnPEntity | "
-                    "Where-Object { $_.Service -eq 'usbvideo' }; "
-                    "$payload = @{ device_count = @($devices).Count; "
-                    "devices = @($devices | ForEach-Object { $_.Name }) }; "
-                    "$payload | ConvertTo-Json -Compress"
-                ),
-            ],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-        devices: list[str] = []
-        if completed.returncode == 0 and completed.stdout.strip():
-            try:
-                payload = json.loads(completed.stdout.strip())
-            except json.JSONDecodeError:
-                payload = {}
-            if isinstance(payload, dict):
-                devices = [str(item) for item in list(payload.get("devices", []))]
-        return {
-            "device_count": len(devices),
-            "devices": devices,
-            "ok": len(devices) >= 2,
-            "reason": completed.stderr.strip(),
-        }
-    devices = [str(path) for path in sorted(Path("/dev").glob("video*"))]
+    # Reuse the canonical camera probe to avoid divergence across tools.
+    from scripts.camera_probe import build_camera_report
+
+    report = build_camera_report()
+    devices = [
+        f"{device.get('backend')}:{device.get('index')}:{device.get('name')}"
+        for device in report.get("devices") or []
+    ]
     return {
         "device_count": len(devices),
         "devices": devices,

@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import argparse
-import glob
 import json
 import os
 import platform
@@ -10,6 +9,11 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
+
+try:
+    from scripts.camera_probe import build_camera_report
+except ModuleNotFoundError:  # pragma: no cover - direct script execution path
+    from camera_probe import build_camera_report
 
 
 def command_version(command: str) -> str | None:
@@ -27,12 +31,6 @@ def command_version(command: str) -> str | None:
         return None
     output = (completed.stdout or completed.stderr).strip().splitlines()
     return output[0] if output else executable
-
-
-def detect_video_devices() -> list[str]:
-    if os.name == "nt":
-        return []
-    return sorted(glob.glob("/dev/video*"))
 
 
 def windows_runtime_tools() -> dict[str, bool]:
@@ -81,7 +79,8 @@ def parse_args() -> argparse.Namespace:
 def build_report() -> dict[str, object]:
     system_name = platform.system()
     machine = platform.machine()
-    video_devices = detect_video_devices()
+    camera_report = build_camera_report()
+    video_devices = [str(item) for item in list(camera_report.get("video_devices", []))]
     win_tools = windows_runtime_tools() if os.name == "nt" else {}
     return {
         "host": {
@@ -92,6 +91,8 @@ def build_report() -> dict[str, object]:
         },
         "tools": generic_tools(),
         "video_devices": video_devices,
+        "video_device_details": camera_report.get("devices", []),
+        "camera_probe": camera_report,
         "windows_tools": win_tools,
         "tier_hints": classify_tier_hints(system_name, machine, video_devices, win_tools),
     }
@@ -116,8 +117,11 @@ def print_human(report: dict[str, object]) -> None:
             print(f"  - {key}: {'present' if value else 'missing'}")
     else:
         print(f"- video devices: {len(video_devices)}")
-        for device in video_devices[:8]:
-            print(f"  - {device}")
+        for device in list(report.get("video_device_details", []))[:8]:
+            if isinstance(device, dict):
+                print(f"  - [{device.get('backend')}:{device.get('index')}] {device.get('name')}")
+            else:
+                print(f"  - {device}")
     print("- tier hints:")
     for hint in report["tier_hints"]:
         print(f"  - {hint}")

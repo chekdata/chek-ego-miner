@@ -26,7 +26,17 @@ See [Hardware Guide](./hardware.md).
 ./cli/chek-ego-miner readiness --tier pro
 ```
 
-## 5. Get guided help
+## 5. Probe local cameras
+
+```bash
+./cli/chek-ego-miner camera-probe
+./cli/chek-ego-miner camera-probe --capture-smoke
+```
+
+The first command checks OS-visible camera devices. The second command also
+tries to open one camera and read a frame from the current terminal session.
+
+## 6. Get guided help
 
 Pick a prompt from:
 
@@ -34,13 +44,13 @@ Pick a prompt from:
 - `prompts/install-stereo.md`
 - `prompts/install-pro-edge.md`
 
-## 6. If you need calibration
+## 7. If you need calibration
 
 ```bash
 ./cli/chek-ego-miner charuco --output-dir ./artifacts/charuco
 ```
 
-## 7. Set up Lite on Linux or macOS
+## 8. Set up Lite on Linux or macOS
 
 ```bash
 ./cli/chek-ego-miner install \
@@ -50,7 +60,7 @@ Pick a prompt from:
   --enable-services
 ```
 
-## 8. Enable the local phone-vision sidecar
+## 9. Enable the local phone-vision sidecar
 
 ```bash
 python3 -m pip install --user --break-system-packages -r scripts/edge_phone_vision_requirements.txt
@@ -58,7 +68,7 @@ python3 -m pip install --user --break-system-packages -r scripts/edge_phone_visi
 ./scripts/start_edge_phone_vision_service.sh
 ```
 
-## 9. Run the basic capture flow
+## 10. Run the basic capture flow
 
 ```bash
 ./cli/chek-ego-miner basic-e2e \
@@ -86,7 +96,7 @@ Notes:
   `python3` itself is not usable.
 - `time_sync_samples` may remain empty on the single-phone basic path.
 
-## 10. Set up Pro on Jetson
+## 11. Set up Pro on Jetson
 
 ```bash
 ./cli/chek-ego-miner jetson-professional-bootstrap -- --force

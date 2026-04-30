@@ -59,6 +59,15 @@ def build_parser() -> argparse.ArgumentParser:
     readiness.add_argument("--json", action="store_true")
     readiness.add_argument("--report-path")
 
+    camera_probe = subparsers.add_parser("camera-probe", help="Probe local camera devices.")
+    camera_probe.add_argument("--json", action="store_true")
+    camera_probe.add_argument("--report-path")
+    camera_probe.add_argument("--capture-smoke", action="store_true")
+    camera_probe.add_argument("--timeout", type=float, default=8)
+    camera_probe.add_argument("--device-index", type=int, default=0)
+    camera_probe.add_argument("--video-size", default="1280x720")
+    camera_probe.add_argument("--framerate", default="30")
+
     charuco = subparsers.add_parser("charuco", help="Generate a Charuco board PDF and PNG.")
     charuco.add_argument("--output-dir", required=True)
     charuco.add_argument("--board-squares-x", type=int, default=8)
@@ -252,6 +261,28 @@ def main(argv: list[str] | None = None) -> int:
         if args.report_path:
             extra.extend(["--report-path", args.report_path])
         return run_python("readiness_public.py", extra)
+
+    if args.command == "camera-probe":
+        extra = []
+        if args.json:
+            extra.append("--json")
+        if args.report_path:
+            extra.extend(["--report-path", args.report_path])
+        if args.capture_smoke:
+            extra.append("--capture-smoke")
+        extra.extend(
+            [
+                "--timeout",
+                str(args.timeout),
+                "--device-index",
+                str(args.device_index),
+                "--video-size",
+                args.video_size,
+                "--framerate",
+                args.framerate,
+            ]
+        )
+        return run_python("camera_probe.py", extra)
 
     if args.command == "charuco":
         extra = [
