@@ -33,10 +33,6 @@ def command_version(command: str) -> str | None:
     return output[0] if output else executable
 
 
-def detect_video_devices() -> list[str]:
-    return [str(item) for item in list(build_camera_report().get("video_devices", []))]
-
-
 def windows_runtime_tools() -> dict[str, bool]:
     return {
         "pwsh": shutil.which("pwsh") is not None,

@@ -331,6 +331,8 @@ def build_camera_report(
                 video_size=video_size,
                 framerate=framerate,
             )
+            if capture_smoke and 0 <= device_index < len(devices)
+            else {"requested": capture_smoke, "ok": False, "reason": "device_not_found"}
             if capture_smoke
             else {"requested": False}
         )
