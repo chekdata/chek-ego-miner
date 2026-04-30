@@ -850,7 +850,7 @@ status_stack() {
     fi
     echo ""
     echo "[real-source preflight]"
-    python3 - "${SENSING_HTTP_PORT}" <<'PY'
+    python3 - "${ROOT_DIR}" "${SENSING_HTTP_PORT}" <<'PY'
 import json
 import glob
 import platform
@@ -860,41 +860,19 @@ import subprocess
 import sys
 import urllib.request
 
-sensing_port = sys.argv[1]
+root_dir = sys.argv[1]
+sensing_port = sys.argv[2]
 
-def detect_video_devices():
-    if platform.system() == "Darwin":
-        devices = []
-        ffmpeg = shutil.which("ffmpeg")
-        if ffmpeg:
-            try:
-                completed = subprocess.run(
-                    [ffmpeg, "-hide_banner", "-f", "avfoundation", "-list_devices", "true", "-i", ""],
-                    capture_output=True,
-                    text=True,
-                    check=False,
-                    timeout=8,
-                )
-                in_video = False
-                for raw_line in f"{completed.stdout}\n{completed.stderr}".splitlines():
-                    line = raw_line.strip()
-                    if "AVFoundation video devices:" in line:
-                        in_video = True
-                        continue
-                    if "AVFoundation audio devices:" in line:
-                        in_video = False
-                        continue
-                    if not in_video:
-                        continue
-                    match = re.search(r"\]\s+\[(\d+)\]\s+(.+)$", line)
-                    if match and not match.group(2).strip().lower().startswith("capture screen"):
-                        devices.append(f"avfoundation:{match.group(1)}:{match.group(2).strip()}")
-            except Exception:
-                devices = []
-        return devices
-    return sorted(glob.glob("/dev/video*"))
+# Reuse the canonical camera probe to avoid divergence across tools.
+sys.path.insert(0, root_dir)
+sys.path.insert(0, f"{root_dir}/scripts")
+try:
+    from scripts.camera_probe import build_camera_report
+except ModuleNotFoundError:
+    from camera_probe import build_camera_report
 
-video_devices = detect_video_devices()
+camera_report = build_camera_report()
+video_devices = [str(item) for item in list(camera_report.get("video_devices", []))]
 stereo_hint = {
     "host_video_devices": video_devices,
     "stereo_local_producer_ready": len(video_devices) >= 2,
