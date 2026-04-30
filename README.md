@@ -131,9 +131,14 @@ Or use the CLI:
 
 ```bash
 ./cli/chek-ego-miner doctor
+./cli/chek-ego-miner camera-probe
 ./cli/chek-ego-miner readiness --tier lite
 ./cli/chek-ego-miner readiness --tier pro
 ```
+
+Use `./cli/chek-ego-miner camera-probe --capture-smoke` when you need to
+distinguish "camera is listed by the OS" from "the current terminal session can
+open the camera and read a frame".
 
 ## Lite Setup on Linux or macOS
 

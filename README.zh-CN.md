@@ -136,9 +136,13 @@ python3 scripts/check_host_basics.py
 
 ```bash
 ./cli/chek-ego-miner doctor
+./cli/chek-ego-miner camera-probe
 ./cli/chek-ego-miner readiness --tier lite
 ./cli/chek-ego-miner readiness --tier pro
 ```
+
+如果需要区分“系统能列出摄像头”和“当前终端会话能打开摄像头并读到帧”，可以运行
+`./cli/chek-ego-miner camera-probe --capture-smoke`。
 
 ## Linux 或 macOS 上的 Lite/basic 安装路径
 

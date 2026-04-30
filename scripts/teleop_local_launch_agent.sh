@@ -11,6 +11,7 @@ STACK_BIND_HOST="${STACK_BIND_HOST:-127.0.0.1}"
 STACK_CHECK_HOST="${STACK_CHECK_HOST:-${STACK_BIND_HOST}}"
 STACK_PUBLIC_HOST="${STACK_PUBLIC_HOST:-${STACK_BIND_HOST}}"
 EDGE_HTTP_PORT="${EDGE_HTTP_PORT:-8080}"
+EDGE_WS_PORT="${EDGE_WS_PORT:-28765}"
 VIEWER_PORT="${VIEWER_PORT:-3010}"
 CHECK_INTERVAL="${CHEK_EDGE_AGENT_CHECK_INTERVAL:-30}"
 
@@ -27,7 +28,7 @@ run_stack() {
 }
 
 stack_start() {
-    local args=(start --bind-host "${STACK_BIND_HOST}" --public-host "${STACK_PUBLIC_HOST}")
+    local args=(start --edge-http-port "${EDGE_HTTP_PORT}" --edge-ws-port "${EDGE_WS_PORT}" --viewer-port "${VIEWER_PORT}" --bind-host "${STACK_BIND_HOST}" --public-host "${STACK_PUBLIC_HOST}")
     if [[ "${SIM_ENABLED}" == "0" ]]; then
         args+=(--no-sim)
     fi
@@ -36,7 +37,7 @@ stack_start() {
 }
 
 stack_restart() {
-    local args=(restart --bind-host "${STACK_BIND_HOST}" --public-host "${STACK_PUBLIC_HOST}")
+    local args=(restart --edge-http-port "${EDGE_HTTP_PORT}" --edge-ws-port "${EDGE_WS_PORT}" --viewer-port "${VIEWER_PORT}" --bind-host "${STACK_BIND_HOST}" --public-host "${STACK_PUBLIC_HOST}")
     if [[ "${SIM_ENABLED}" == "0" ]]; then
         args+=(--no-sim)
     fi

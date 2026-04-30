@@ -851,20 +851,57 @@ status_stack() {
     echo ""
     echo "[real-source preflight]"
     python3 - "${SENSING_HTTP_PORT}" <<'PY'
-import glob
 import json
+import glob
+import platform
+import re
+import shutil
+import subprocess
 import sys
 import urllib.request
 
 sensing_port = sys.argv[1]
-video_devices = sorted(glob.glob("/dev/video*"))
+
+def detect_video_devices():
+    if platform.system() == "Darwin":
+        devices = []
+        ffmpeg = shutil.which("ffmpeg")
+        if ffmpeg:
+            try:
+                completed = subprocess.run(
+                    [ffmpeg, "-hide_banner", "-f", "avfoundation", "-list_devices", "true", "-i", ""],
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                    timeout=8,
+                )
+                in_video = False
+                for raw_line in f"{completed.stdout}\n{completed.stderr}".splitlines():
+                    line = raw_line.strip()
+                    if "AVFoundation video devices:" in line:
+                        in_video = True
+                        continue
+                    if "AVFoundation audio devices:" in line:
+                        in_video = False
+                        continue
+                    if not in_video:
+                        continue
+                    match = re.search(r"\]\s+\[(\d+)\]\s+(.+)$", line)
+                    if match and not match.group(2).strip().lower().startswith("capture screen"):
+                        devices.append(f"avfoundation:{match.group(1)}:{match.group(2).strip()}")
+            except Exception:
+                devices = []
+        return devices
+    return sorted(glob.glob("/dev/video*"))
+
+video_devices = detect_video_devices()
 stereo_hint = {
     "host_video_devices": video_devices,
     "stereo_local_producer_ready": len(video_devices) >= 2,
     "stereo_local_reason": (
-        "本机已发现至少 2 个 /dev/video*，可尝试启动 stereo_pose_producer.py"
+        "本机已发现至少 2 个视频设备，可尝试启动 stereo_pose_producer.py"
         if len(video_devices) >= 2
-        else "本机未发现至少 2 个 /dev/video*，stereo_pose_producer.py 无法在当前主机直接起双目采集"
+        else "本机未发现至少 2 个视频设备，stereo_pose_producer.py 无法在当前主机直接起双目采集"
     ),
 }
 wifi_url = f"http://127.0.0.1:{sensing_port}/api/v1/stream/status"

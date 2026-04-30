@@ -143,6 +143,9 @@ def evaluate_readiness(tier: str, report: dict[str, object]) -> dict[str, object
         "blockers": blockers,
         "warnings": warnings,
         "host": report["host"],
+        "video_device_count": len(video_devices),
+        "video_devices": video_devices,
+        "video_device_details": report.get("video_device_details", []),
         "tier_hints": report["tier_hints"],
     }
 
@@ -161,6 +164,10 @@ def print_human(payload: dict[str, object]) -> None:
     print("- tier hints:")
     for hint in payload["tier_hints"]:
         print(f"  - {hint}")
+    print(f"- video devices: {payload.get('video_device_count', 0)}")
+    for item in list(payload.get("video_device_details", []))[:8]:
+        if isinstance(item, dict):
+            print(f"  - [{item.get('backend')}:{item.get('index')}] {item.get('name')}")
 
 
 def main() -> int:

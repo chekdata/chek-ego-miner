@@ -4,6 +4,7 @@ import importlib
 import json
 import os
 import platform
+import re
 import shutil
 import subprocess
 import sys
@@ -1520,6 +1521,73 @@ def _stereo_device_probe() -> dict[str, Any]:
             "devices": devices,
             "ok": len(devices) >= 2,
             "reason": completed.stderr.strip(),
+        }
+    if platform.system().lower() == "darwin":
+        ffmpeg = shutil.which("ffmpeg")
+        devices: list[str] = []
+        reason = ""
+        if ffmpeg:
+            try:
+                completed = subprocess.run(
+                    [
+                        ffmpeg,
+                        "-hide_banner",
+                        "-f",
+                        "avfoundation",
+                        "-list_devices",
+                        "true",
+                        "-i",
+                        "",
+                    ],
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                    timeout=8,
+                )
+                in_video_section = False
+                for raw_line in f"{completed.stdout}\n{completed.stderr}".splitlines():
+                    line = raw_line.strip()
+                    if "AVFoundation video devices:" in line:
+                        in_video_section = True
+                        continue
+                    if "AVFoundation audio devices:" in line:
+                        in_video_section = False
+                        continue
+                    if not in_video_section:
+                        continue
+                    match = re.search(r"\]\s+\[(\d+)\]\s+(.+)$", line)
+                    if match and not match.group(2).strip().lower().startswith("capture screen"):
+                        devices.append(f"avfoundation:{match.group(1)}:{match.group(2).strip()}")
+                reason = completed.stderr.strip()
+            except subprocess.TimeoutExpired:
+                reason = "ffmpeg avfoundation device listing timed out"
+        if not devices and shutil.which("system_profiler"):
+            try:
+                completed = subprocess.run(
+                    ["system_profiler", "SPCameraDataType", "-json"],
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                    timeout=8,
+                )
+                if completed.returncode == 0 and completed.stdout.strip():
+                    try:
+                        payload = json.loads(completed.stdout)
+                    except json.JSONDecodeError:
+                        payload = {}
+                    for index, item in enumerate(payload.get("SPCameraDataType") or []):
+                        if isinstance(item, dict):
+                            name = str(item.get("_name") or item.get("spcamera_model-id") or "").strip()
+                            if name:
+                                devices.append(f"system_profiler:{index}:{name}")
+                reason = reason or completed.stderr.strip()
+            except subprocess.TimeoutExpired:
+                reason = reason or "system_profiler camera listing timed out"
+        return {
+            "device_count": len(devices),
+            "devices": devices,
+            "ok": len(devices) >= 2,
+            "reason": reason,
         }
     devices = [str(path) for path in sorted(Path("/dev").glob("video*"))]
     return {
