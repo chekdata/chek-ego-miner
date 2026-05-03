@@ -9,6 +9,8 @@ and browse reusable datasets.
 
 - Download the iOS app: [TestFlight](https://testflight.apple.com/join/RrYdeDUv)
 - Choose your hardware: [Hardware Guide](./docs/hardware.md)
+- Check the current public roadmap: [TODO](./TODO.md)
+- See validation status: [Public Validation Matrix](./docs/public-validation-matrix.md)
 - Get step-by-step help:
   - [Codex Guide](./docs/agent-guides/codex.md)
   - [Claude Guide](./docs/agent-guides/claude.md)
@@ -307,6 +309,8 @@ Search and download contributed data from:
 
 ## Docs
 
+- [Public Roadmap / TODO](./TODO.md)
+- [Public Validation Matrix](./docs/public-validation-matrix.md)
 - [Hardware Guide](./docs/hardware.md)
 - [Quickstart](./docs/quickstart.md)
 - [Hardware/Profile Mapping](./docs/profile-mapping.md)
