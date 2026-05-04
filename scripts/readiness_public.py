@@ -20,14 +20,35 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--tier", choices=["lite", "stereo", "pro"], required=True)
     parser.add_argument("--json", action="store_true", help="Print machine-readable JSON only.")
     parser.add_argument("--report-path", help="Optional file path to write the JSON report.")
+    parser.add_argument(
+        "--capture-smoke",
+        action="store_true",
+        help="Require opening the selected camera and reading one frame for Stereo/Pro readiness.",
+    )
+    parser.add_argument("--capture-timeout", type=float, default=8)
+    parser.add_argument("--capture-device-index", type=int, default=0)
+    parser.add_argument("--capture-device-name", default="")
+    parser.add_argument("--capture-video-size", default="1280x720")
+    parser.add_argument("--capture-framerate", default="30")
     return parser.parse_args()
 
 
-def evaluate_readiness(tier: str, report: dict[str, object]) -> dict[str, object]:
+def evaluate_readiness(
+    tier: str,
+    report: dict[str, object],
+    *,
+    require_capture_smoke: bool = False,
+) -> dict[str, object]:
     tools = report["tools"]
     host = report["host"]
     video_devices = report["video_devices"]
     windows_tools = report["windows_tools"]
+    camera_probe = report.get("camera_probe") if isinstance(report.get("camera_probe"), dict) else {}
+    capture_smoke = (
+        camera_probe.get("capture_smoke")
+        if isinstance(camera_probe.get("capture_smoke"), dict)
+        else {"requested": False}
+    )
     blockers: list[dict[str, str]] = []
     warnings: list[dict[str, str]] = []
 
@@ -62,6 +83,22 @@ def evaluate_readiness(tier: str, report: dict[str, object]) -> dict[str, object
                     "message": "Stereo or Pro tiers expect at least two visible video devices on this host.",
                 }
             )
+        if require_capture_smoke:
+            if not capture_smoke.get("requested"):
+                blockers.append(
+                    {
+                        "code": "stereo_capture_smoke_not_requested",
+                        "message": "Stereo or Pro readiness requires a one-frame camera capture smoke check.",
+                    }
+                )
+            elif not capture_smoke.get("ok"):
+                reason = str(capture_smoke.get("reason") or "unknown")
+                blockers.append(
+                    {
+                        "code": "stereo_capture_smoke_failed",
+                        "message": f"Selected camera did not produce one readable frame: {reason}",
+                    }
+                )
 
     if tier == "pro":
         vlm_assets = {
@@ -146,6 +183,9 @@ def evaluate_readiness(tier: str, report: dict[str, object]) -> dict[str, object
         "video_device_count": len(video_devices),
         "video_devices": video_devices,
         "video_device_details": report.get("video_device_details", []),
+        "camera_probe": camera_probe,
+        "capture_smoke_required": require_capture_smoke,
+        "capture_smoke": capture_smoke,
         "tier_hints": report["tier_hints"],
     }
 
@@ -168,12 +208,22 @@ def print_human(payload: dict[str, object]) -> None:
     for item in list(payload.get("video_device_details", []))[:8]:
         if isinstance(item, dict):
             print(f"  - [{item.get('backend')}:{item.get('index')}] {item.get('name')}")
+    smoke = payload.get("capture_smoke")
+    if isinstance(smoke, dict) and smoke.get("requested"):
+        print(f"- capture smoke: {'ok' if smoke.get('ok') else 'failed'} ({smoke.get('reason')})")
 
 
 def main() -> int:
     args = parse_args()
-    report = build_report()
-    payload = evaluate_readiness(args.tier, report)
+    report = build_report(
+        capture_smoke=args.capture_smoke,
+        capture_timeout=args.capture_timeout,
+        capture_device_index=args.capture_device_index,
+        capture_device_name=args.capture_device_name,
+        capture_video_size=args.capture_video_size,
+        capture_framerate=args.capture_framerate,
+    )
+    payload = evaluate_readiness(args.tier, report, require_capture_smoke=args.capture_smoke)
     encoded = json.dumps(payload, ensure_ascii=False, indent=2)
     if args.report_path:
         Path(args.report_path).write_text(encoded + "\n", encoding="utf-8")

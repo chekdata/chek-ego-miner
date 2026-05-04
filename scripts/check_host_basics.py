@@ -76,10 +76,25 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def build_report() -> dict[str, object]:
+def build_report(
+    *,
+    capture_smoke: bool = False,
+    capture_timeout: float = 8,
+    capture_device_index: int = 0,
+    capture_device_name: str = "",
+    capture_video_size: str = "1280x720",
+    capture_framerate: str = "30",
+) -> dict[str, object]:
     system_name = platform.system()
     machine = platform.machine()
-    camera_report = build_camera_report()
+    camera_report = build_camera_report(
+        capture_smoke=capture_smoke,
+        timeout=capture_timeout,
+        device_index=capture_device_index,
+        device_name=capture_device_name,
+        video_size=capture_video_size,
+        framerate=capture_framerate,
+    )
     video_devices = [str(item) for item in list(camera_report.get("video_devices", []))]
     win_tools = windows_runtime_tools() if os.name == "nt" else {}
     return {

@@ -218,7 +218,9 @@ def _dedupe_devices(devices: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 def _capture_smoke_macos(
     *,
-    device_index: int,
+    device_identifier: str,
+    device_index: int | None,
+    device_name: str,
     timeout: float,
     video_size: str,
     framerate: str,
@@ -239,7 +241,7 @@ def _capture_smoke_macos(
         "-video_size",
         video_size,
         "-i",
-        f"{device_index}:none",
+        f"{device_identifier}:none",
         "-frames:v",
         "1",
         "-f",
@@ -255,6 +257,8 @@ def _capture_smoke_macos(
         "reason": reason,
         "backend": "avfoundation",
         "device_index": device_index,
+        "device_name": device_name,
+        "device_identifier": device_identifier,
         "timeout_seconds": timeout,
         "command": command,
         "returncode": result["returncode"],
@@ -306,6 +310,7 @@ def build_camera_report(
     capture_smoke: bool = False,
     timeout: float = 8,
     device_index: int = 0,
+    device_name: str = "",
     video_size: str = "1280x720",
     framerate: str = "30",
 ) -> dict[str, Any]:
@@ -325,13 +330,32 @@ def build_camera_report(
         diagnostics["ffmpeg_avfoundation"] = ffmpeg_probe
         devices = _dedupe_devices([*ffmpeg_devices, *profiler_devices])
         if capture_smoke:
-            if 0 <= device_index < len(devices):
+            selected: dict[str, Any] | None = None
+            if device_name:
+                normalized_name = device_name.strip().lower()
+                for candidate in devices:
+                    candidate_name = str(candidate.get("name") or "").strip().lower()
+                    if candidate_name == normalized_name:
+                        selected = candidate
+                        break
+                if selected is None:
+                    for candidate in devices:
+                        candidate_name = str(candidate.get("name") or "").strip().lower()
+                        if normalized_name in candidate_name:
+                            selected = candidate
+                            break
+            elif 0 <= device_index < len(devices):
                 selected = devices[device_index]
+            if selected is not None:
                 backend = str(selected.get("backend") or "").lower()
                 if backend == "avfoundation":
                     resolved_index = int(selected.get("index", device_index))
+                    selected_name = str(selected.get("name") or "").strip()
+                    identifier = selected_name if device_name else str(resolved_index)
                     smoke = _capture_smoke_macos(
+                        device_identifier=identifier,
                         device_index=resolved_index,
+                        device_name=selected_name,
                         timeout=timeout,
                         video_size=video_size,
                         framerate=framerate,
@@ -389,6 +413,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--capture-smoke", action="store_true", help="Try to open the camera and read one frame.")
     parser.add_argument("--timeout", type=float, default=8, help="Capture-smoke timeout in seconds.")
     parser.add_argument("--device-index", type=int, default=0, help="Camera device index to open for capture smoke.")
+    parser.add_argument("--device-name", default="", help="Camera device name to open for capture smoke.")
     parser.add_argument("--video-size", default="1280x720", help="macOS AVFoundation capture size.")
     parser.add_argument("--framerate", default="30", help="macOS AVFoundation capture framerate.")
     return parser.parse_args()
@@ -412,6 +437,7 @@ def main() -> int:
         capture_smoke=args.capture_smoke,
         timeout=args.timeout,
         device_index=args.device_index,
+        device_name=args.device_name,
         video_size=args.video_size,
         framerate=args.framerate,
     )
