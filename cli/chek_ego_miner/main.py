@@ -58,6 +58,12 @@ def build_parser() -> argparse.ArgumentParser:
     readiness.add_argument("--tier", choices=["lite", "stereo", "pro"], required=True)
     readiness.add_argument("--json", action="store_true")
     readiness.add_argument("--report-path")
+    readiness.add_argument("--capture-smoke", action="store_true")
+    readiness.add_argument("--capture-timeout", type=float, default=8)
+    readiness.add_argument("--capture-device-index", type=int, default=0)
+    readiness.add_argument("--capture-device-name", default="")
+    readiness.add_argument("--capture-video-size", default="1280x720")
+    readiness.add_argument("--capture-framerate", default="30")
 
     camera_probe = subparsers.add_parser("camera-probe", help="Probe local camera devices.")
     camera_probe.add_argument("--json", action="store_true")
@@ -65,6 +71,7 @@ def build_parser() -> argparse.ArgumentParser:
     camera_probe.add_argument("--capture-smoke", action="store_true")
     camera_probe.add_argument("--timeout", type=float, default=8)
     camera_probe.add_argument("--device-index", type=int, default=0)
+    camera_probe.add_argument("--device-name", default="")
     camera_probe.add_argument("--video-size", default="1280x720")
     camera_probe.add_argument("--framerate", default="30")
 
@@ -260,6 +267,22 @@ def main(argv: list[str] | None = None) -> int:
             extra.append("--json")
         if args.report_path:
             extra.extend(["--report-path", args.report_path])
+        if args.capture_smoke:
+            extra.append("--capture-smoke")
+        extra.extend(
+            [
+                "--capture-timeout",
+                str(args.capture_timeout),
+                "--capture-device-index",
+                str(args.capture_device_index),
+                "--capture-device-name",
+                args.capture_device_name,
+                "--capture-video-size",
+                args.capture_video_size,
+                "--capture-framerate",
+                args.capture_framerate,
+            ]
+        )
         return run_python("readiness_public.py", extra)
 
     if args.command == "camera-probe":
@@ -276,6 +299,8 @@ def main(argv: list[str] | None = None) -> int:
                 str(args.timeout),
                 "--device-index",
                 str(args.device_index),
+                "--device-name",
+                args.device_name,
                 "--video-size",
                 args.video_size,
                 "--framerate",
