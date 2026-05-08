@@ -11,6 +11,7 @@ and browse reusable datasets.
 - Choose your hardware: [Hardware Guide](./docs/hardware.md)
 - Check the current public roadmap: [TODO](./TODO.md)
 - See validation status: [Public Validation Matrix](./docs/public-validation-matrix.md)
+- Understand the repo boundary: [Public and Private Runtime Boundary](./docs/public-private-boundary.md)
 - Get step-by-step help:
   - [Codex Guide](./docs/agent-guides/codex.md)
   - [Claude Guide](./docs/agent-guides/claude.md)
@@ -136,11 +137,16 @@ Or use the CLI:
 ./cli/chek-ego-miner camera-probe
 ./cli/chek-ego-miner readiness --tier lite
 ./cli/chek-ego-miner readiness --tier pro
+./cli/chek-ego-miner public-e2e --tier lite
 ```
 
 Use `./cli/chek-ego-miner camera-probe --capture-smoke` when you need to
 distinguish "camera is listed by the OS" from "the current terminal session can
 open the camera and read a frame".
+
+`public-e2e` is the single public summary command. It reports host OS, hardware
+tier, camera readiness, VLM policy, local capture result and upload policy. It
+does not upload by default.
 
 ## Lite Setup on Linux or macOS
 
@@ -163,6 +169,19 @@ python3 -m pip install --user --break-system-packages -r scripts/edge_phone_visi
   --trip-id trip-public-basic-e2e \
   --session-id sess-public-basic-e2e \
   --output-dir ./artifacts/basic-e2e \
+  --json
+```
+
+Or run the same local capture flow through the public summary command:
+
+```bash
+./cli/chek-ego-miner public-e2e \
+  --tier lite \
+  --run-basic-e2e \
+  --edge-base-url http://127.0.0.1:8080 \
+  --edge-token chek-ego-miner-local-token \
+  --trip-id trip-public-basic-e2e \
+  --session-id sess-public-basic-e2e \
   --json
 ```
 
@@ -311,8 +330,11 @@ Search and download contributed data from:
 
 - [Public Roadmap / TODO](./TODO.md)
 - [Public Validation Matrix](./docs/public-validation-matrix.md)
+- [Public and Private Runtime Boundary](./docs/public-private-boundary.md)
 - [Hardware Guide](./docs/hardware.md)
 - [Quickstart](./docs/quickstart.md)
+- [Stereo Calibration Checklist](./docs/stereo-calibration-checklist.md)
+- [Pro Jetson Diagnostics](./docs/pro-jetson-diagnostics.md)
 - [Hardware/Profile Mapping](./docs/profile-mapping.md)
 - [Diagnostics](./docs/diagnostics.md)
 - [Token Rewards](./docs/token-rewards.md)

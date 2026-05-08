@@ -26,7 +26,21 @@ See [Hardware Guide](./hardware.md).
 ./cli/chek-ego-miner readiness --tier pro
 ```
 
-## 5. Probe local cameras
+## 5. Run the public E2E summary
+
+```bash
+./cli/chek-ego-miner public-e2e --tier lite --json
+```
+
+Replace `lite` with your selected tier. Add `--capture-smoke` for `Stereo` or
+`Pro` evidence when you need to prove the current terminal session can open a
+camera and read a frame.
+
+The summary reports host OS, hardware tier, camera readiness, VLM policy, local
+capture result and upload policy. Upload is disabled unless you run a separate
+documented upload flow.
+
+## 6. Probe local cameras
 
 ```bash
 ./cli/chek-ego-miner camera-probe
@@ -36,7 +50,7 @@ See [Hardware Guide](./hardware.md).
 The first command checks OS-visible camera devices. The second command also
 tries to open one camera and read a frame from the current terminal session.
 
-## 6. Get guided help
+## 7. Get guided help
 
 Pick a prompt from:
 
@@ -44,13 +58,15 @@ Pick a prompt from:
 - `prompts/install-stereo.md`
 - `prompts/install-pro-edge.md`
 
-## 7. If you need calibration
+## 8. If you need calibration
 
 ```bash
 ./cli/chek-ego-miner charuco --output-dir ./artifacts/charuco
 ```
 
-## 8. Set up Lite on Linux or macOS
+For Stereo evidence, follow the [Stereo Calibration Checklist](./stereo-calibration-checklist.md).
+
+## 9. Set up Lite on Linux or macOS
 
 ```bash
 ./cli/chek-ego-miner install \
@@ -60,7 +76,7 @@ Pick a prompt from:
   --enable-services
 ```
 
-## 9. Enable the local phone-vision sidecar
+## 10. Enable the local phone-vision sidecar
 
 ```bash
 python3 -m pip install --user --break-system-packages -r scripts/edge_phone_vision_requirements.txt
@@ -68,7 +84,7 @@ python3 -m pip install --user --break-system-packages -r scripts/edge_phone_visi
 ./scripts/start_edge_phone_vision_service.sh
 ```
 
-## 10. Run the basic capture flow
+## 11. Run the basic capture flow
 
 ```bash
 ./cli/chek-ego-miner basic-e2e \
@@ -77,6 +93,19 @@ python3 -m pip install --user --break-system-packages -r scripts/edge_phone_visi
   --trip-id trip-public-basic-e2e \
   --session-id sess-public-basic-e2e \
   --output-dir ./artifacts/basic-e2e \
+  --json
+```
+
+You can also run the basic local capture flow through the public summary:
+
+```bash
+./cli/chek-ego-miner public-e2e \
+  --tier lite \
+  --run-basic-e2e \
+  --edge-base-url http://127.0.0.1:8080 \
+  --edge-token chek-ego-miner-local-token \
+  --trip-id trip-public-basic-e2e \
+  --session-id sess-public-basic-e2e \
   --json
 ```
 
@@ -96,7 +125,7 @@ Notes:
   `python3` itself is not usable.
 - `time_sync_samples` may remain empty on the single-phone basic path.
 
-## 11. Set up Pro on Jetson
+## 12. Set up Pro on Jetson
 
 ```bash
 ./cli/chek-ego-miner jetson-professional-bootstrap -- --force
@@ -135,3 +164,22 @@ Notes:
 - A successful Jetson bring-up should end with required services in `active`
   and working `/health`, `/association/hint`, `/api/v1/stream/status`, and
   `/infer` responses on the host.
+
+For public Pro evidence, follow the [Pro Jetson Diagnostics](./pro-jetson-diagnostics.md).
+
+## Evidence Templates
+
+Use the templates under [evidence-templates](./evidence-templates/) for:
+
+- first contributor setup
+- interrupted install resume
+- agent-guided install
+- returning user readiness
+- camera troubleshooting
+- upload troubleshooting
+- Stereo and Pro true-hardware evidence
+
+## Repo Boundary
+
+See [Public and Private Runtime Boundary](./public-private-boundary.md) for how
+this public repo relates to the private edge runtime engineering line.

@@ -65,6 +65,28 @@ def build_parser() -> argparse.ArgumentParser:
     readiness.add_argument("--capture-video-size", default="1280x720")
     readiness.add_argument("--capture-framerate", default="30")
 
+    public_e2e = subparsers.add_parser(
+        "public-e2e",
+        help="Run a public-safe tier readiness and optional local E2E summary.",
+    )
+    public_e2e.add_argument("--tier", choices=["lite", "stereo", "pro"], required=True)
+    public_e2e.add_argument("--json", action="store_true")
+    public_e2e.add_argument("--report-path")
+    public_e2e.add_argument("--output-dir", default="./artifacts/public-e2e")
+    public_e2e.add_argument("--capture-smoke", action="store_true")
+    public_e2e.add_argument("--capture-timeout", type=float, default=8)
+    public_e2e.add_argument("--capture-device-index", type=int, default=0)
+    public_e2e.add_argument("--capture-device-name", default="")
+    public_e2e.add_argument("--capture-video-size", default="1280x720")
+    public_e2e.add_argument("--capture-framerate", default="30")
+    public_e2e.add_argument("--run-basic-e2e", action="store_true")
+    public_e2e.add_argument("--edge-base-url", default="")
+    public_e2e.add_argument("--edge-token", default="chek-ego-miner-local-token")
+    public_e2e.add_argument("--trip-id", default="")
+    public_e2e.add_argument("--session-id", default="")
+    public_e2e.add_argument("--duration-seconds", type=float, default=8.0)
+    public_e2e.add_argument("--interval-seconds", type=float, default=0.8)
+
     camera_probe = subparsers.add_parser("camera-probe", help="Probe local camera devices.")
     camera_probe.add_argument("--json", action="store_true")
     camera_probe.add_argument("--report-path")
@@ -284,6 +306,44 @@ def main(argv: list[str] | None = None) -> int:
             ]
         )
         return run_python("readiness_public.py", extra)
+
+    if args.command == "public-e2e":
+        extra = ["--tier", args.tier, "--output-dir", args.output_dir]
+        if args.json:
+            extra.append("--json")
+        if args.report_path:
+            extra.extend(["--report-path", args.report_path])
+        if args.capture_smoke:
+            extra.append("--capture-smoke")
+        if args.run_basic_e2e:
+            extra.append("--run-basic-e2e")
+        extra.extend(
+            [
+                "--capture-timeout",
+                str(args.capture_timeout),
+                "--capture-device-index",
+                str(args.capture_device_index),
+                "--capture-device-name",
+                args.capture_device_name,
+                "--capture-video-size",
+                args.capture_video_size,
+                "--capture-framerate",
+                args.capture_framerate,
+                "--edge-base-url",
+                args.edge_base_url,
+                "--edge-token",
+                args.edge_token,
+                "--trip-id",
+                args.trip_id,
+                "--session-id",
+                args.session_id,
+                "--duration-seconds",
+                str(args.duration_seconds),
+                "--interval-seconds",
+                str(args.interval_seconds),
+            ]
+        )
+        return run_python("run_public_e2e.py", extra)
 
     if args.command == "camera-probe":
         extra = []

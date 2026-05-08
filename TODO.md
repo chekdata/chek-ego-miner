@@ -8,7 +8,7 @@ not upload data unless a documented bind/upload flow is explicitly run.
 
 | Lane | Status | Public gate |
 | --- | --- | --- |
-| `Lite` host setup | `supported` | `check_host_basics`, `readiness --tier lite`, `camera-probe --capture-smoke`, `basic-e2e` |
+| `Lite` host setup | `supported` | `check_host_basics`, `readiness --tier lite`, `camera-probe --capture-smoke`, `basic-e2e`, `public-e2e` |
 | `Stereo` setup | `in-progress` | stereo camera probe, calibration, readiness, capture validation |
 | `Pro` Jetson setup | `in-progress` | Jetson bootstrap, service health, VLM sidecar, stereo/Wi-Fi readiness |
 | Guided install | `supported` | AGENTS.md plus Codex / Claude / OpenClaw prompts |
@@ -24,22 +24,24 @@ not upload data unless a documented bind/upload flow is explicitly run.
   - local services
   - basic capture bundle
   - local validation
-- Expand `Stereo` with a public calibration checklist, stereo capture smoke and failure recovery.
-- Expand `Pro` with Jetson installer drift checks, service status evidence and VLM sidecar diagnostics.
-- Add a single public E2E command that can report:
+- Keep the public [Stereo Calibration Checklist](./docs/stereo-calibration-checklist.md) current with capture-smoke, calibration and failure recovery evidence.
+- Keep [Pro Jetson Diagnostics](./docs/pro-jetson-diagnostics.md) current with installer drift checks, service status evidence and VLM sidecar diagnostics.
+- Keep `public-e2e` as the single public E2E summary command. It reports:
   - host OS
   - hardware tier
   - camera readiness
   - VLM policy
   - local capture result
   - whether upload is disabled, skipped or explicitly enabled
-- Add contributor-facing evidence templates for:
+- Keep contributor-facing [evidence templates](./docs/evidence-templates/) current for:
   - first contributor
   - interrupted install resume
   - agent-guided install
   - returning user readiness check
   - camera troubleshooting
   - upload troubleshooting
+- Collect true public hardware evidence for `Stereo` and `Pro` using
+  `docs/evidence-templates/stereo-pro-true-hardware.md`.
 - Keep README and `docs/public-validation-matrix.md` in sync when a lane changes.
 
 ## Not Yet Claimed
