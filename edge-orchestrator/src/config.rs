@@ -281,6 +281,17 @@ pub struct Config {
     pub crowd_upload_max_retry_count: u32,
     pub crowd_upload_uploading_stale_ms: u64,
     pub crowd_upload_receipt_source: String,
+    pub upload_token_registry_path: Option<String>,
+    pub upload_token_authority_db_path: Option<String>,
+    pub pairing_profile_id: String,
+    pub pairing_ttl_sec: u64,
+    pub pairing_upload_token_ttl_sec: u64,
+    pub pairing_edge_base_url: String,
+    pub pairing_edge_ws_url: String,
+    pub pairing_status_ui_url: String,
+    pub pairing_operator_hint: String,
+    pub pairing_scene_hint: String,
+    pub workstation_device_status_url: Option<String>,
     pub phone_vision_service_base: String,
     pub phone_vision_service_path: String,
     pub phone_vision_python_bin: String,
@@ -295,7 +306,7 @@ pub struct Config {
 
 impl Config {
     pub fn from_env() -> Result<Self, ConfigError> {
-        let data_dir = env::var("EDGE_DATA_DIR").unwrap_or_else(|_| "./data/ruview".to_string());
+        let data_dir = env::var("EDGE_DATA_DIR").unwrap_or_else(|_| "data/ruview".to_string());
         let runtime_profile =
             env_runtime_profile("EDGE_RUNTIME_PROFILE", EdgeRuntimeProfile::TeleopFullstack)?;
         let crowd_upload_policy_mode = env_upload_policy_mode(
@@ -522,6 +533,46 @@ impl Config {
             )?,
             crowd_upload_receipt_source: env::var("EDGE_CROWD_UPLOAD_RECEIPT_SOURCE")
                 .unwrap_or_else(|_| "edge_uploader_worker".to_string()),
+            upload_token_registry_path: env::var("EDGE_UPLOAD_TOKEN_REGISTRY_PATH")
+                .ok()
+                .map(|value| value.trim().to_string())
+                .filter(|value| !value.is_empty()),
+            upload_token_authority_db_path: env::var("EDGE_UPLOAD_TOKEN_AUTHORITY_DB_PATH")
+                .ok()
+                .map(|value| value.trim().to_string())
+                .filter(|value| !value.is_empty())
+                .or_else(|| {
+                    let kind = env::var("EDGE_PAIRING_AUTHORITY")
+                        .unwrap_or_default()
+                        .trim()
+                        .to_ascii_lowercase();
+                    if kind == "sqlite" {
+                        Some(format!(
+                            "{}/pairing/token_authority.sqlite3",
+                            data_dir.trim_end_matches('/')
+                        ))
+                    } else {
+                        None
+                    }
+                }),
+            pairing_profile_id: env::var("EDGE_PAIRING_PROFILE_ID")
+                .unwrap_or_else(|_| "ego_wide_rgbd_multi_iphone_v1".to_string()),
+            pairing_ttl_sec: env_u64("EDGE_PAIRING_TTL_SEC", 300)?,
+            pairing_upload_token_ttl_sec: env_u64("EDGE_PAIRING_UPLOAD_TOKEN_TTL_SEC", 3600)?,
+            pairing_edge_base_url: env::var("EDGE_PAIRING_EDGE_BASE_URL")
+                .unwrap_or_else(|_| "".to_string()),
+            pairing_edge_ws_url: env::var("EDGE_PAIRING_EDGE_WS_URL")
+                .unwrap_or_else(|_| "".to_string()),
+            pairing_status_ui_url: env::var("EDGE_PAIRING_STATUS_UI_URL")
+                .unwrap_or_else(|_| "".to_string()),
+            pairing_operator_hint: env::var("EDGE_PAIRING_OPERATOR_HINT")
+                .unwrap_or_else(|_| "ego-capture".to_string()),
+            pairing_scene_hint: env::var("EDGE_PAIRING_SCENE_HINT")
+                .unwrap_or_else(|_| "unset".to_string()),
+            workstation_device_status_url: env::var("EDGE_WORKSTATION_DEVICE_STATUS_URL")
+                .ok()
+                .map(|value| value.trim().to_string())
+                .filter(|value| !value.is_empty()),
             phone_vision_service_base: env::var("EDGE_PHONE_VISION_SERVICE_BASE")
                 .unwrap_or_else(|_| "http://127.0.0.1:3031".to_string()),
             phone_vision_service_path: env::var("EDGE_PHONE_VISION_SERVICE_PATH")

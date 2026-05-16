@@ -134,6 +134,37 @@ def default_runtime_profile_from_env() -> str:
     return normalize_runtime_profile(os.environ.get("EDGE_RUNTIME_PROFILE"), "teleop_fullstack")
 
 
+def session_context_from(
+    manifest: dict[str, Any],
+    upload_manifest: dict[str, Any],
+) -> dict[str, Any]:
+    context = manifest.get("session_context") or upload_manifest.get("session_context") or {}
+    return context if isinstance(context, dict) else {}
+
+
+def runtime_flags_for_session(
+    manifest: dict[str, Any],
+    upload_manifest: dict[str, Any],
+    default_runtime_profile: str | None = None,
+) -> dict[str, bool]:
+    session_context = session_context_from(manifest, upload_manifest)
+    process_default_profile = normalize_runtime_profile(
+        default_runtime_profile or default_runtime_profile_from_env(),
+        "teleop_fullstack",
+    )
+    runtime_profile = normalize_runtime_profile(
+        session_context.get("runtime_profile"),
+        process_default_profile,
+    )
+    flags = runtime_flags_for_profile(runtime_profile)
+    session_runtime_flags = session_context.get("runtime_flags") or {}
+    if isinstance(session_runtime_flags, dict):
+        for key, default in list(flags.items()):
+            if key in session_runtime_flags:
+                flags[key] = parse_bool_like(session_runtime_flags.get(key), default)
+    return flags
+
+
 def build_line_counters(session_root: Path) -> dict[str, int]:
     raw_iphone_wide = session_root / "raw" / "iphone" / "wide"
     raw_csi = session_root / "raw" / "csi"
@@ -150,6 +181,7 @@ def build_line_counters(session_root: Path) -> dict[str, int]:
         "raw_iphone": count_jsonl_lines(raw_iphone_wide / "kpts_depth.jsonl"),
         "raw_iphone_pose_imu": count_jsonl_lines(raw_iphone_wide / "pose_imu.jsonl"),
         "raw_iphone_depth": count_jsonl_lines(raw_iphone_wide / "depth" / "index.jsonl"),
+        "raw_iphone_depth_media": count_jsonl_lines(session_root / "raw" / "iphone" / "depth" / "media_index.jsonl"),
         "raw_iphone_media": count_jsonl_lines(raw_iphone_wide / "media_index.jsonl"),
         "raw_csi": count_jsonl_lines(raw_csi / "index.jsonl"),
         "raw_stereo": count_jsonl_lines(raw_stereo / "pose3d.jsonl"),
@@ -165,7 +197,18 @@ def build_line_counters(session_root: Path) -> dict[str, int]:
     }
 
 
-def build_checks(session_root: Path, line_counters: dict[str, int]) -> list[dict[str, Any]]:
+def build_checks(
+    session_root: Path,
+    line_counters: dict[str, int],
+    runtime_flags: dict[str, bool] | None = None,
+) -> list[dict[str, Any]]:
+    runtime_flags = runtime_flags or runtime_flags_for_profile(default_runtime_profile_from_env())
+    phone_ingest_enabled = runtime_flags.get("phone_ingest_enabled", True)
+    stereo_enabled = runtime_flags.get("stereo_enabled", True)
+    wifi_enabled = runtime_flags.get("wifi_enabled", False)
+    fusion_enabled = runtime_flags.get("fusion_enabled", True)
+    control_enabled = runtime_flags.get("control_enabled", True)
+    time_sync_required = fusion_enabled or stereo_enabled or wifi_enabled or control_enabled
     calibration_dir = session_root / "calibration"
     csi_packets_bytes = (session_root / "raw" / "csi" / "packets.bin").stat().st_size if (session_root / "raw" / "csi" / "packets.bin").exists() else 0
     csi_summary = summarize_csi_index(session_root / "raw" / "csi" / "index.jsonl")
@@ -182,73 +225,102 @@ def build_checks(session_root: Path, line_counters: dict[str, int]) -> list[dict
         and csi_summary["max_node_count"] > 0
     )
     fisheye_track_present = fisheye_frames >= 10
+    raw_depth_present = (
+        line_counters["raw_iphone_depth"] > 0
+        or line_counters["raw_iphone_depth_media"] > 0
+    )
     def score(ok: bool) -> float:
         return 1.0 if ok else 0.0
     return [
         {
             "id": "capture_pose_present",
-            "ok": line_counters["raw_iphone"] > 0,
-            "score": score(line_counters["raw_iphone"] > 0),
-            "detail": f"raw/iphone/wide/kpts_depth.jsonl 行数={line_counters['raw_iphone']}",
+            "ok": (not phone_ingest_enabled) or line_counters["raw_iphone"] > 0,
+            "score": score((not phone_ingest_enabled) or line_counters["raw_iphone"] > 0),
+            "detail": (
+                f"raw/iphone/wide/kpts_depth.jsonl 行数={line_counters['raw_iphone']}"
+                f"{'' if phone_ingest_enabled else '（phone ingest disabled by runtime profile）'}"
+            ),
         },
         {
             "id": "pose_imu_present",
-            "ok": line_counters["raw_iphone_pose_imu"] > 0,
-            "score": score(line_counters["raw_iphone_pose_imu"] > 0),
+            "ok": (not phone_ingest_enabled) or line_counters["raw_iphone_pose_imu"] > 0,
+            "score": score((not phone_ingest_enabled) or line_counters["raw_iphone_pose_imu"] > 0),
             "detail": f"raw/iphone/wide/pose_imu.jsonl 行数={line_counters['raw_iphone_pose_imu']}",
         },
         {
             "id": "raw_depth_present",
-            "ok": line_counters["raw_iphone_depth"] > 0,
-            "score": score(line_counters["raw_iphone_depth"] > 0),
-            "detail": f"raw/iphone/wide/depth/index.jsonl 行数={line_counters['raw_iphone_depth']}",
+            "ok": (not phone_ingest_enabled) or raw_depth_present,
+            "score": score((not phone_ingest_enabled) or raw_depth_present),
+            "detail": (
+                f"raw/iphone/wide/depth/index.jsonl 行数={line_counters['raw_iphone_depth']}，"
+                f"raw/iphone/depth/media_index.jsonl 行数={line_counters['raw_iphone_depth_media']}"
+            ),
         },
         {
             "id": "iphone_calibration_present",
-            "ok": has_iphone_calibration,
-            "score": score(has_iphone_calibration),
-            "detail": f"calibration/iphone_capture.json {'已生成' if has_iphone_calibration else '缺失'}",
+            "ok": (not phone_ingest_enabled) or has_iphone_calibration,
+            "score": score((not phone_ingest_enabled) or has_iphone_calibration),
+            "detail": (
+                f"calibration/iphone_capture.json {'已生成' if has_iphone_calibration else '缺失'}"
+                f"{'' if phone_ingest_enabled else '（phone ingest disabled by runtime profile）'}"
+            ),
         },
         {
             "id": "time_sync_present",
-            "ok": line_counters["sync"] > 0,
-            "score": score(line_counters["sync"] > 0),
-            "detail": f"sync/time_sync_samples.jsonl 行数={line_counters['sync']}",
+            "ok": (not time_sync_required) or line_counters["sync"] > 0,
+            "score": score((not time_sync_required) or line_counters["sync"] > 0),
+            "detail": (
+                f"sync/time_sync_samples.jsonl 行数={line_counters['sync']}"
+                f"{'' if time_sync_required else '（time sync not required by runtime profile）'}"
+            ),
         },
         {
             "id": "human_demo_pose_present",
-            "ok": line_counters["human_demo_pose"] > 0,
-            "score": score(line_counters["human_demo_pose"] > 0),
-            "detail": f"fused/human_demo_pose.jsonl 行数={line_counters['human_demo_pose']}",
+            "ok": (not fusion_enabled) or line_counters["human_demo_pose"] > 0,
+            "score": score((not fusion_enabled) or line_counters["human_demo_pose"] > 0),
+            "detail": (
+                f"fused/human_demo_pose.jsonl 行数={line_counters['human_demo_pose']}"
+                f"{'' if fusion_enabled else '（fusion disabled by runtime profile）'}"
+            ),
         },
         {
             "id": "teleop_frame_present",
-            "ok": line_counters["teleop"] > 0,
-            "score": score(line_counters["teleop"] > 0),
-            "detail": f"teleop/teleop_frame.jsonl 行数={line_counters['teleop']}",
+            "ok": (not (fusion_enabled or control_enabled)) or line_counters["teleop"] > 0,
+            "score": score((not (fusion_enabled or control_enabled)) or line_counters["teleop"] > 0),
+            "detail": (
+                f"teleop/teleop_frame.jsonl 行数={line_counters['teleop']}"
+                f"{'' if fusion_enabled or control_enabled else '（teleop publisher disabled by runtime profile）'}"
+            ),
         },
         {
             "id": "robot_state_present",
-            "ok": line_counters["raw_robot_state"] > 0,
-            "score": score(line_counters["raw_robot_state"] > 0),
-            "detail": f"raw/robot/state.jsonl 行数={line_counters['raw_robot_state']}",
+            "ok": (not control_enabled) or line_counters["raw_robot_state"] > 0,
+            "score": score((not control_enabled) or line_counters["raw_robot_state"] > 0),
+            "detail": (
+                f"raw/robot/state.jsonl 行数={line_counters['raw_robot_state']}"
+                f"{'' if control_enabled else '（control disabled by runtime profile）'}"
+            ),
         },
         {
             "id": "stereo_pose_present",
-            "ok": line_counters["raw_stereo"] > 0,
-            "score": score(line_counters["raw_stereo"] > 0),
-            "detail": f"raw/stereo/pose3d.jsonl 行数={line_counters['raw_stereo']}",
+            "ok": (not stereo_enabled) or line_counters["raw_stereo"] > 0,
+            "score": score((not stereo_enabled) or line_counters["raw_stereo"] > 0),
+            "detail": (
+                f"raw/stereo/pose3d.jsonl 行数={line_counters['raw_stereo']}"
+                f"{'' if stereo_enabled else '（stereo disabled by runtime profile）'}"
+            ),
         },
         {
             "id": "wifi_or_csi_present",
-            "ok": wifi_or_csi_present,
-            "score": score(wifi_or_csi_present),
+            "ok": (not wifi_enabled) or wifi_or_csi_present,
+            "score": score((not wifi_enabled) or wifi_or_csi_present),
             "detail": (
                 f"raw/wifi/pose3d 行数={line_counters['raw_wifi']}，"
                 f"raw/csi/index 行数={line_counters['raw_csi']}，"
                 f"raw/csi/packets.bin bytes={csi_packets_bytes}，"
                 f"CSI 有效节点行数={csi_summary['rows_with_nodes']}，"
                 f"最大 node_count={csi_summary['max_node_count']}"
+                f"{'' if wifi_enabled else '（wifi disabled by runtime profile）'}"
             ),
         },
         {
@@ -273,6 +345,7 @@ def recommended_action(missing: str) -> str:
         "time_sync_present": "补采 time/sync 样本，避免多模态时间轴不可对齐。",
         "human_demo_pose_present": "检查 fused/human_demo_pose 是否稳定输出。",
         "teleop_frame_present": "检查 teleop frame 输出，确保机器人 target 已落盘。",
+        "robot_state_present": "仅 teleop/control profile 需要机器人状态；纯 EGO 采集无需补录。",
         "stereo_pose_present": "建议补齐双目 pose，提高 whole-body 几何质量。",
         "wifi_or_csi_present": "建议补齐 Wi-Fi pose/CSI，保留多源观测。",
         "fisheye_track_present": "建议开启超广角连续辅路；若机型只支持快照辅路，至少提高抽帧频率并确认正式 fisheye 轨已落盘。",
@@ -286,7 +359,7 @@ def local_quality_core_ids(
     upload_manifest: dict[str, Any],
     default_runtime_profile: str | None = None,
 ) -> set[str]:
-    session_context = manifest.get("session_context") or upload_manifest.get("session_context") or {}
+    session_context = session_context_from(manifest, upload_manifest)
     process_default_profile = normalize_runtime_profile(
         default_runtime_profile or default_runtime_profile_from_env(),
         "teleop_fullstack",
@@ -295,12 +368,7 @@ def local_quality_core_ids(
         session_context.get("runtime_profile"),
         process_default_profile,
     )
-    runtime_flags = runtime_flags_for_profile(runtime_profile)
-    session_runtime_flags = session_context.get("runtime_flags") or {}
-    if isinstance(session_runtime_flags, dict):
-        for key, default in list(runtime_flags.items()):
-            if key in session_runtime_flags:
-                runtime_flags[key] = parse_bool_like(session_runtime_flags.get(key), default)
+    runtime_flags = runtime_flags_for_session(manifest, upload_manifest, default_runtime_profile)
 
     core_ids: set[str] = set()
     if runtime_flags["phone_ingest_enabled"]:
@@ -331,7 +399,8 @@ def recompute_session(
     manifest = load_json(manifest_path)
 
     line_counters = build_line_counters(session_root)
-    checks = build_checks(session_root, line_counters)
+    runtime_flags = runtime_flags_for_session(manifest, upload_manifest, default_runtime_profile)
+    checks = build_checks(session_root, line_counters, runtime_flags)
     missing_artifacts = [check["id"] for check in checks if not check["ok"]]
     total = max(len(checks), 1)
     passed = sum(1 for check in checks if check["ok"])

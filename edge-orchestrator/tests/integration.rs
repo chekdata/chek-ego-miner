@@ -11,6 +11,9 @@ mod test_demo_capture_bundle;
 #[path = "integration/test_clip_validation.rs"]
 mod test_clip_validation;
 
+#[path = "integration/test_capture_pose_ingest.rs"]
+mod test_capture_pose_ingest;
+
 #[path = "integration/test_disarm_gate.rs"]
 mod test_disarm_gate;
 

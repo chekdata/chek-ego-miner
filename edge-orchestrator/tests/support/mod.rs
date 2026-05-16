@@ -191,3 +191,18 @@ async fn wait_health_ok(http_base: &str) -> anyhow::Result<()> {
         tokio::time::sleep(Duration::from_millis(100)).await;
     }
 }
+
+pub async fn wait_for_file(path: PathBuf) -> anyhow::Result<()> {
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(10);
+    loop {
+        if tokio::time::Instant::now() > deadline {
+            return Err(anyhow!("等待文件超时: {}", path.display()));
+        }
+        if let Ok(meta) = tokio::fs::metadata(&path).await {
+            if meta.len() > 0 {
+                return Ok(());
+            }
+        }
+        tokio::time::sleep(Duration::from_millis(50)).await;
+    }
+}

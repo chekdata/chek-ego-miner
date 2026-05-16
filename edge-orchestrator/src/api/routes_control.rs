@@ -158,6 +158,10 @@ async fn arm(
             SessionContextUpdate {
                 capture_device_id: None,
                 operator_id: Some(req.operator_id.clone()),
+                login_identity: None,
+                device_name: None,
+                pairing_profile_id: None,
+                upload_auth_kind: None,
                 task_id: None,
                 task_ids: Vec::new(),
                 runtime_profile: None,

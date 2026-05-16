@@ -32,6 +32,10 @@ def normalize_passthrough(args: list[str]) -> list[str]:
     return args
 
 
+def has_option(args: list[str], option: str) -> bool:
+    return any(arg == option or arg.startswith(f"{option}=") for arg in args)
+
+
 def run_runtime_cli(args: list[str]) -> int:
     command = [sys.executable, str(BOOTSTRAP_CLI), *normalize_passthrough(args)]
     return subprocess.run(command, check=False).returncode
@@ -181,6 +185,11 @@ def build_parser() -> argparse.ArgumentParser:
 
     add_passthrough_parser(subparsers, "install", "Forward to the runtime install command.")
     add_passthrough_parser(subparsers, "status", "Forward to the runtime status command.")
+    add_passthrough_parser(
+        subparsers,
+        "start",
+        "Start/restart the local EGO capture stack and open RuView.",
+    )
     add_passthrough_parser(subparsers, "bind", "Forward to the runtime bind command.")
     add_passthrough_parser(subparsers, "runtime", "Forward arbitrary args to the runtime CLI.")
     add_passthrough_parser(
@@ -237,6 +246,13 @@ def dispatch_passthrough(command: str, passthrough_args: list[str]) -> int:
     if command == "status":
         return run_runtime_cli(["status", *passthrough_args])
 
+    if command == "start":
+        normalized_args = normalize_passthrough(passthrough_args)
+        command_args = ["service", "restart", "--direct"]
+        if not has_option(normalized_args, "--profile"):
+            command_args.extend(["--profile", "basic"])
+        return run_runtime_cli([*command_args, *normalized_args])
+
     if command == "bind":
         return run_runtime_cli(["bind", *passthrough_args])
 
@@ -262,6 +278,7 @@ def main(argv: list[str] | None = None) -> int:
         "synthetic-feed",
         "install",
         "status",
+        "start",
         "bind",
         "runtime",
         "capture-probe",

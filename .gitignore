@@ -3,7 +3,12 @@
 .vscode/
 node_modules/
 dist/
+!RuView/ui-react/dist/
+!RuView/ui-react/dist/**
 build/
+!RuView/ui-react/dist/observatory/vendor/three/build/
+!RuView/ui-react/dist/observatory/vendor/three/build/**
+runtime/
 .env
 .env.*
 *.log

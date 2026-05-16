@@ -13,6 +13,7 @@ mod reason;
 mod recorder;
 mod sensing;
 mod target;
+mod token_authority;
 mod upload_worker;
 mod ws;
 
@@ -59,6 +60,7 @@ pub struct AppState {
     pub iphone_stereo_calibration: Arc<calibration::IphoneStereoCalibrationStore>,
     pub wifi_stereo_calibration: Arc<calibration::WifiStereoCalibrationStore>,
     pub storage_sweep_guard: Arc<tokio::sync::Mutex<()>>,
+    pub token_authority: Option<Arc<token_authority::SqliteTokenAuthority>>,
 
     pub fusion_state_tx: broadcast::Sender<FusionStatePacket>,
     pub chunk_ack_tx: broadcast::Sender<ChunkAckPacket>,
@@ -105,6 +107,14 @@ async fn main() -> anyhow::Result<()> {
 
     let metrics_handle = install_metrics_recorder()?;
     let http_client = reqwest::Client::builder().build()?;
+    let token_authority = match config.upload_token_authority_db_path.as_deref() {
+        Some(path) if !path.trim().is_empty() => Some(Arc::new(
+            token_authority::SqliteTokenAuthority::open(path.trim().to_string())
+                .await
+                .map_err(anyhow::Error::msg)?,
+        )),
+        _ => None,
+    };
 
     let gate = Arc::new(control::gate::Gate::new(config.clone()));
     let chunk_sm = Arc::new(recorder::chunk_state_machine::ChunkStateMachine::default());
@@ -161,6 +171,7 @@ async fn main() -> anyhow::Result<()> {
         iphone_stereo_calibration,
         wifi_stereo_calibration,
         storage_sweep_guard,
+        token_authority,
         fusion_state_tx,
         chunk_ack_tx,
         teleop_tx,

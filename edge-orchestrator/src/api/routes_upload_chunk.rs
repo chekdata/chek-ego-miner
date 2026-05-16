@@ -1,7 +1,8 @@
 use std::path::{Component, Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
 
 use axum::extract::{Multipart, State};
-use axum::http::StatusCode;
+use axum::http::{HeaderMap, StatusCode};
 use axum::routing::post;
 use axum::{Json, Router};
 use serde::Deserialize;
@@ -9,8 +10,12 @@ use serde_json::Value;
 use tokio::io::AsyncWriteExt;
 use tracing::{debug, warn};
 
+use crate::recorder::session_recorder::SessionContextUpdate;
+use crate::token_authority::DeviceAckStatusUpdate;
 use crate::ws::types::ChunkAckPacket;
 use crate::AppState;
+
+static UPLOAD_TMP_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
 #[derive(Debug, Deserialize)]
 struct UploadFrameMatchMetadata {
@@ -66,6 +71,7 @@ pub fn router(state: AppState) -> Router {
 
 async fn upload_chunk(
     State(state): State<AppState>,
+    headers: HeaderMap,
     mut multipart: Multipart,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
     // 允许 metadata/file 的字段顺序不固定：先把 file 落到临时目录，再按 metadata 决定最终落盘位置。
@@ -109,12 +115,14 @@ async fn upload_chunk(
             },
             "file" => {
                 orig_filename = field.file_name().map(|s| s.to_string());
+                let sequence = UPLOAD_TMP_SEQUENCE.fetch_add(1, Ordering::Relaxed);
                 let tmp_name = format!(
-                    "upload_{}.bin",
+                    "upload_{}_{}.bin",
                     std::time::SystemTime::now()
                         .duration_since(std::time::UNIX_EPOCH)
                         .unwrap_or_default()
-                        .as_nanos()
+                        .as_nanos(),
+                    sequence
                 );
                 let path = tmp_dir.join(tmp_name);
                 let mut f = match tokio::fs::File::create(&path).await {
@@ -172,6 +180,21 @@ async fn upload_chunk(
             ));
         }
     };
+    let upload_auth_context = match authorize_upload_metadata(
+        &state,
+        &headers,
+        meta.device_id.as_deref(),
+    )
+    .await
+    {
+        Ok(context) => context,
+        Err(message) => {
+            if let Err(error) = tokio::fs::remove_file(&tmp_path).await {
+                warn!(error=%error, path=%tmp_path.display(), "failed to remove unauthorized upload temp file");
+            }
+            return Err((StatusCode::UNAUTHORIZED, Json(err("unauthorized", message))));
+        }
+    };
     if meta.trip_id.trim().is_empty() || meta.session_id.trim().is_empty() {
         let snap = state.session.snapshot();
         if meta.trip_id.trim().is_empty() {
@@ -190,6 +213,7 @@ async fn upload_chunk(
             )),
         ));
     }
+    update_session_identity_from_upload(&state, &meta, &upload_auth_context).await;
 
     // 最终落盘位置（与 PRD 目录结构对齐：/data/ruview/session/<session_id>/raw/<scope>/<track>/...）
     let media_scope = match meta.media_scope.as_deref() {
@@ -515,13 +539,18 @@ async fn upload_chunk(
     metrics::counter!("upload_chunk_bytes_total").increment(file_bytes);
 
     // chunk 状态机：收到并完成落盘后推进到 stored；若满足完整条件则下发一次 ack。
+    let required_file_types = upload_required_file_types_for_chunk(
+        media_scope,
+        meta.file_type.as_deref(),
+        &state.config.upload_required_file_types,
+    );
     let should_ack = if media_scope == "iphone" {
         state.chunk_sm.note_file_stored(
             &meta.trip_id,
             &meta.session_id,
             meta.chunk_index,
             meta.file_type.as_deref(),
-            &state.config.upload_required_file_types,
+            &required_file_types,
         )
     } else {
         false
@@ -546,6 +575,22 @@ async fn upload_chunk(
             subscribers = subs.unwrap_or(0),
             chunk_index = meta.chunk_index,
             "emit chunk_ack_packet(stored)"
+        );
+        maybe_post_workstation_device_status(
+            &state,
+            meta.device_id.as_deref(),
+            &meta.session_id,
+            meta.chunk_index,
+            upload_edge_time_ns,
+            file_bytes,
+        );
+        record_authority_device_ack_status(
+            &state,
+            meta.device_id.as_deref(),
+            &meta.session_id,
+            meta.chunk_index,
+            upload_edge_time_ns,
+            file_bytes,
         );
 
         // 事件落盘：received -> stored -> acked
@@ -591,6 +636,200 @@ async fn upload_chunk(
         "media_track": media_track,
         "stored_path": dst_path.display().to_string(),
     })))
+}
+
+async fn authorize_upload_metadata(
+    state: &AppState,
+    headers: &HeaderMap,
+    device_id: Option<&str>,
+) -> Result<crate::auth::UploadAuthContext, String> {
+    let token_is_global_edge_token =
+        crate::auth::extract_bearer_token(headers).is_some_and(|token| {
+            state
+                .config
+                .edge_token
+                .as_deref()
+                .is_some_and(|expected| token == expected)
+        });
+    let scoped_registry_configured = state.token_authority.is_some()
+        || state
+            .config
+            .upload_token_registry_path
+            .as_deref()
+            .is_some_and(|value| !value.trim().is_empty());
+    if !token_is_global_edge_token
+        && scoped_registry_configured
+        && device_id
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .is_none()
+    {
+        return Err("scoped_upload_token 上传必须在 metadata.device_id 中绑定设备".to_string());
+    }
+    crate::auth::upload_bearer_context(state, headers, device_id).await
+}
+
+async fn update_session_identity_from_upload(
+    state: &AppState,
+    meta: &UploadChunkMetadata,
+    auth_context: &crate::auth::UploadAuthContext,
+) {
+    let device_id = meta
+        .device_id
+        .as_ref()
+        .map(String::as_str)
+        .and_then(non_empty_string)
+        .map(ToOwned::to_owned)
+        .or_else(|| auth_context.device_id.clone());
+    if device_id.is_none()
+        && auth_context.login_identity.is_none()
+        && auth_context.device_name.is_none()
+        && auth_context.profile_id.is_none()
+    {
+        return;
+    }
+    state
+        .recorder
+        .update_session_context(
+            &state.protocol,
+            &state.config,
+            &meta.trip_id,
+            &meta.session_id,
+            SessionContextUpdate {
+                capture_device_id: device_id,
+                operator_id: None,
+                login_identity: auth_context.login_identity.clone(),
+                device_name: auth_context.device_name.clone(),
+                pairing_profile_id: auth_context.profile_id.clone(),
+                upload_auth_kind: non_empty_string(&auth_context.auth_kind).map(ToOwned::to_owned),
+                task_id: None,
+                task_ids: Vec::new(),
+                runtime_profile: None,
+                upload_policy_mode: None,
+                raw_residency: None,
+                preview_residency: None,
+            },
+        )
+        .await;
+}
+
+fn non_empty_string(value: &str) -> Option<&str> {
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        None
+    } else {
+        Some(trimmed)
+    }
+}
+
+fn upload_required_file_types_for_chunk(
+    media_scope: &str,
+    file_type: Option<&str>,
+    configured: &[String],
+) -> Vec<String> {
+    let configured_types = configured
+        .iter()
+        .map(|value| value.trim())
+        .filter(|value| !value.is_empty())
+        .collect::<Vec<_>>();
+    let configured_is_legacy_default = configured_types.as_slice() == ["csv", "det"];
+    let file_type = file_type.unwrap_or("").trim();
+
+    if media_scope == "iphone"
+        && configured_is_legacy_default
+        && matches!(file_type, "video" | "depth16")
+    {
+        return vec!["video".to_string(), "depth16".to_string()];
+    }
+
+    configured_types
+        .into_iter()
+        .map(ToOwned::to_owned)
+        .collect()
+}
+
+fn record_authority_device_ack_status(
+    state: &AppState,
+    device_id: Option<&str>,
+    session_id: &str,
+    chunk_index: u32,
+    edge_time_ns: u64,
+    file_bytes: u64,
+) {
+    let Some(authority) = state.token_authority.clone() else {
+        return;
+    };
+    let Some(device_id) = device_id.map(str::trim).filter(|value| !value.is_empty()) else {
+        return;
+    };
+    let update = DeviceAckStatusUpdate {
+        device_id: device_id.to_string(),
+        session_id: session_id.to_string(),
+        chunk_index,
+        edge_time_ns,
+        stored_size_bytes: file_bytes,
+        upload_queue_depth: 0,
+        ingest_status: "acked".to_string(),
+    };
+    tokio::spawn(async move {
+        match authority.record_device_ack_status(update).await {
+            Ok(()) => {
+                metrics::counter!("token_authority_device_status_update_count").increment(1);
+            }
+            Err(error) => {
+                metrics::counter!("token_authority_device_status_update_error_count").increment(1);
+                warn!(error=%error, "token authority device status update failed");
+            }
+        }
+    });
+}
+
+fn maybe_post_workstation_device_status(
+    state: &AppState,
+    device_id: Option<&str>,
+    session_id: &str,
+    chunk_index: u32,
+    edge_time_ns: u64,
+    file_bytes: u64,
+) {
+    let Some(url) = state.config.workstation_device_status_url.clone() else {
+        return;
+    };
+    let Some(device_id) = device_id.map(str::trim).filter(|value| !value.is_empty()) else {
+        return;
+    };
+    let client = state.http_client.clone();
+    let payload = serde_json::json!({
+        "device_id": device_id,
+        "session_id": session_id,
+        "upload_queue_depth": 0,
+        "ingest_status": "acked",
+        "last_ack": {
+            "session_id": session_id,
+            "chunk_index": chunk_index,
+            "edge_time_ns": edge_time_ns,
+            "stored_size_bytes": file_bytes,
+        },
+    });
+    tokio::spawn(async move {
+        match client.patch(&url).json(&payload).send().await {
+            Ok(response) if response.status().is_success() => {
+                metrics::counter!("workstation_device_status_update_count").increment(1);
+            }
+            Ok(response) => {
+                metrics::counter!("workstation_device_status_update_error_count").increment(1);
+                warn!(
+                    status=%response.status(),
+                    url=%url,
+                    "workstation device status update returned non-success"
+                );
+            }
+            Err(error) => {
+                metrics::counter!("workstation_device_status_update_error_count").increment(1);
+                warn!(error=%error, url=%url, "workstation device status update failed");
+            }
+        }
+    });
 }
 
 fn sanitize_filename(input: &str) -> String {
