@@ -78,6 +78,10 @@ async fn start(
     let context_update = SessionContextUpdate {
         capture_device_id: Some(device_id),
         operator_id,
+        login_identity: None,
+        device_name: None,
+        pairing_profile_id: None,
+        upload_auth_kind: None,
         task_id,
         task_ids: task_ids.unwrap_or_default(),
         runtime_profile,

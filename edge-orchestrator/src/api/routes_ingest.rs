@@ -265,8 +265,107 @@ pub fn router(state: AppState) -> Router {
         .route("/ingest/stereo_pose", post(post_stereo_pose))
         .route("/ingest/wifi_pose", post(post_wifi_pose))
         .route("/ingest/phone_vision_frame", post(post_phone_vision_frame))
+        .route("/ingest/capture_pose", post(post_capture_pose))
         .layer(DefaultBodyLimit::max(PHONE_VISION_MAX_BODY_BYTES))
         .with_state(state)
+}
+
+async fn post_capture_pose(
+    State(state): State<AppState>,
+    Json(mut packet): Json<serde_json::Value>,
+) -> Json<serde_json::Value> {
+    if !state.config.phone_ingest_enabled {
+        return Json(serde_json::json!({
+            "ok": false,
+            "error": {
+                "code": "phone_ingest_disabled",
+                "message": "phone capture pose ingest disabled by runtime profile"
+            }
+        }));
+    }
+
+    let Some(trip_id) = packet
+        .get("trip_id")
+        .and_then(|value| value.as_str())
+        .map(ToOwned::to_owned)
+    else {
+        return Json(serde_json::json!({
+            "ok": false,
+            "error": { "code": "missing_trip_id", "message": "trip_id is required" }
+        }));
+    };
+    let Some(session_id) = packet
+        .get("session_id")
+        .and_then(|value| value.as_str())
+        .map(ToOwned::to_owned)
+    else {
+        return Json(serde_json::json!({
+            "ok": false,
+            "error": { "code": "missing_session_id", "message": "session_id is required" }
+        }));
+    };
+
+    let device_id = packet
+        .get("device_id")
+        .and_then(|value| value.as_str())
+        .unwrap_or_default()
+        .to_string();
+    let source_time_ns = packet
+        .get("source_time_ns")
+        .and_then(|value| value.as_u64())
+        .unwrap_or_else(|| state.gate.edge_time_ns());
+    let recv_time_ns = state.gate.edge_time_ns();
+    let edge_time_ns = if device_id.trim().is_empty() {
+        recv_time_ns
+    } else {
+        state
+            .gate
+            .map_source_time_to_edge(device_id.as_str(), source_time_ns, recv_time_ns)
+            .0
+    };
+
+    if let Some(obj) = packet.as_object_mut() {
+        obj.entry("type")
+            .or_insert_with(|| serde_json::json!("capture_pose_packet"));
+        obj.insert("trip_id".to_string(), serde_json::json!(trip_id));
+        obj.insert("session_id".to_string(), serde_json::json!(session_id));
+        obj.insert("recv_time_ns".to_string(), serde_json::json!(recv_time_ns));
+        obj.insert("edge_time_ns".to_string(), serde_json::json!(edge_time_ns));
+    }
+
+    metrics::counter!("capture_pose_http_ingest_count").increment(1);
+    let accepted = state
+        .vision
+        .ingest_capture_pose_json(&packet, edge_time_ns, recv_time_ns);
+    if accepted {
+        let recorder = state.recorder.clone();
+        let protocol = state.protocol.clone();
+        let config = state.config.clone();
+        let packet_for_record = packet.clone();
+        tokio::spawn(async move {
+            recorder
+                .record_capture_pose(&protocol, &config, &packet_for_record)
+                .await;
+        });
+    } else {
+        metrics::counter!("capture_pose_http_ingest_ignored_count").increment(1);
+    }
+
+    tracing::info!(
+        trip_id,
+        session_id,
+        device_id = device_id,
+        source_time_ns,
+        edge_time_ns,
+        accepted,
+        "capture_pose HTTP ingest completed"
+    );
+
+    Json(serde_json::json!({
+        "ok": true,
+        "accepted": accepted,
+        "capture_pose_packet": packet,
+    }))
 }
 
 async fn post_stereo_pose(

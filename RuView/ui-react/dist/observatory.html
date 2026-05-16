@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>融合观测</title>
+  <link rel="stylesheet" href="observatory/css/observatory.css?v=20260317-geometry-markers-1">
+</head>
+<body>
+  <canvas id="observatory-canvas"></canvas>
+
+  <!-- ======= HUD Overlay ======= -->
+  <div id="hud">
+
+    <!-- Top-right: Connection + status + gear -->
+    <div id="status-bar">
+      <div id="data-source-badge">
+        <span class="dot dot--demo"></span>
+        <span id="data-source-label">演示</span>
+      </div>
+      <div id="scenario-area">
+        <span id="autoplay-icon" title="自动轮播">&#9654;</span>
+        <select id="scenario-quick-select" title="切换场景">
+          <option value="auto">自动轮播</option>
+          <option value="empty_room">空房间</option>
+          <option value="single_breathing">生命体征</option>
+          <option value="two_walking">多人跟踪</option>
+          <option value="fall_event">跌倒检测</option>
+          <option value="sleep_monitoring">睡眠监测</option>
+          <option value="intrusion_detect">入侵检测</option>
+          <option value="gesture_control">手势控制</option>
+          <option value="crowd_occupancy">人群占用（4人）</option>
+          <option value="search_rescue">搜救</option>
+          <option value="elderly_care">长者看护</option>
+          <option value="fitness_tracking">健身</option>
+          <option value="security_patrol">安防巡检</option>
+        </select>
+      </div>
+      <div id="scenario-description"></div>
+      <div id="fps-counter" style="display:none">60 帧/秒</div>
+      <button id="settings-btn" title="设置">&#9881;</button>
+    </div>
+
+    <!-- Left panel: Vital Signs -->
+    <div id="panel-vitals" class="data-panel">
+      <div class="panel-header">生命体征</div>
+      <div class="vital-row">
+        <div class="vital-icon">&#9825;</div>
+        <div class="vital-data">
+          <div class="vital-label">心率</div>
+          <div class="vital-value"><span id="hr-value">--</span> <span class="vital-unit">BPM</span></div>
+          <div class="vital-bar"><div id="hr-bar" class="vital-bar-fill vital-bar--hr"></div></div>
+        </div>
+      </div>
+      <div class="vital-row">
+        <div class="vital-icon">&#9788;</div>
+        <div class="vital-data">
+          <div class="vital-label">呼吸</div>
+          <div class="vital-value"><span id="br-value">--</span> <span class="vital-unit">RPM</span></div>
+          <div class="vital-bar"><div id="br-bar" class="vital-bar-fill vital-bar--br"></div></div>
+        </div>
+      </div>
+      <div class="vital-row">
+        <div class="vital-icon">&#9878;</div>
+        <div class="vital-data">
+          <div class="vital-label">置信度</div>
+          <div class="vital-value"><span id="conf-value">--</span><span class="vital-unit">%</span></div>
+          <div class="vital-bar"><div id="conf-bar" class="vital-bar-fill vital-bar--conf"></div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right panel: Signal & Presence -->
+    <div id="panel-signal" class="data-panel">
+      <div class="panel-header">Wi‑Fi 信号</div>
+      <div class="signal-row">
+        <span class="signal-label">RSSI</span>
+        <span class="signal-value" id="rssi-value">-- dBm</span>
+      </div>
+      <div class="signal-row">
+        <span class="signal-label">方差</span>
+        <span class="signal-value" id="var-value">--</span>
+      </div>
+      <div class="signal-row">
+        <span class="signal-label">运动</span>
+        <span class="signal-value" id="motion-value">--</span>
+      </div>
+      <div class="signal-row">
+        <span class="signal-label">人数</span>
+        <span class="signal-value" id="persons-value">0</span>
+        <span id="persons-dots" class="persons-dots"></span>
+      </div>
+      <canvas id="rssi-sparkline" width="200" height="48"></canvas>
+
+      <div class="panel-header" style="margin-top:12px">在场状态</div>
+      <div id="presence-indicator" class="presence-state presence--absent">
+        <span id="presence-label">无人</span>
+      </div>
+      <div id="fall-alert" class="fall-alert" style="display:none">检测到跌倒</div>
+    </div>
+
+    <div id="panel-sync" class="data-panel">
+      <div class="panel-header">空间 / 对时</div>
+      <div class="signal-row">
+        <span class="signal-label">对时健康</span>
+        <span class="signal-value" id="sync-health-value">--</span>
+      </div>
+      <div class="observatory-sync-detail" id="sync-health-detail">等待 time_sync sample</div>
+
+      <div class="signal-row">
+        <span class="signal-label">RTT / offset</span>
+        <span class="signal-value" id="sync-rtt-value">--</span>
+      </div>
+      <div class="observatory-sync-detail" id="sync-rtt-detail">候选门槛：RTT <= 20 ms / |offset| <= 5 ms</div>
+
+      <div class="signal-row">
+        <span class="signal-label">空间锚点</span>
+        <span class="signal-value" id="spatial-anchor-value">--</span>
+      </div>
+      <div class="observatory-sync-detail" id="spatial-anchor-detail">等待 scene geometry</div>
+
+      <div class="signal-row">
+        <span class="signal-label">对齐质量</span>
+        <span class="signal-value" id="spatial-align-value">--</span>
+      </div>
+      <div class="observatory-sync-detail" id="spatial-align-detail">候选门槛：hand_match >= 0.45 / wrist_gap <= 22.0 cm</div>
+    </div>
+
+    <!-- Edge module badges (populated dynamically by HudController) -->
+    <div id="edge-modules-bar"></div>
+
+    <!-- Bottom bar: capabilities -->
+    <div id="capabilities-bar">
+      <div class="cap-item"><span class="cap-icon">&#9898;</span><span>人体姿态估计</span></div>
+      <div class="cap-divider"></div>
+      <div class="cap-item"><span class="cap-icon">&#9829;</span><span>生命体征监测</span></div>
+      <div class="cap-divider"></div>
+      <div class="cap-item"><span class="cap-icon">&#9784;</span><span>在场检测</span></div>
+    </div>
+
+    <!-- Bottom-right: keyboard hints -->
+    <div id="key-hints">
+      <span class="key-hint">[A] 环绕</span>
+      <span class="key-hint" id="hint-demo-cycle">[D] 场景</span>
+      <span class="key-hint">[F] 帧率</span>
+      <span class="key-hint">[S] 设置</span>
+      <span class="key-hint" id="hint-demo-pause">[Space] 暂停</span>
+    </div>
+  </div>
+
+  <!-- ======= Settings Dialog ======= -->
+  <div id="settings-overlay" class="settings-overlay" style="display:none">
+    <div class="settings-dialog">
+      <div class="settings-header">
+        <span>设置</span>
+        <button id="settings-close">&times;</button>
+      </div>
+
+      <div class="settings-tabs">
+        <button class="stab active" data-stab="rendering">渲染</button>
+        <button class="stab" data-stab="wireframe">骨架</button>
+        <button class="stab" data-stab="scene">场景</button>
+        <button class="stab" data-stab="data">数据</button>
+      </div>
+
+      <!-- Rendering tab -->
+      <div class="stab-content active" id="stab-rendering">
+        <label class="setting-row">
+          <span>泛光强度</span>
+          <input type="range" id="opt-bloom" min="0" max="3" step="0.1" value="1.0">
+          <span class="range-val" id="opt-bloom-val">1.0</span>
+        </label>
+        <label class="setting-row">
+          <span>泛光半径</span>
+          <input type="range" id="opt-bloom-radius" min="0" max="1" step="0.05" value="0.5">
+          <span class="range-val" id="opt-bloom-radius-val">0.5</span>
+        </label>
+        <label class="setting-row">
+          <span>泛光阈值</span>
+          <input type="range" id="opt-bloom-thresh" min="0" max="1" step="0.05" value="0.25">
+          <span class="range-val" id="opt-bloom-thresh-val">0.25</span>
+        </label>
+        <label class="setting-row">
+          <span>曝光</span>
+          <input type="range" id="opt-exposure" min="0.3" max="2" step="0.05" value="0.9">
+          <span class="range-val" id="opt-exposure-val">0.9</span>
+        </label>
+        <label class="setting-row">
+          <span>暗角</span>
+          <input type="range" id="opt-vignette" min="0" max="1" step="0.05" value="0.5">
+          <span class="range-val" id="opt-vignette-val">0.5</span>
+        </label>
+        <label class="setting-row">
+          <span>胶片颗粒</span>
+          <input type="range" id="opt-grain" min="0" max="0.15" step="0.005" value="0.03">
+          <span class="range-val" id="opt-grain-val">0.03</span>
+        </label>
+        <label class="setting-row">
+          <span>色差</span>
+          <input type="range" id="opt-chromatic" min="0" max="0.008" step="0.0005" value="0.0015">
+          <span class="range-val" id="opt-chromatic-val">0.0015</span>
+        </label>
+      </div>
+
+      <!-- Wireframe tab -->
+      <div class="stab-content" id="stab-wireframe">
+        <label class="setting-row">
+          <span>骨架粗细</span>
+          <input type="range" id="opt-bone-thick" min="0.005" max="0.06" step="0.002" value="0.02">
+          <span class="range-val" id="opt-bone-thick-val">0.02</span>
+        </label>
+        <label class="setting-row">
+          <span>关节点大小</span>
+          <input type="range" id="opt-joint-size" min="0.02" max="0.12" step="0.005" value="0.05">
+          <span class="range-val" id="opt-joint-size-val">0.05</span>
+        </label>
+        <label class="setting-row">
+          <span>发光强度</span>
+          <input type="range" id="opt-glow" min="0" max="2" step="0.1" value="0.8">
+          <span class="range-val" id="opt-glow-val">0.8</span>
+        </label>
+        <label class="setting-row">
+          <span>粒子拖尾</span>
+          <input type="range" id="opt-trail" min="0" max="1" step="0.05" value="0.6">
+          <span class="range-val" id="opt-trail-val">0.6</span>
+        </label>
+        <label class="setting-row">
+          <span>骨架颜色</span>
+          <input type="color" id="opt-wire-color" value="#46ebd5">
+        </label>
+        <label class="setting-row">
+          <span>关节点颜色</span>
+          <input type="color" id="opt-joint-color" value="#d377cd">
+        </label>
+        <label class="setting-row">
+          <span>光晕透明度</span>
+          <input type="range" id="opt-aura" min="0" max="0.2" step="0.01" value="0.06">
+          <span class="range-val" id="opt-aura-val">0.06</span>
+        </label>
+      </div>
+
+      <!-- Scene tab -->
+      <div class="stab-content" id="stab-scene">
+        <label class="setting-row">
+          <span>信号场</span>
+          <input type="range" id="opt-field" min="0" max="1" step="0.05" value="0.5">
+          <span class="range-val" id="opt-field-val">0.5</span>
+        </label>
+        <label class="setting-row">
+          <span>Wi‑Fi 波纹</span>
+          <input type="range" id="opt-waves" min="0" max="1" step="0.05" value="0.6">
+          <span class="range-val" id="opt-waves-val">0.6</span>
+        </label>
+        <label class="setting-row">
+          <span>房间亮度</span>
+          <input type="range" id="opt-ambient" min="0" max="1" step="0.05" value="0.4">
+          <span class="range-val" id="opt-ambient-val">0.4</span>
+        </label>
+        <label class="setting-row">
+          <span>地面反射</span>
+          <input type="range" id="opt-reflect" min="0" max="1" step="0.05" value="0.3">
+          <span class="range-val" id="opt-reflect-val">0.3</span>
+        </label>
+        <label class="setting-row">
+          <span>视场角</span>
+          <input type="range" id="opt-fov" min="30" max="90" step="1" value="50">
+          <span class="range-val" id="opt-fov-val">50</span>
+        </label>
+        <label class="setting-row">
+          <span>环绕速度</span>
+          <input type="range" id="opt-orbit-speed" min="0.02" max="0.5" step="0.02" value="0.15">
+          <span class="range-val" id="opt-orbit-speed-val">0.15</span>
+        </label>
+        <label class="setting-row check-row">
+          <span>显示网格</span>
+          <input type="checkbox" id="opt-grid" checked>
+        </label>
+        <label class="setting-row check-row">
+          <span>显示房间边界</span>
+          <input type="checkbox" id="opt-room" checked>
+        </label>
+        <label class="setting-row check-row">
+          <span>显示 Geometry 标记</span>
+          <input type="checkbox" id="opt-geometry-markers" checked>
+        </label>
+      </div>
+
+      <!-- Data tab -->
+      <div class="stab-content" id="stab-data">
+        <label class="setting-row" id="opt-scenario-row">
+          <span>场景</span>
+          <select id="opt-scenario">
+            <option value="auto">自动轮播（30秒）</option>
+            <optgroup label="核心感知">
+              <option value="empty_room">空房间</option>
+              <option value="single_breathing">生命体征（呼吸）</option>
+              <option value="two_walking">多人跟踪</option>
+              <option value="fall_event">跌倒检测</option>
+            </optgroup>
+            <optgroup label="医疗 / 健康">
+              <option value="sleep_monitoring">睡眠监测（呼吸暂停）</option>
+              <option value="elderly_care">长者看护（步态）</option>
+              <option value="fitness_tracking">健身跟踪</option>
+            </optgroup>
+            <optgroup label="安防">
+              <option value="intrusion_detect">入侵检测</option>
+              <option value="security_patrol">安防巡检</option>
+            </optgroup>
+            <optgroup label="楼宇 / 零售">
+              <option value="crowd_occupancy">人群占用（4人）</option>
+              <option value="gesture_control">手势控制（DTW）</option>
+            </optgroup>
+            <optgroup label="搜救 / 战术">
+              <option value="search_rescue">搜救（WiFi-MAT）</option>
+            </optgroup>
+          </select>
+        </label>
+        <label class="setting-row" id="opt-cycle-row">
+          <span>轮播速度（秒）</span>
+          <input type="range" id="opt-cycle" min="10" max="120" step="5" value="30">
+          <span class="range-val" id="opt-cycle-val">30</span>
+        </label>
+        <label class="setting-row">
+          <span>风格预设</span>
+          <select id="opt-preset">
+            <option value="custom">自定义</option>
+            <option value="foundation">Foundation（默认）</option>
+            <option value="cinematic">电影感</option>
+            <option value="minimal">极简 / 干净</option>
+            <option value="neon">霓虹发光</option>
+            <option value="tactical">战术 / 军规</option>
+            <option value="medical">医疗监护</option>
+          </select>
+        </label>
+        <label class="setting-row" id="opt-data-source-row">
+          <span>数据源</span>
+          <select id="opt-data-source">
+            <option value="demo" selected>演示数据</option>
+            <option value="ws">实时 WebSocket</option>
+          </select>
+        </label>
+        <label class="setting-row" id="ws-url-row" style="display:none">
+          <span>WS 地址</span>
+          <input type="text" id="opt-ws-url" value="" placeholder="ws://localhost:3000/ws/sensing">
+        </label>
+        <button id="btn-reset-camera" class="settings-btn">重置视角</button>
+        <button id="btn-reset-settings" class="settings-btn">恢复默认</button>
+        <button id="btn-export-settings" class="settings-btn">导出设置</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Three.js r160 + addons from CDN -->
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "/observatory/vendor/three/build/three.module.js",
+      "three/addons/": "/observatory/vendor/three/addons/"
+    }
+  }
+  </script>
+
+  <script type="module" src="observatory/js/main.js?v=20260318-motion-state-1"></script>
+</body>
+</html>

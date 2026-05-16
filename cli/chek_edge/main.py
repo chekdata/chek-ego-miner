@@ -8,6 +8,7 @@ import re
 import shutil
 import subprocess
 import sys
+import webbrowser
 from urllib import error as urllib_error
 from urllib import parse as urllib_parse
 from urllib import request as urllib_request
@@ -126,6 +127,118 @@ def _join_url(base_url: str, path: str, params: dict[str, Any] | None = None) ->
     if filtered_params:
         url = f"{url}?{urllib_parse.urlencode(filtered_params)}"
     return url
+
+
+def _status_ui_url(
+    *,
+    ui_base_url: str = "",
+    ui_host: str = "127.0.0.1",
+    ui_port: int = 3010,
+    route: str = "capture",
+    edge_token: str = "",
+) -> str:
+    normalized_base = ui_base_url.strip().rstrip("/") or f"http://{ui_host.strip() or '127.0.0.1'}:{ui_port}"
+    base_without_fragment = normalized_base.split("#", 1)[0]
+    params = {"token": edge_token.strip()} if edge_token.strip() else {}
+    url = _join_url(base_without_fragment, "/", params)
+    normalized_route = route.strip().lstrip("#/") or "capture"
+    return f"{url}#/{normalized_route}"
+
+
+def _open_browser_url(url: str) -> dict[str, Any]:
+    try:
+        opened = bool(webbrowser.open(url, new=2))
+        return {
+            "attempted": True,
+            "ok": opened,
+            "url": url,
+            "error": "" if opened else "webbrowser.open returned false",
+        }
+    except Exception as exc:  # noqa: BLE001
+        return {
+            "attempted": True,
+            "ok": False,
+            "url": url,
+            "error": repr(exc),
+        }
+
+
+def _status_ui_payload(
+    *,
+    open_ui: bool,
+    ui_base_url: str,
+    ui_host: str,
+    ui_port: int,
+    route: str,
+    edge_token: str,
+) -> dict[str, Any]:
+    url = _status_ui_url(
+        ui_base_url=ui_base_url,
+        ui_host=ui_host,
+        ui_port=ui_port,
+        route=route,
+        edge_token=edge_token,
+    )
+    payload: dict[str, Any] = {
+        "url": url,
+        "route": f"/{route.strip().lstrip('#/') or 'capture'}",
+        "open_requested": open_ui,
+    }
+    if open_ui:
+        payload["open_result"] = _open_browser_url(url)
+    return payload
+
+
+def _status_ui_base_from_url(status_ui_url: str) -> str:
+    without_fragment = status_ui_url.split("#", 1)[0]
+    parsed = urllib_parse.urlsplit(without_fragment)
+    if not parsed.scheme or not parsed.netloc:
+        return without_fragment.rstrip("/")
+    return urllib_parse.urlunsplit((parsed.scheme, parsed.netloc, "", "", "")).rstrip("/")
+
+
+def _host_is_loopback(url: str) -> bool:
+    hostname = (urllib_parse.urlsplit(url).hostname or "").lower()
+    return hostname in {"127.0.0.1", "localhost", "::1", "0.0.0.0"}
+
+
+def _operator_receipt_payload(
+    *,
+    edge_root: Path,
+    profile_name: str,
+    backend_name: str,
+    status_ui: dict[str, Any],
+) -> dict[str, Any]:
+    status_ui_url = str(status_ui.get("url") or "")
+    status_ui_base = _status_ui_base_from_url(status_ui_url)
+    lan_ready = bool(status_ui_base and not _host_is_loopback(status_ui_base))
+    return {
+        "created_at": _now_iso(),
+        "edge_root": str(edge_root),
+        "profile": profile_name,
+        "backend": backend_name,
+        "status_ui_url": status_ui_url,
+        "pairing_envelope_url": _join_url(status_ui_base, "/pairing/envelope") if status_ui_base else "",
+        "devices_registry_url": _join_url(status_ui_base, "/devices.json") if status_ui_base else "",
+        "recommended_route": "/capture",
+        "lan_ready_for_iphone": lan_ready,
+        "lan_hint": (
+            "status UI uses a LAN-reachable host"
+            if lan_ready
+            else "start the stack with STACK_BIND_HOST/STACK_PUBLIC_HOST set to the Edge LAN IP before iPhone QR pairing"
+        ),
+        "quality_targets": {
+            "main_video": "rear wide RGB, 1080p30, H.264",
+            "depth": "timestamp-aligned sidecar with intrinsics",
+            "minimum_usable_episode_seconds": 30,
+        },
+        "next_steps": [
+            "open the capture status UI",
+            "scan the QR code from each iPhone",
+            "verify each device row shows device_id, login_identity, session_id, and last_ack",
+            "reject/export only sessions with at least 30 seconds of usable capture",
+        ],
+    }
 
 
 def _auth_headers(*, bearer_token: str = "", user_id: str = "") -> dict[str, str]:
@@ -1757,6 +1870,15 @@ def install(
     public_host: str = typer.Option("", help="Public host for generated user-process services"),
     control_enabled: str = typer.Option("", help="Override EDGE_CONTROL_ENABLED for generated user-process services"),
     sim_enabled: str = typer.Option("", help="Override EDGE_SIM_ENABLED for generated user-process services"),
+    open_ui: bool = typer.Option(True, "--open-ui/--no-open-ui", help="Open the local RuView capture status UI after install planning/apply"),
+    ui_base_url: str = typer.Option("", help="Override local RuView status UI base url"),
+    ui_host: str = typer.Option("127.0.0.1", help="Status UI host when ui-base-url is not provided"),
+    ui_port: int = typer.Option(3010, help="Status UI port when ui-base-url is not provided"),
+    ui_route: str = typer.Option("capture", help="Status UI hash route to open"),
+    edge_token: str = typer.Option(
+        os.environ.get("EDGE_TOKEN", "chek-ego-miner-local-token"),
+        help="Token passed to the local RuView status UI query string",
+    ),
 ) -> None:
     plan = _build_plan(profile, edge_root, backend or None)
     apply_result: dict[str, Any] = {}
@@ -1825,7 +1947,31 @@ def install(
                 installed_catalogs=installed_catalogs,
             )
         typer.echo(f"Saved install plan to {_plan_path(edge_root)}")
-    typer.echo(json.dumps({**plan, "apply_result": apply_result}, ensure_ascii=False, indent=2))
+    status_ui = _status_ui_payload(
+        open_ui=open_ui,
+        ui_base_url=ui_base_url,
+        ui_host=ui_host,
+        ui_port=ui_port,
+        route=ui_route,
+        edge_token=edge_token,
+    )
+    typer.echo(
+        json.dumps(
+            {
+                **plan,
+                "apply_result": apply_result,
+                "status_ui": status_ui,
+                "operator_receipt": _operator_receipt_payload(
+                    edge_root=edge_root,
+                    profile_name=profile,
+                    backend_name=str(plan["backend"]["name"]),
+                    status_ui=status_ui,
+                ),
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+    )
 
 
 @app.command()
@@ -1872,6 +2018,15 @@ def status(
     control_plane_base_url: str = typer.Option("", help="Override control-plane base url"),
     user_id: str = typer.Option("", help="Override X-User-One-Id"),
     bearer_token: str = typer.Option("", help="Override Authorization bearer"),
+    open_ui: bool = typer.Option(False, help="Open the local RuView capture status UI in a browser"),
+    ui_base_url: str = typer.Option("", help="Override local RuView status UI base url"),
+    ui_host: str = typer.Option("127.0.0.1", help="Status UI host when ui-base-url is not provided"),
+    ui_port: int = typer.Option(3010, help="Status UI port when ui-base-url is not provided"),
+    ui_route: str = typer.Option("capture", help="Status UI hash route to open"),
+    edge_token: str = typer.Option(
+        os.environ.get("EDGE_TOKEN", "chek-ego-miner-local-token"),
+        help="Token passed to the local RuView status UI query string",
+    ),
 ) -> None:
     config = _load_config(edge_root)
     plan = {}
@@ -1924,6 +2079,14 @@ def status(
                 headers=headers,
             ),
         }
+    status_ui = _status_ui_payload(
+        open_ui=open_ui,
+        ui_base_url=ui_base_url,
+        ui_host=ui_host,
+        ui_port=ui_port,
+        route=ui_route,
+        edge_token=edge_token,
+    )
     typer.echo(
         json.dumps(
             {
@@ -1933,6 +2096,13 @@ def status(
                 "service_catalogs": _load_service_catalogs(active_profile, active_backend),
                 "service_templates": _collect_service_templates(active_profile, active_backend),
                 "remote_status": remote_status,
+                "status_ui": status_ui,
+                "operator_receipt": _operator_receipt_payload(
+                    edge_root=edge_root,
+                    profile_name=active_profile,
+                    backend_name=active_backend,
+                    status_ui=status_ui,
+                ),
             },
             ensure_ascii=False,
             indent=2,
@@ -2278,6 +2448,15 @@ def service_restart(
     control_enabled: str = typer.Option("", help="Override EDGE_CONTROL_ENABLED for direct user-process restart"),
     sim_enabled: str = typer.Option("", help="Override EDGE_SIM_ENABLED for direct user-process restart"),
     direct: bool = typer.Option(False, help="Bypass OS service managers and restart the local stack directly"),
+    open_ui: bool = typer.Option(True, "--open-ui/--no-open-ui", help="Open the local RuView capture status UI after restart"),
+    ui_base_url: str = typer.Option("", help="Override local RuView status UI base url"),
+    ui_host: str = typer.Option("127.0.0.1", help="Status UI host when ui-base-url is not provided"),
+    ui_port: int = typer.Option(3010, help="Status UI port when ui-base-url is not provided"),
+    ui_route: str = typer.Option("capture", help="Status UI hash route to open"),
+    edge_token: str = typer.Option(
+        os.environ.get("EDGE_TOKEN", "chek-ego-miner-local-token"),
+        help="Token passed to the local RuView status UI query string",
+    ),
 ) -> None:
     plan = _build_plan(profile, edge_root, backend or None)
     staged_catalogs = _stage_service_catalogs(profile, edge_root, backend_name=str(plan["backend"]["name"]))
@@ -2300,9 +2479,22 @@ def service_restart(
         )
     else:
         restart_result["manager_restart"] = _restart_service_managers(filtered_catalogs, use_sudo=use_sudo)
-    typer.echo(
-        json.dumps(restart_result, ensure_ascii=False, indent=2)
+    status_ui = _status_ui_payload(
+        open_ui=open_ui,
+        ui_base_url=ui_base_url,
+        ui_host=ui_host,
+        ui_port=ui_port,
+        route=ui_route,
+        edge_token=edge_token,
     )
+    restart_result["status_ui"] = status_ui
+    restart_result["operator_receipt"] = _operator_receipt_payload(
+        edge_root=edge_root,
+        profile_name=profile,
+        backend_name=str(plan["backend"]["name"]),
+        status_ui=status_ui,
+    )
+    typer.echo(json.dumps(restart_result, ensure_ascii=False, indent=2))
 
 
 @logs_app.command("tail")

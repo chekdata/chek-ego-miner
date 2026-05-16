@@ -7,6 +7,7 @@ pub mod routes_evolution;
 pub mod routes_health;
 pub mod routes_ingest;
 pub mod routes_network;
+pub mod routes_pairing_authority;
 pub mod routes_safety;
 pub mod routes_session;
 pub mod routes_storage_compat;
@@ -36,6 +37,7 @@ fn protected_routes(state: AppState) -> Router {
         .merge(routes_chunk::router(state.clone()))
         .merge(routes_upload_chunk::router(state.clone()))
         .merge(routes_upload_queue::router(state.clone()))
+        .merge(routes_pairing_authority::protected_router(state.clone()))
         .merge(routes_storage_compat::protected_router(state.clone()))
 }
 
@@ -46,6 +48,7 @@ pub fn http_router(state: AppState) -> Router {
     ));
     let edge_alias_router = Router::new()
         .merge(routes_health::router(state.clone()))
+        .merge(routes_pairing_authority::public_router(state.clone()))
         .merge(routes_storage_compat::public_router(state.clone()))
         .merge(routes_workstation::router(state.clone()))
         .merge(
@@ -57,6 +60,7 @@ pub fn http_router(state: AppState) -> Router {
 
     Router::new()
         .merge(routes_health::router(state.clone()))
+        .merge(routes_pairing_authority::public_router(state.clone()))
         .merge(routes_storage_compat::public_router(state.clone()))
         .merge(routes_workstation::router(state.clone()))
         .merge(protected_router)

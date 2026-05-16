@@ -10,6 +10,7 @@
 - 选择你的硬件方案：[硬件指南](./docs/hardware.md)
 - 查看当前公开路线：[TODO](./TODO.md)
 - 查看验证状态：[Public Validation Matrix](./docs/public-validation-matrix.md)
+- 理解公开仓库和内部 runtime 的边界：[Public and Private Runtime Boundary](./docs/public-private-boundary.md)
 - 获取一步一步的指导：
   - [Codex 指南](./docs/agent-guides/codex.md)
   - [Claude 指南](./docs/agent-guides/claude.md)
@@ -114,10 +115,14 @@ python3 scripts/check_host_basics.py
 ./cli/chek-ego-miner camera-probe
 ./cli/chek-ego-miner readiness --tier lite
 ./cli/chek-ego-miner readiness --tier pro
+./cli/chek-ego-miner public-e2e --tier lite
 ```
 
 如果需要区分“系统能列出摄像头”和“当前终端会话能打开摄像头并读到帧”，可以运行
 `./cli/chek-ego-miner camera-probe --capture-smoke`。
+
+`public-e2e` 是公开侧的汇总命令，会报告 host OS、硬件档位、摄像头 readiness、
+VLM policy、本地采集结果和 upload policy。它默认不会上传数据。
 
 ## Linux 或 macOS 上的 Lite/basic 安装路径
 
@@ -140,6 +145,19 @@ python3 -m pip install --user --break-system-packages -r scripts/edge_phone_visi
   --trip-id trip-public-basic-e2e \
   --session-id sess-public-basic-e2e \
   --output-dir ./artifacts/basic-e2e \
+  --json
+```
+
+也可以通过公开汇总命令跑同一条本地 basic flow：
+
+```bash
+./cli/chek-ego-miner public-e2e \
+  --tier lite \
+  --run-basic-e2e \
+  --edge-base-url http://127.0.0.1:8080 \
+  --edge-token chek-ego-miner-local-token \
+  --trip-id trip-public-basic-e2e \
+  --session-id sess-public-basic-e2e \
   --json
 ```
 
@@ -279,8 +297,12 @@ VLM 资产，再由 `systemd-user` 启 sidecar：
 
 - [公开路线 / TODO](./TODO.md)
 - [Public Validation Matrix](./docs/public-validation-matrix.md)
+- [Public and Private Runtime Boundary](./docs/public-private-boundary.md)
 - [硬件指南](./docs/hardware.md)
 - [Quickstart](./docs/quickstart.md)
+- [Stereo Calibration Checklist](./docs/stereo-calibration-checklist.md)
+- [Pro Jetson Diagnostics](./docs/pro-jetson-diagnostics.md)
+- [Evidence Templates](./docs/evidence-templates/README.md)
 - [硬件与 profile 映射](./docs/profile-mapping.md)
 - [诊断工具](./docs/diagnostics.md)
 - [Token 奖励说明](./docs/token-rewards.md)

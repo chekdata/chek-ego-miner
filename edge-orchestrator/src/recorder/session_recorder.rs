@@ -51,6 +51,10 @@ pub struct SessionRepairResult {
 pub struct SessionContextUpdate {
     pub capture_device_id: Option<String>,
     pub operator_id: Option<String>,
+    pub login_identity: Option<String>,
+    pub device_name: Option<String>,
+    pub pairing_profile_id: Option<String>,
+    pub upload_auth_kind: Option<String>,
     pub task_id: Option<String>,
     pub task_ids: Vec<String>,
     pub runtime_profile: Option<String>,
@@ -408,10 +412,18 @@ impl SessionRecorder {
         if active.lines.raw_iphone_pose_imu == 0 {
             unrecoverable_gaps.push("raw/iphone/wide/pose_imu.jsonl".to_string());
         }
-        if active.lines.raw_iphone_depth == 0 {
-            unrecoverable_gaps.push("raw/iphone/wide/depth/index.jsonl".to_string());
+        if active.lines.raw_iphone_depth == 0 && active.lines.raw_iphone_depth_media == 0 {
+            unrecoverable_gaps.push(
+                "raw/iphone/wide/depth/index.jsonl or raw/iphone/depth/media_index.jsonl"
+                    .to_string(),
+            );
         }
-        if active.lines.raw_robot_state == 0 {
+        let session_control_enabled = if active.session_context.runtime_flags.is_empty() {
+            cfg.control_enabled
+        } else {
+            active.session_context.runtime_flags.control_enabled
+        };
+        if session_control_enabled && active.lines.raw_robot_state == 0 {
             unrecoverable_gaps.push("raw/robot/state.jsonl".to_string());
         }
 
@@ -547,6 +559,10 @@ impl SessionRecorder {
                 .get("operator_id")
                 .and_then(|value| value.as_str())
                 .map(ToOwned::to_owned),
+            login_identity: None,
+            device_name: None,
+            pairing_profile_id: None,
+            upload_auth_kind: None,
             task_id: v
                 .get("task_id")
                 .and_then(|value| value.as_str())
@@ -659,6 +675,10 @@ impl SessionRecorder {
                     .and_then(|value| value.as_str())
                     .map(ToOwned::to_owned),
                 operator_id: None,
+                login_identity: None,
+                device_name: None,
+                pairing_profile_id: None,
+                upload_auth_kind: None,
                 task_id: None,
                 task_ids: Vec::new(),
                 runtime_profile: None,
@@ -743,6 +763,10 @@ impl SessionRecorder {
                     .and_then(|value| value.as_str())
                     .map(ToOwned::to_owned),
                 operator_id: None,
+                login_identity: None,
+                device_name: None,
+                pairing_profile_id: None,
+                upload_auth_kind: None,
                 task_id: None,
                 task_ids: Vec::new(),
                 runtime_profile: None,
@@ -1895,6 +1919,7 @@ struct LineCounters {
     raw_iphone: u64,
     raw_iphone_pose_imu: u64,
     raw_iphone_depth: u64,
+    raw_iphone_depth_media: u64,
     raw_iphone_media: u64,
     raw_csi: u64,
     raw_stereo: u64,
@@ -2040,14 +2065,23 @@ struct SessionManifestRecorderState {
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
 struct SessionRuntimeFlags {
+    #[serde(default)]
     phone_ingest_enabled: bool,
+    #[serde(default)]
     stereo_enabled: bool,
+    #[serde(default)]
     wifi_enabled: bool,
+    #[serde(default)]
     fusion_enabled: bool,
+    #[serde(default)]
     control_enabled: bool,
+    #[serde(default)]
     sim_enabled: bool,
+    #[serde(default)]
     vlm_indexing_enabled: bool,
+    #[serde(default)]
     preview_generation_enabled: bool,
+    #[serde(default)]
     crowd_upload_enabled: bool,
 }
 
@@ -2087,6 +2121,14 @@ struct SessionCrowdContext {
     #[serde(skip_serializing_if = "Option::is_none")]
     operator_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    login_identity: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    device_name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pairing_profile_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    upload_auth_kind: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     task_id: Option<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     task_ids: Vec<String>,
@@ -2107,6 +2149,10 @@ impl SessionCrowdContext {
         Self {
             capture_device_id: None,
             operator_id: None,
+            login_identity: None,
+            device_name: None,
+            pairing_profile_id: None,
+            upload_auth_kind: None,
             task_id: None,
             task_ids: Vec::new(),
             runtime_profile: Some(cfg.runtime_profile_name().to_string()),
@@ -2144,6 +2190,22 @@ impl SessionCrowdContext {
         }
         if self.operator_id.is_none() && other.operator_id.is_some() {
             self.operator_id = other.operator_id.clone();
+            changed = true;
+        }
+        if self.login_identity.is_none() && other.login_identity.is_some() {
+            self.login_identity = other.login_identity.clone();
+            changed = true;
+        }
+        if self.device_name.is_none() && other.device_name.is_some() {
+            self.device_name = other.device_name.clone();
+            changed = true;
+        }
+        if self.pairing_profile_id.is_none() && other.pairing_profile_id.is_some() {
+            self.pairing_profile_id = other.pairing_profile_id.clone();
+            changed = true;
+        }
+        if self.upload_auth_kind.is_none() && other.upload_auth_kind.is_some() {
+            self.upload_auth_kind = other.upload_auth_kind.clone();
             changed = true;
         }
         if self.task_id.is_none() && other.task_id.is_some() {
@@ -2189,6 +2251,10 @@ impl SessionCrowdContext {
     fn is_empty(&self) -> bool {
         self.capture_device_id.is_none()
             && self.operator_id.is_none()
+            && self.login_identity.is_none()
+            && self.device_name.is_none()
+            && self.pairing_profile_id.is_none()
+            && self.upload_auth_kind.is_none()
             && self.task_id.is_none()
             && self.task_ids.is_empty()
             && self.runtime_profile.is_none()
@@ -2423,6 +2489,12 @@ struct UploadManifest {
     ready_for_upload: bool,
     artifact_count: usize,
     ready_artifact_count: usize,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    derived_media_manifest: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    iphone_main_merged_video: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    iphone_fisheye_merged_video: Option<String>,
     artifacts: Vec<UploadManifestArtifact>,
 }
 
@@ -2588,6 +2660,10 @@ impl ActiveSession {
             raw_iphone_pose_imu: count_jsonl_lines(raw_iphone_wide_dir.join("pose_imu.jsonl"))
                 .await?,
             raw_iphone_depth: count_jsonl_lines(raw_iphone_depth_dir.join("index.jsonl")).await?,
+            raw_iphone_depth_media: count_jsonl_lines(
+                raw_iphone_dir.join("depth").join("media_index.jsonl"),
+            )
+            .await?,
             raw_iphone_media: count_jsonl_lines(raw_iphone_wide_dir.join("media_index.jsonl"))
                 .await?,
             raw_csi: count_jsonl_lines(raw_csi_dir.join("index.jsonl")).await?,
@@ -2807,6 +2883,10 @@ impl ActiveSession {
                     .await?,
                 raw_iphone_depth: count_jsonl_lines(raw_iphone_depth_dir.join("index.jsonl"))
                     .await?,
+                raw_iphone_depth_media: count_jsonl_lines(
+                    raw_iphone_dir.join("depth").join("media_index.jsonl"),
+                )
+                .await?,
                 raw_iphone_media: count_jsonl_lines(raw_iphone_wide_dir.join("media_index.jsonl"))
                     .await?,
                 raw_csi: count_jsonl_lines(raw_csi_dir.join("index.jsonl")).await?,
@@ -3039,6 +3119,30 @@ impl ActiveSession {
         if let Some(operator_id) = normalize_non_empty(update.operator_id) {
             if self.session_context.operator_id.as_deref() != Some(operator_id.as_str()) {
                 self.session_context.operator_id = Some(operator_id);
+                changed = true;
+            }
+        }
+        if let Some(login_identity) = normalize_non_empty(update.login_identity) {
+            if self.session_context.login_identity.as_deref() != Some(login_identity.as_str()) {
+                self.session_context.login_identity = Some(login_identity);
+                changed = true;
+            }
+        }
+        if let Some(device_name) = normalize_non_empty(update.device_name) {
+            if self.session_context.device_name.as_deref() != Some(device_name.as_str()) {
+                self.session_context.device_name = Some(device_name);
+                changed = true;
+            }
+        }
+        if let Some(profile_id) = normalize_non_empty(update.pairing_profile_id) {
+            if self.session_context.pairing_profile_id.as_deref() != Some(profile_id.as_str()) {
+                self.session_context.pairing_profile_id = Some(profile_id);
+                changed = true;
+            }
+        }
+        if let Some(auth_kind) = normalize_non_empty(update.upload_auth_kind) {
+            if self.session_context.upload_auth_kind.as_deref() != Some(auth_kind.as_str()) {
+                self.session_context.upload_auth_kind = Some(auth_kind);
                 changed = true;
             }
         }
@@ -4379,6 +4483,9 @@ impl ActiveSession {
                 "teleop_frame_present" => {
                     "检查 teleop frame 输出，确保机器人 target 已落盘。".to_string()
                 }
+                "robot_state_present" => {
+                    "仅 teleop/control profile 需要机器人状态；纯 EGO 采集无需补录。".to_string()
+                }
                 "stereo_pose_present" => {
                     "建议补齐双目 pose，提高 whole-body 几何质量。".to_string()
                 }
@@ -4452,6 +4559,12 @@ impl ActiveSession {
         let mut artifacts = self.collect_upload_artifacts(cfg).await?;
         artifacts.sort_by(|a, b| a.relpath.cmp(&b.relpath));
         let ready_artifact_count = artifacts.iter().filter(|artifact| artifact.exists).count();
+        let derived_media_manifest =
+            Self::ready_upload_artifact_relpath(&artifacts, "derived_media_manifest");
+        let iphone_main_merged_video =
+            Self::ready_upload_artifact_relpath(&artifacts, "iphone_main_merged_video");
+        let iphone_fisheye_merged_video =
+            Self::ready_upload_artifact_relpath(&artifacts, "iphone_fisheye_merged_video");
         let manifest = UploadManifest {
             ty: "upload_manifest",
             schema_version: "1.0.0",
@@ -4463,10 +4576,23 @@ impl ActiveSession {
             ready_for_upload: matches!(quality_status.as_str(), "pass" | "retry_recommended"),
             artifact_count: artifacts.len(),
             ready_artifact_count,
+            derived_media_manifest,
+            iphone_main_merged_video,
+            iphone_fisheye_merged_video,
             artifacts,
         };
         let value = serde_json::to_value(manifest).map_err(|e| e.to_string())?;
         Self::write_json_pretty(base_dir.join("upload").join("upload_manifest.json"), &value).await
+    }
+
+    fn ready_upload_artifact_relpath(
+        artifacts: &[UploadManifestArtifact],
+        id: &str,
+    ) -> Option<String> {
+        artifacts
+            .iter()
+            .find(|artifact| artifact.id == id && artifact.exists)
+            .map(|artifact| artifact.relpath.clone())
     }
 
     async fn refresh_upload_policy(&self, cfg: &Config) -> Result<(), String> {
@@ -4555,6 +4681,11 @@ impl ActiveSession {
                 .join("media_index.jsonl"),
         )
         .await?;
+        let quality_flags = if self.session_context.runtime_flags.is_empty() {
+            SessionRuntimeFlags::from_config(cfg)
+        } else {
+            self.session_context.runtime_flags.clone()
+        };
         let wifi_or_csi_present = line_counters.raw_wifi > 0
             || (line_counters.raw_csi > 0
                 && csi_packets_bytes > 0
@@ -4563,8 +4694,8 @@ impl ActiveSession {
         Ok(vec![
             LocalQualityCheck {
                 id: "capture_pose_present",
-                ok: !cfg.phone_ingest_enabled || line_counters.raw_iphone > 0,
-                score: if !cfg.phone_ingest_enabled || line_counters.raw_iphone > 0 {
+                ok: !quality_flags.phone_ingest_enabled || line_counters.raw_iphone > 0,
+                score: if !quality_flags.phone_ingest_enabled || line_counters.raw_iphone > 0 {
                     1.0
                 } else {
                     0.0
@@ -4572,7 +4703,7 @@ impl ActiveSession {
                 detail: format!(
                     "raw/iphone/wide/kpts_depth.jsonl 行数={}{}",
                     line_counters.raw_iphone,
-                    if cfg.phone_ingest_enabled {
+                    if quality_flags.phone_ingest_enabled {
                         ""
                     } else {
                         "（phone ingest disabled by runtime profile）"
@@ -4581,8 +4712,9 @@ impl ActiveSession {
             },
             LocalQualityCheck {
                 id: "pose_imu_present",
-                ok: !cfg.phone_ingest_enabled || line_counters.raw_iphone_pose_imu > 0,
-                score: if !cfg.phone_ingest_enabled || line_counters.raw_iphone_pose_imu > 0 {
+                ok: !quality_flags.phone_ingest_enabled || line_counters.raw_iphone_pose_imu > 0,
+                score: if !quality_flags.phone_ingest_enabled || line_counters.raw_iphone_pose_imu > 0
+                {
                     1.0
                 } else {
                     0.0
@@ -4594,21 +4726,27 @@ impl ActiveSession {
             },
             LocalQualityCheck {
                 id: "raw_depth_present",
-                ok: !cfg.phone_ingest_enabled || line_counters.raw_iphone_depth > 0,
-                score: if !cfg.phone_ingest_enabled || line_counters.raw_iphone_depth > 0 {
+                ok: !quality_flags.phone_ingest_enabled
+                    || line_counters.raw_iphone_depth > 0
+                    || line_counters.raw_iphone_depth_media > 0,
+                score: if !quality_flags.phone_ingest_enabled
+                    || line_counters.raw_iphone_depth > 0
+                    || line_counters.raw_iphone_depth_media > 0
+                {
                     1.0
                 } else {
                     0.0
                 },
                 detail: format!(
-                    "raw/iphone/wide/depth/index.jsonl 行数={}",
-                    line_counters.raw_iphone_depth
+                    "raw/iphone/wide/depth/index.jsonl 行数={}，raw/iphone/depth/media_index.jsonl 行数={}",
+                    line_counters.raw_iphone_depth,
+                    line_counters.raw_iphone_depth_media
                 ),
             },
             LocalQualityCheck {
                 id: "iphone_calibration_present",
-                ok: !cfg.phone_ingest_enabled || has_iphone_calibration,
-                score: if !cfg.phone_ingest_enabled || has_iphone_calibration {
+                ok: !quality_flags.phone_ingest_enabled || has_iphone_calibration,
+                score: if !quality_flags.phone_ingest_enabled || has_iphone_calibration {
                     1.0
                 } else {
                     0.0
@@ -4620,7 +4758,7 @@ impl ActiveSession {
                     } else {
                         "缺失"
                     },
-                    if cfg.phone_ingest_enabled {
+                    if quality_flags.phone_ingest_enabled {
                         ""
                     } else {
                         "（phone ingest disabled by runtime profile）"
@@ -4629,12 +4767,15 @@ impl ActiveSession {
             },
             LocalQualityCheck {
                 id: "time_sync_present",
-                ok: !(cfg.fusion_enabled || cfg.stereo_enabled || cfg.wifi_enabled || cfg.control_enabled)
+                ok: !(quality_flags.fusion_enabled
+                    || quality_flags.stereo_enabled
+                    || quality_flags.wifi_enabled
+                    || quality_flags.control_enabled)
                     || line_counters.sync > 0,
-                score: if !(cfg.fusion_enabled
-                    || cfg.stereo_enabled
-                    || cfg.wifi_enabled
-                    || cfg.control_enabled)
+                score: if !(quality_flags.fusion_enabled
+                    || quality_flags.stereo_enabled
+                    || quality_flags.wifi_enabled
+                    || quality_flags.control_enabled)
                     || line_counters.sync > 0
                 {
                     1.0
@@ -4644,7 +4785,11 @@ impl ActiveSession {
                 detail: format!(
                     "sync/time_sync_samples.jsonl 行数={}{}",
                     line_counters.sync,
-                    if cfg.fusion_enabled || cfg.stereo_enabled || cfg.wifi_enabled || cfg.control_enabled {
+                    if quality_flags.fusion_enabled
+                        || quality_flags.stereo_enabled
+                        || quality_flags.wifi_enabled
+                        || quality_flags.control_enabled
+                    {
                         ""
                     } else {
                         "（time sync not required in raw_capture_only profile）"
@@ -4653,8 +4798,8 @@ impl ActiveSession {
             },
             LocalQualityCheck {
                 id: "human_demo_pose_present",
-                ok: !cfg.fusion_enabled || line_counters.human_demo_pose > 0,
-                score: if !cfg.fusion_enabled || line_counters.human_demo_pose > 0 {
+                ok: !quality_flags.fusion_enabled || line_counters.human_demo_pose > 0,
+                score: if !quality_flags.fusion_enabled || line_counters.human_demo_pose > 0 {
                     1.0
                 } else {
                     0.0
@@ -4662,7 +4807,7 @@ impl ActiveSession {
                 detail: format!(
                     "fused/human_demo_pose.jsonl 行数={}{}",
                     line_counters.human_demo_pose,
-                    if cfg.fusion_enabled {
+                    if quality_flags.fusion_enabled {
                         ""
                     } else {
                         "（fusion disabled by runtime profile）"
@@ -4671,8 +4816,11 @@ impl ActiveSession {
             },
             LocalQualityCheck {
                 id: "teleop_frame_present",
-                ok: !(cfg.fusion_enabled || cfg.control_enabled) || line_counters.teleop > 0,
-                score: if !(cfg.fusion_enabled || cfg.control_enabled) || line_counters.teleop > 0 {
+                ok: !(quality_flags.fusion_enabled || quality_flags.control_enabled)
+                    || line_counters.teleop > 0,
+                score: if !(quality_flags.fusion_enabled || quality_flags.control_enabled)
+                    || line_counters.teleop > 0
+                {
                     1.0
                 } else {
                     0.0
@@ -4680,7 +4828,7 @@ impl ActiveSession {
                 detail: format!(
                     "teleop/teleop_frame.jsonl 行数={}{}",
                     line_counters.teleop,
-                    if cfg.fusion_enabled || cfg.control_enabled {
+                    if quality_flags.fusion_enabled || quality_flags.control_enabled {
                         ""
                     } else {
                         "（teleop publisher disabled by runtime profile）"
@@ -4689,18 +4837,26 @@ impl ActiveSession {
             },
             LocalQualityCheck {
                 id: "robot_state_present",
-                ok: line_counters.raw_robot_state > 0,
-                score: if line_counters.raw_robot_state > 0 {
+                ok: !quality_flags.control_enabled || line_counters.raw_robot_state > 0,
+                score: if !quality_flags.control_enabled || line_counters.raw_robot_state > 0 {
                     1.0
                 } else {
                     0.0
                 },
-                detail: format!("raw/robot/state.jsonl 行数={}", line_counters.raw_robot_state),
+                detail: format!(
+                    "raw/robot/state.jsonl 行数={}{}",
+                    line_counters.raw_robot_state,
+                    if quality_flags.control_enabled {
+                        ""
+                    } else {
+                        "（control disabled by runtime profile）"
+                    }
+                ),
             },
             LocalQualityCheck {
                 id: "stereo_pose_present",
-                ok: !cfg.stereo_enabled || line_counters.raw_stereo > 0,
-                score: if !cfg.stereo_enabled || line_counters.raw_stereo > 0 {
+                ok: !quality_flags.stereo_enabled || line_counters.raw_stereo > 0,
+                score: if !quality_flags.stereo_enabled || line_counters.raw_stereo > 0 {
                     1.0
                 } else {
                     0.0
@@ -4708,7 +4864,7 @@ impl ActiveSession {
                 detail: format!(
                     "raw/stereo/pose3d.jsonl 行数={}{}",
                     line_counters.raw_stereo,
-                    if cfg.stereo_enabled {
+                    if quality_flags.stereo_enabled {
                         ""
                     } else {
                         "（stereo disabled by runtime profile）"
@@ -4717,8 +4873,8 @@ impl ActiveSession {
             },
             LocalQualityCheck {
                 id: "wifi_or_csi_present",
-                ok: !cfg.wifi_enabled || wifi_or_csi_present,
-                score: if !cfg.wifi_enabled || wifi_or_csi_present {
+                ok: !quality_flags.wifi_enabled || wifi_or_csi_present,
+                score: if !quality_flags.wifi_enabled || wifi_or_csi_present {
                     1.0
                 } else {
                     0.0
@@ -4730,7 +4886,7 @@ impl ActiveSession {
                     csi_packets_bytes,
                     csi_index_summary.rows_with_nodes,
                     csi_index_summary.max_node_count,
-                    if cfg.wifi_enabled {
+                    if quality_flags.wifi_enabled {
                         ""
                     } else {
                         "（wifi disabled by runtime profile）"
@@ -4905,6 +5061,15 @@ impl ActiveSession {
                 false,
                 "mandatory_structured",
                 Some(line_counters.raw_iphone_depth),
+            )
+            .await?,
+            self.artifact_spec(
+                "iphone_depth_media_index",
+                "raw/iphone/depth/media_index.jsonl",
+                "file",
+                false,
+                "mandatory_structured",
+                Some(line_counters.raw_iphone_depth_media),
             )
             .await?,
             self.artifact_spec(
@@ -5118,6 +5283,33 @@ impl ActiveSession {
                 "preview_clips",
                 "preview/clips",
                 "directory",
+                false,
+                "preview_derivative",
+                None,
+            )
+            .await?,
+            self.artifact_spec(
+                "derived_media_manifest",
+                "derived/media/media_manifest.json",
+                "file",
+                false,
+                "preview_derivative",
+                None,
+            )
+            .await?,
+            self.artifact_spec(
+                "iphone_main_merged_video",
+                "derived/media/iphone_main_merged.mp4",
+                "file",
+                false,
+                "preview_derivative",
+                None,
+            )
+            .await?,
+            self.artifact_spec(
+                "iphone_fisheye_merged_video",
+                "derived/media/iphone_fisheye_merged.mp4",
+                "file",
                 false,
                 "preview_derivative",
                 None,
@@ -6578,6 +6770,30 @@ fn parse_session_context(value: &serde_json::Value) -> SessionCrowdContext {
                 .and_then(|value| value.as_str())
                 .map(ToOwned::to_owned),
         ),
+        login_identity: normalize_non_empty(
+            value
+                .get("login_identity")
+                .and_then(|value| value.as_str())
+                .map(ToOwned::to_owned),
+        ),
+        device_name: normalize_non_empty(
+            value
+                .get("device_name")
+                .and_then(|value| value.as_str())
+                .map(ToOwned::to_owned),
+        ),
+        pairing_profile_id: normalize_non_empty(
+            value
+                .get("pairing_profile_id")
+                .and_then(|value| value.as_str())
+                .map(ToOwned::to_owned),
+        ),
+        upload_auth_kind: normalize_non_empty(
+            value
+                .get("upload_auth_kind")
+                .and_then(|value| value.as_str())
+                .map(ToOwned::to_owned),
+        ),
         task_id: normalize_non_empty(
             value
                 .get("task_id")
@@ -6930,24 +7146,19 @@ mod tests {
 
     fn config_for_quality_core_test() -> Config {
         let data_dir = std::env::temp_dir().join("edge-orchestrator-quality-core-test");
-        std::env::set_var("EDGE_DATA_DIR", data_dir.to_string_lossy().to_string());
-        std::env::set_var(
-            "IPHONE_STEREO_EXTRINSIC_PATH",
-            data_dir
-                .join("runtime")
-                .join("iphone_stereo_extrinsic.json")
-                .to_string_lossy()
-                .to_string(),
-        );
-        std::env::set_var(
-            "WIFI_STEREO_EXTRINSIC_PATH",
-            data_dir
-                .join("runtime")
-                .join("wifi_stereo_extrinsic.json")
-                .to_string_lossy()
-                .to_string(),
-        );
-        Config::from_env().expect("config")
+        let mut cfg = Config::from_env().expect("config");
+        cfg.data_dir = data_dir.to_string_lossy().to_string();
+        cfg.iphone_stereo_extrinsic_path = data_dir
+            .join("runtime")
+            .join("iphone_stereo_extrinsic.json")
+            .to_string_lossy()
+            .to_string();
+        cfg.wifi_stereo_extrinsic_path = data_dir
+            .join("runtime")
+            .join("wifi_stereo_extrinsic.json")
+            .to_string_lossy()
+            .to_string();
+        cfg
     }
 
     #[test]
@@ -6989,6 +7200,162 @@ mod tests {
         assert!(core.contains(&"time_sync_present"));
         assert!(core.contains(&"human_demo_pose_present"));
         assert!(core.contains(&"teleop_frame_present"));
+    }
+
+    #[tokio::test]
+    async fn ego_capture_quality_report_should_mark_robot_state_optional() {
+        let unique = format!(
+            "edge-recorder-ego-robot-optional-{}-{}",
+            std::process::id(),
+            super::now_unix_ms()
+        );
+        let data_dir = std::env::temp_dir().join(unique);
+        let session_dir = data_dir.join("session").join("sess-ego-001");
+        let raw_iphone_wide_dir = session_dir.join("raw").join("iphone").join("wide");
+        let fused_dir = session_dir.join("fused");
+        let teleop_dir = session_dir.join("teleop");
+        let sync_dir = session_dir.join("sync");
+        let calibration_dir = session_dir.join("calibration");
+
+        tokio::fs::create_dir_all(raw_iphone_wide_dir.join("depth"))
+            .await
+            .expect("iphone depth dir");
+        tokio::fs::create_dir_all(&fused_dir)
+            .await
+            .expect("fused dir");
+        tokio::fs::create_dir_all(&teleop_dir)
+            .await
+            .expect("teleop dir");
+        tokio::fs::create_dir_all(&sync_dir)
+            .await
+            .expect("sync dir");
+        tokio::fs::create_dir_all(&calibration_dir)
+            .await
+            .expect("calibration dir");
+
+        tokio::fs::write(
+            raw_iphone_wide_dir.join("kpts_depth.jsonl"),
+            "{\"type\":\"capture_pose_packet\"}\n",
+        )
+        .await
+        .expect("capture pose");
+        tokio::fs::write(
+            raw_iphone_wide_dir.join("pose_imu.jsonl"),
+            "{\"type\":\"pose_imu_packet\"}\n",
+        )
+        .await
+        .expect("pose imu");
+        tokio::fs::write(
+            raw_iphone_wide_dir.join("depth").join("index.jsonl"),
+            "{\"type\":\"depth_index\"}\n",
+        )
+        .await
+        .expect("depth index");
+        tokio::fs::write(
+            fused_dir.join("human_demo_pose.jsonl"),
+            "{\"type\":\"human_demo_pose_packet\"}\n",
+        )
+        .await
+        .expect("human demo pose");
+        tokio::fs::write(
+            teleop_dir.join("teleop_frame.jsonl"),
+            "{\"type\":\"teleop_frame_v1\"}\n",
+        )
+        .await
+        .expect("teleop frame");
+        tokio::fs::write(
+            sync_dir.join("time_sync_samples.jsonl"),
+            "{\"type\":\"time_sync_sample\"}\n",
+        )
+        .await
+        .expect("time sync");
+        tokio::fs::write(
+            calibration_dir.join("iphone_capture.json"),
+            "{\"type\":\"sensor_calibration_snapshot\"}\n",
+        )
+        .await
+        .expect("iphone calibration");
+
+        let mut cfg = config_for_quality_core_test();
+        cfg.data_dir = data_dir.to_string_lossy().to_string();
+        cfg.phone_ingest_enabled = true;
+        cfg.stereo_enabled = true;
+        cfg.wifi_enabled = true;
+        cfg.fusion_enabled = true;
+        cfg.control_enabled = true;
+
+        tokio::fs::write(
+            session_dir.join("manifest.json"),
+            serde_json::json!({
+                "type": "session_manifest",
+                "schema_version": "2.0.0",
+                "trip_id": "trip-ego-001",
+                "session_id": "sess-ego-001",
+                "created_unix_ms": 1234u64,
+                "session_context": {
+                    "runtime_profile": "capture_plus_facts",
+                    "runtime_flags": {
+                        "phone_ingest_enabled": true,
+                        "stereo_enabled": false,
+                        "wifi_enabled": false,
+                        "fusion_enabled": true,
+                        "control_enabled": false,
+                        "sim_enabled": false,
+                        "vlm_indexing_enabled": false,
+                        "preview_generation_enabled": false
+                    }
+                }
+            })
+            .to_string(),
+        )
+        .await
+        .expect("manifest");
+
+        let protocol = ProtocolVersionInfo {
+            name: "teleop-protocol".to_string(),
+            version: "1.13.0".to_string(),
+            schema_sha256: "test".to_string(),
+        };
+        let result = SessionRecorder::repair_existing_session_dir(&session_dir, &protocol, &cfg)
+            .await
+            .expect("repair session");
+        let quality: serde_json::Value = serde_json::from_slice(
+            &tokio::fs::read(session_dir.join("qa").join("local_quality_report.json"))
+                .await
+                .expect("quality report"),
+        )
+        .expect("quality json");
+        let robot_check = quality
+            .get("checks")
+            .and_then(|value| value.as_array())
+            .and_then(|items| {
+                items.iter().find(|item| {
+                    item.get("id").and_then(|value| value.as_str()) == Some("robot_state_present")
+                })
+            })
+            .expect("robot check");
+
+        assert_eq!(
+            robot_check.get("ok").and_then(|value| value.as_bool()),
+            Some(true)
+        );
+        assert_eq!(
+            quality
+                .get("missing_artifacts")
+                .and_then(|value| value.as_array())
+                .unwrap()
+                .iter()
+                .any(|item| item.as_str() == Some("robot_state_present")),
+            false
+        );
+        assert!(!result
+            .unrecoverable_gaps
+            .iter()
+            .any(|gap| gap == "raw/robot/state.jsonl"));
+
+        tokio::fs::remove_dir_all(&data_dir)
+            .await
+            .expect("cleanup temp data dir");
     }
 
     #[tokio::test]
@@ -7115,7 +7482,8 @@ mod tests {
             version: "1.13.0".to_string(),
             schema_sha256: "test".to_string(),
         };
-        let cfg = Config::from_env().expect("config");
+        let mut cfg = config_for_quality_core_test();
+        cfg.data_dir = data_dir.to_string_lossy().to_string();
 
         let results = recorder
             .repair_existing_sessions(&protocol, &cfg)
@@ -7182,7 +7550,8 @@ mod tests {
             version: "1.13.0".to_string(),
             schema_sha256: "test".to_string(),
         };
-        let cfg = Config::from_env().expect("config");
+        let mut cfg = config_for_quality_core_test();
+        cfg.data_dir = data_dir.to_string_lossy().to_string();
 
         let mut active = super::ActiveSession::start(
             &data_dir,

@@ -1,13 +1,16 @@
 #!/usr/bin/env python3
 
 import argparse
+import hashlib
 import http.client
 import ipaddress
 import json
 import mimetypes
 import os
 import posixpath
+import secrets
 import shutil
+import sqlite3
 import ssl
 import subprocess
 import time
@@ -53,6 +56,8 @@ KNOWN_ASSET_EXTENSIONS = {
     ".woff",
     ".woff2",
 }
+PAIRING_TYPE = "chek_ego_edge_pairing"
+PAIRING_PROFILE_ID = "ego_wide_rgbd_multi_iphone_v1"
 
 
 @dataclass(frozen=True)
@@ -138,6 +143,42 @@ def build_dist_file_index(dist_dir: Path) -> dict[str, str]:
 
 def normalize_proxy_path(raw_suffix: str) -> str:
     normalized = posixpath.normpath("/" + raw_suffix.lstrip("/"))
+    if normalized == "/control/state":
+        return "/control/state"
+    if normalized == "/control/disarm":
+        return "/control/disarm"
+    if normalized == "/live-preview.json":
+        return "/live-preview.json"
+    if normalized == "/time":
+        return "/time"
+    if normalized == "/time/sync":
+        return "/time/sync"
+    if normalized == "/time/sync/current":
+        return "/time/sync/current"
+    if normalized == "/storage/status":
+        return "/storage/status"
+    if normalized == "/storage/sessions":
+        return "/storage/sessions"
+    if normalized == "/stereo-watchdog.json":
+        return "/stereo-watchdog.json"
+    if normalized == "/network/uplink":
+        return "/network/uplink"
+    if normalized == "/session/start":
+        return "/session/start"
+    if normalized == "/session/stop":
+        return "/session/stop"
+    if normalized == "/common_task/upload_chunk":
+        return "/common_task/upload_chunk"
+    if normalized == "/chunk/upload":
+        return "/chunk/upload"
+    if normalized == "/chunk/cleaned":
+        return "/chunk/cleaned"
+    if normalized == "/control/keepalive":
+        return "/control/keepalive"
+    if normalized == "/ingest/phone_vision_frame":
+        return "/ingest/phone_vision_frame"
+    if normalized == "/ingest/capture_pose":
+        return "/ingest/capture_pose"
     if normalized == "/api/replay/session":
         return "/api/replay/session"
     if normalized == "/api/v1/model/info":
@@ -164,6 +205,8 @@ def normalize_proxy_path(raw_suffix: str) -> str:
         frame_id = normalized.removeprefix("/api/replay/frame/")
         if frame_id.isdigit():
             return f"/api/replay/frame/{frame_id}"
+    if normalized == "/live-preview/file" or normalized.startswith("/live-preview/file/"):
+        return normalized
     raise ValueError("invalid proxy path")
 
 
@@ -224,6 +267,443 @@ def load_json_file(path: Path) -> dict:
         return json.loads(path.read_text(encoding="utf-8"))
     except (FileNotFoundError, json.JSONDecodeError, OSError):
         return {}
+
+
+def load_device_registry(path: Path) -> dict[str, dict]:
+    payload = load_json_file(path)
+    raw_devices = payload.get("devices", {})
+    if isinstance(raw_devices, list):
+        devices = {
+            str(item.get("device_id") or "").strip(): item
+            for item in raw_devices
+            if isinstance(item, dict) and str(item.get("device_id") or "").strip()
+        }
+        return devices
+    if isinstance(raw_devices, dict):
+        return {
+            str(device_id).strip(): item
+            for device_id, item in raw_devices.items()
+            if str(device_id).strip() and isinstance(item, dict)
+        }
+    return {}
+
+
+def save_device_registry(config) -> None:
+    registry_path = getattr(config, "device_registry_path", None)
+    if not registry_path:
+        return
+    path = Path(registry_path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "version": "1.0",
+        "profile_id": config.profile_id,
+        "updated_unix_ms": _now_unix_ms(),
+        "devices": sorted(
+            config.device_registry.values(),
+            key=lambda item: str(item.get("device_id") or ""),
+        ),
+    }
+    tmp_path = path.with_name(f"{path.name}.tmp")
+    tmp_path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
+    tmp_path.replace(path)
+
+
+def hash_upload_token(upload_token: str) -> str:
+    return hashlib.sha256(upload_token.encode("utf-8")).hexdigest()
+
+
+def token_authority_db_path(config) -> Path | None:
+    raw = str(getattr(config, "upload_token_authority_db_path", "") or "").strip()
+    if not raw:
+        return None
+    return Path(raw).expanduser().resolve()
+
+
+def ensure_token_authority_schema(db_path: Path) -> None:
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+    with sqlite3.connect(db_path) as conn:
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute("PRAGMA foreign_keys=ON")
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS paired_devices (
+                device_id TEXT PRIMARY KEY,
+                device_name TEXT NOT NULL DEFAULT '',
+                login_identity TEXT NOT NULL DEFAULT '',
+                profile_id TEXT NOT NULL DEFAULT '',
+                paired_unix_ms INTEGER NOT NULL,
+                last_seen_unix_ms INTEGER NOT NULL,
+                last_session_id TEXT,
+                upload_queue_depth INTEGER,
+                ingest_status TEXT,
+                status TEXT NOT NULL DEFAULT 'paired'
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS upload_tokens (
+                token_id TEXT PRIMARY KEY,
+                device_id TEXT NOT NULL,
+                profile_id TEXT NOT NULL,
+                token_sha256 TEXT NOT NULL UNIQUE,
+                issued_unix_ms INTEGER NOT NULL,
+                expires_unix_ms INTEGER NOT NULL,
+                revoked_unix_ms INTEGER,
+                status TEXT NOT NULL,
+                last_used_unix_ms INTEGER,
+                last_used_session_id TEXT,
+                FOREIGN KEY(device_id) REFERENCES paired_devices(device_id)
+            )
+            """
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_upload_tokens_device ON upload_tokens(device_id, status, expires_unix_ms)"
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS token_authority_audit (
+                event_id TEXT PRIMARY KEY,
+                event_type TEXT NOT NULL,
+                event_unix_ms INTEGER NOT NULL,
+                device_id TEXT,
+                token_id TEXT,
+                session_id TEXT,
+                payload_json TEXT NOT NULL DEFAULT '{}'
+            )
+            """
+        )
+
+
+def mirror_scoped_upload_token_to_authority(
+    config,
+    *,
+    record: dict,
+    upload_token: str,
+    issued_unix_ms: int,
+    expires_unix_ms: int,
+) -> None:
+    db_path = token_authority_db_path(config)
+    if db_path is None:
+        return
+    ensure_token_authority_schema(db_path)
+    token_id = secrets.token_urlsafe(18)
+    device_id = str(record.get("device_id") or "").strip()
+    profile_id = str(record.get("profile_id") or config.profile_id).strip()
+    with sqlite3.connect(db_path) as conn:
+        conn.execute(
+            """
+            INSERT INTO paired_devices (
+                device_id, device_name, login_identity, profile_id,
+                paired_unix_ms, last_seen_unix_ms, status
+            ) VALUES (?, ?, ?, ?, ?, ?, 'paired')
+            ON CONFLICT(device_id) DO UPDATE SET
+                device_name=excluded.device_name,
+                login_identity=excluded.login_identity,
+                profile_id=excluded.profile_id,
+                last_seen_unix_ms=excluded.last_seen_unix_ms,
+                status='paired'
+            """,
+            (
+                device_id,
+                str(record.get("device_name") or device_id).strip(),
+                str(record.get("login_identity") or "unknown").strip(),
+                profile_id,
+                int(record.get("paired_unix_ms") or issued_unix_ms),
+                issued_unix_ms,
+            ),
+        )
+        conn.execute(
+            """
+            INSERT INTO upload_tokens (
+                token_id, device_id, profile_id, token_sha256,
+                issued_unix_ms, expires_unix_ms, status
+            ) VALUES (?, ?, ?, ?, ?, ?, 'issued_by_workstation_pairing_endpoint')
+            """,
+            (
+                token_id,
+                device_id,
+                profile_id,
+                hash_upload_token(upload_token),
+                issued_unix_ms,
+                expires_unix_ms,
+            ),
+        )
+        conn.execute(
+            """
+            INSERT INTO token_authority_audit (
+                event_id, event_type, event_unix_ms, device_id, token_id, payload_json
+            ) VALUES (?, 'token_issued_by_workstation_proxy', ?, ?, ?, ?)
+            """,
+            (
+                secrets.token_urlsafe(18),
+                issued_unix_ms,
+                device_id,
+                token_id,
+                json.dumps({"profile_id": profile_id}, sort_keys=True),
+            ),
+        )
+
+
+def mirror_device_status_to_authority(config, record: dict, now_ms: int) -> None:
+    db_path = token_authority_db_path(config)
+    if db_path is None:
+        return
+    ensure_token_authority_schema(db_path)
+    device_id = str(record.get("device_id") or "").strip()
+    if not device_id:
+        return
+    with sqlite3.connect(db_path) as conn:
+        conn.execute(
+            """
+            INSERT INTO paired_devices (
+                device_id, device_name, login_identity, profile_id,
+                paired_unix_ms, last_seen_unix_ms, last_session_id,
+                upload_queue_depth, ingest_status, status
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'paired')
+            ON CONFLICT(device_id) DO UPDATE SET
+                device_name=excluded.device_name,
+                login_identity=excluded.login_identity,
+                profile_id=excluded.profile_id,
+                last_seen_unix_ms=excluded.last_seen_unix_ms,
+                last_session_id=excluded.last_session_id,
+                upload_queue_depth=excluded.upload_queue_depth,
+                ingest_status=excluded.ingest_status,
+                status='paired'
+            """,
+            (
+                device_id,
+                str(record.get("device_name") or device_id).strip(),
+                str(record.get("login_identity") or "unknown").strip(),
+                str(record.get("profile_id") or config.profile_id).strip(),
+                int(record.get("paired_unix_ms") or now_ms),
+                now_ms,
+                record.get("session_id"),
+                record.get("upload_queue_depth"),
+                record.get("ingest_status"),
+            ),
+        )
+
+
+def public_device_record(record: dict) -> dict:
+    hidden_keys = {"upload_token_sha256", "last_pairing_code"}
+    return {key: value for key, value in record.items() if key not in hidden_keys}
+
+
+def _now_unix_ms() -> int:
+    return int(time.time() * 1000)
+
+
+def _public_base_from_host(*, scheme: str, host: str, port: int) -> str:
+    normalized_host = host.strip() or "127.0.0.1"
+    if ":" in normalized_host and not normalized_host.startswith("["):
+        normalized_host = f"[{normalized_host}]"
+    return f"{scheme}://{normalized_host}:{port}"
+
+
+def _status_ui_base(config) -> str:
+    if config.status_ui_public_base:
+        return config.status_ui_public_base.rstrip("/")
+    public_host = config.public_host or config.bind_host
+    return _public_base_from_host(scheme="http", host=public_host, port=config.port)
+
+
+def _edge_public_base(config) -> str:
+    return (config.edge_public_base or config.edge_http_base).rstrip("/")
+
+
+def _edge_ws_public_base(config) -> str:
+    return (config.edge_ws_public_base or config.edge_ws_base).rstrip("/")
+
+
+def _cleanup_pairing_state(config) -> bool:
+    changed = False
+    now_ms = _now_unix_ms()
+    expired = [
+        challenge
+        for challenge, item in config.pairing_challenges.items()
+        if int(item.get("expires_unix_ms", 0)) <= now_ms
+    ]
+    for challenge in expired:
+        config.pairing_challenges.pop(challenge, None)
+        changed = True
+    for device_id, item in list(config.device_registry.items()):
+        token_expires_ms = int(item.get("token_expires_unix_ms", 0) or 0)
+        if token_expires_ms and token_expires_ms <= now_ms and item.get("upload_token_status") != "expired":
+            item["upload_token_status"] = "expired"
+            changed = True
+    return changed
+
+
+def build_pairing_envelope(config) -> dict:
+    if _cleanup_pairing_state(config):
+        save_device_registry(config)
+    created_ms = _now_unix_ms()
+    ttl_sec = max(30, int(config.pairing_ttl_sec))
+    expires_ms = created_ms + ttl_sec * 1000
+    pairing_code = f"{secrets.randbelow(1_000_000):06d}"
+    challenge = secrets.token_urlsafe(24)
+    envelope = {
+        "type": PAIRING_TYPE,
+        "version": "1.0",
+        "profile_id": config.profile_id,
+        "edge_base_url": _edge_public_base(config),
+        "edge_ws_url": _edge_ws_public_base(config),
+        "status_ui_url": f"{_status_ui_base(config)}/#/capture",
+        "pairing_code": pairing_code,
+        "pairing_challenge": challenge,
+        "expires_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(expires_ms / 1000)),
+        "expires_unix_ms": expires_ms,
+        "operator_hint": config.operator_hint,
+        "scene_hint": config.scene_hint,
+    }
+    config.pairing_challenges[challenge] = {
+        "pairing_code": pairing_code,
+        "created_unix_ms": created_ms,
+        "expires_unix_ms": expires_ms,
+        "status": "issued",
+    }
+    return envelope
+
+
+def _read_json_body(handler: BaseHTTPRequestHandler, max_bytes: int = 16 * 1024) -> dict:
+    content_length = int(handler.headers.get("Content-Length", "0") or "0")
+    if content_length <= 0:
+        return {}
+    if content_length > max_bytes:
+        raise ValueError("request body too large")
+    raw = handler.rfile.read(content_length)
+    try:
+        payload = json.loads(raw.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise ValueError("invalid json body") from exc
+    if not isinstance(payload, dict):
+        raise ValueError("expected json object")
+    return payload
+
+
+def exchange_pairing_challenge(config, payload: dict) -> tuple[int, dict]:
+    if _cleanup_pairing_state(config):
+        save_device_registry(config)
+    challenge = str(payload.get("pairing_challenge") or "").strip()
+    pairing_code = str(payload.get("pairing_code") or "").strip()
+    device_id = str(payload.get("device_id") or "").strip()
+    login_identity = str(payload.get("login_identity") or payload.get("operator_id") or "").strip()
+    device_name = str(payload.get("device_name") or "").strip()
+
+    if not challenge or not pairing_code or not device_id:
+        return 400, {
+            "ok": False,
+            "error": "missing_required_fields",
+            "required": ["pairing_challenge", "pairing_code", "device_id"],
+        }
+
+    issued = config.pairing_challenges.get(challenge)
+    if not issued:
+        return 404, {"ok": False, "error": "unknown_or_expired_pairing_challenge"}
+    if issued.get("pairing_code") != pairing_code:
+        return 403, {"ok": False, "error": "pairing_code_mismatch"}
+
+    now_ms = _now_unix_ms()
+    token_ttl_sec = max(300, int(config.upload_token_ttl_sec))
+    token_expires_ms = now_ms + token_ttl_sec * 1000
+    upload_token = secrets.token_urlsafe(32)
+    record = {
+        "device_id": device_id,
+        "device_name": device_name or device_id,
+        "login_identity": login_identity or "unknown",
+        "profile_id": config.profile_id,
+        "paired_unix_ms": now_ms,
+        "last_seen_unix_ms": now_ms,
+        "last_pairing_code": pairing_code,
+        "upload_token_sha256": hash_upload_token(upload_token),
+        "upload_token_status": "issued_by_workstation_pairing_endpoint",
+        "token_expires_unix_ms": token_expires_ms,
+        "last_ack": None,
+        "upload_queue_depth": None,
+        "session_id": None,
+    }
+    config.device_registry[device_id] = record
+    issued["status"] = "exchanged"
+    issued["exchanged_unix_ms"] = now_ms
+    issued["device_id"] = device_id
+    mirror_scoped_upload_token_to_authority(
+        config,
+        record=record,
+        upload_token=upload_token,
+        issued_unix_ms=now_ms,
+        expires_unix_ms=token_expires_ms,
+    )
+    save_device_registry(config)
+
+    return 200, {
+        "ok": True,
+        "device": public_device_record(record),
+        "scoped_upload_token": upload_token,
+        "token_type": "chek_edge_pairing_bearer",
+        "expires_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(token_expires_ms / 1000)),
+        "expires_unix_ms": token_expires_ms,
+        "edge_base_url": _edge_public_base(config),
+        "status_ui_url": f"{_status_ui_base(config)}/#/capture",
+    }
+
+
+def update_device_status(config, payload: dict) -> tuple[int, dict]:
+    if _cleanup_pairing_state(config):
+        save_device_registry(config)
+    device_id = str(payload.get("device_id") or "").strip()
+    if not device_id:
+        return 400, {"ok": False, "error": "missing_required_fields", "required": ["device_id"]}
+
+    now_ms = _now_unix_ms()
+    record = dict(config.device_registry.get(device_id) or {})
+    record.setdefault("device_id", device_id)
+    record.setdefault("device_name", device_id)
+    record.setdefault("login_identity", "unknown")
+    record.setdefault("profile_id", config.profile_id)
+    record.setdefault("paired_unix_ms", now_ms)
+
+    for key in ("device_name", "login_identity", "profile_id", "session_id", "upload_token_status"):
+        if key in payload and payload.get(key) is not None:
+            record[key] = str(payload.get(key)).strip()
+
+    if "upload_queue_depth" in payload:
+        try:
+            record["upload_queue_depth"] = max(0, int(payload.get("upload_queue_depth")))
+        except (TypeError, ValueError):
+            return 400, {"ok": False, "error": "invalid_upload_queue_depth"}
+
+    if "last_ack" in payload:
+        last_ack = payload.get("last_ack")
+        if last_ack is not None and not isinstance(last_ack, (dict, str)):
+            return 400, {"ok": False, "error": "invalid_last_ack"}
+        record["last_ack"] = last_ack
+
+    for key in ("last_error", "ingest_status"):
+        if key in payload:
+            value = payload.get(key)
+            record[key] = None if value is None else str(value).strip()
+
+    record["last_seen_unix_ms"] = now_ms
+    record["status_source"] = "workstation_device_status_endpoint"
+    config.device_registry[device_id] = record
+    mirror_device_status_to_authority(config, record, now_ms)
+    save_device_registry(config)
+    return 200, {"ok": True, "device": public_device_record(record)}
+
+
+def build_device_registry_payload(config) -> dict:
+    if _cleanup_pairing_state(config):
+        save_device_registry(config)
+    return {
+        "generated_unix_ms": _now_unix_ms(),
+        "profile_id": config.profile_id,
+        "devices": sorted(
+            [public_device_record(record) for record in config.device_registry.values()],
+            key=lambda item: str(item.get("device_id") or ""),
+        ),
+        "active_pairing_challenges": len(config.pairing_challenges),
+    }
 
 
 def build_stereo_watchdog_payload(config) -> dict:
@@ -298,12 +778,54 @@ class WorkstationHandler(BaseHTTPRequestHandler):
             self.respond_json(200, {"status": "ok"})
             return
 
+        if path in {"/pairing/envelope", "/pairing/envelope.json", "/api/v1/pairing/envelope"}:
+            self.respond_json(200, build_pairing_envelope(self.server.config))
+            return
+
+        if path in {"/devices.json", "/api/v1/devices"}:
+            self.respond_json(200, build_device_registry_payload(self.server.config))
+            return
+
+        if path in {"/pairing/exchange", "/api/v1/pairing/exchange"}:
+            if self.command != "POST":
+                self.send_error(405, "method not allowed")
+                return
+            try:
+                payload = _read_json_body(self)
+            except ValueError as error:
+                self.respond_json(400, {"ok": False, "error": str(error)})
+                return
+            status, response = exchange_pairing_challenge(self.server.config, payload)
+            self.respond_json(status, response)
+            return
+
+        if path in {"/devices/status", "/api/v1/devices/status"}:
+            if self.command not in {"POST", "PATCH"}:
+                self.send_error(405, "method not allowed")
+                return
+            try:
+                payload = _read_json_body(self)
+            except ValueError as error:
+                self.respond_json(400, {"ok": False, "error": str(error)})
+                return
+            status, response = update_device_status(self.server.config, payload)
+            self.respond_json(status, response)
+            return
+
         if path == "/stereo-preview.jpg":
             self.send_known_file(self.server.config.stereo_preview_path, with_body, cache_control="no-store")
             return
 
         if path == "/stereo-watchdog.json":
             self.respond_json(200, build_stereo_watchdog_payload(self.server.config))
+            return
+
+        if path in {"/live-preview.json", "/storage/status", "/storage/sessions"}:
+            self.proxy_request("", self.server.config.proxy_map["/edge"], with_body)
+            return
+
+        if path == "/live-preview/file" or path.startswith("/live-preview/file/"):
+            self.proxy_request("", self.server.config.proxy_map["/edge"], with_body)
             return
 
         for prefix, target in self.server.config.proxy_map.items():
@@ -476,8 +998,20 @@ def parse_args():
     parser = argparse.ArgumentParser(description="Serve CHEK React workstation dist with same-origin HTTP proxying.")
     parser.add_argument("--bind", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=3010)
+    parser.add_argument("--public-host", default="")
     parser.add_argument("--dist-dir", default=str(default_root / "dist"))
     parser.add_argument("--edge-http-base", default="http://127.0.0.1:8080")
+    parser.add_argument("--edge-public-base", default="")
+    parser.add_argument("--edge-ws-base", default="ws://127.0.0.1:8765")
+    parser.add_argument("--edge-ws-public-base", default="")
+    parser.add_argument("--status-ui-public-base", default="")
+    parser.add_argument("--profile-id", default=PAIRING_PROFILE_ID)
+    parser.add_argument("--pairing-ttl-sec", type=int, default=300)
+    parser.add_argument("--upload-token-ttl-sec", type=int, default=3600)
+    parser.add_argument("--device-registry-path", default="")
+    parser.add_argument("--upload-token-authority-db-path", default="")
+    parser.add_argument("--operator-hint", default="ego-capture")
+    parser.add_argument("--scene-hint", default="unset")
     parser.add_argument("--sensing-http-base", default="http://127.0.0.1:18080")
     parser.add_argument("--sim-control-http-base", default="http://127.0.0.1:3011")
     parser.add_argument("--replay-http-base", default="http://127.0.0.1:3020")
@@ -491,11 +1025,33 @@ def main():
     dist_dir = Path(args.dist_dir).resolve()
     if not (dist_dir / "index.html").exists():
         raise SystemExit(f"React workstation dist not found: {dist_dir / 'index.html'}")
+    device_registry_path = (
+        Path(args.device_registry_path).expanduser()
+        if args.device_registry_path
+        else dist_dir.parent / ".workstation-device-registry.json"
+    ).resolve()
 
     config = argparse.Namespace(
         dist_dir=dist_dir,
         dist_files=build_dist_file_index(dist_dir),
         dist_index_path=os.path.realpath(dist_dir / "index.html"),
+        bind_host=args.bind,
+        port=args.port,
+        public_host=args.public_host,
+        edge_http_base=args.edge_http_base,
+        edge_public_base=args.edge_public_base,
+        edge_ws_base=args.edge_ws_base,
+        edge_ws_public_base=args.edge_ws_public_base,
+        status_ui_public_base=args.status_ui_public_base,
+        profile_id=args.profile_id,
+        pairing_ttl_sec=args.pairing_ttl_sec,
+        upload_token_ttl_sec=args.upload_token_ttl_sec,
+        device_registry_path=device_registry_path,
+        upload_token_authority_db_path=args.upload_token_authority_db_path,
+        operator_hint=args.operator_hint,
+        scene_hint=args.scene_hint,
+        pairing_challenges={},
+        device_registry=load_device_registry(device_registry_path),
         proxy_map={
             "/edge": validate_proxy_base(args.edge_http_base),
             "/sensing": validate_proxy_base(args.sensing_http_base),
@@ -509,6 +1065,10 @@ def main():
     print(f"CHEK workstation server listening on http://{args.bind}:{args.port}")
     print(f"  dist   -> {dist_dir}")
     print(f"  edge   -> {args.edge_http_base}")
+    print(f"  pairing -> {_status_ui_base(config)}/pairing/envelope")
+    print(f"  devices -> {device_registry_path}")
+    if token_authority_db_path(config) is not None:
+        print(f"  token authority -> {token_authority_db_path(config)}")
     print(f"  sensing-> {args.sensing_http_base}")
     print(f"  simctl -> {args.sim_control_http_base}")
     print(f"  replay -> {args.replay_http_base}")

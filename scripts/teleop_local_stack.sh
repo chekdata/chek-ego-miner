@@ -24,6 +24,8 @@ WORKSTATION_DIST_DIR="${WORKSTATION_DIR}/dist"
 WORKSTATION_SERVER_SCRIPT="${WORKSTATION_DIR}/scripts/workstation_server.py"
 RUNTIME_DIR="${EDGE_DIR}/target/codex-local/teleop-stack"
 META_FILE="${RUNTIME_DIR}/stack.env"
+DEVICE_REGISTRY_PATH="${RUNTIME_DIR}/workstation-device-registry.json"
+TOKEN_AUTHORITY_DB_PATH="${RUNTIME_DIR}/edge-data/pairing/token_authority.sqlite3"
 
 COMMAND="${1:-help}"
 if [[ $# -gt 0 ]]; then
@@ -54,8 +56,9 @@ STACK_PUBLIC_HOST="${STACK_PUBLIC_HOST:-${STACK_BIND_HOST}}"
 USE_RELEASE=0
 FOLLOW_LOGS=0
 LOG_SERVICE="all"
-EDGE_RUNTIME_PROFILE="${EDGE_RUNTIME_PROFILE:-teleop_fullstack}"
+EDGE_RUNTIME_PROFILE="${EDGE_RUNTIME_PROFILE:-capture_plus_facts}"
 CONTROL_STACK_ENABLED=1
+EDGE_WORKSTATION_DEVICE_STATUS_URL="${EDGE_WORKSTATION_DEVICE_STATUS_URL:-}"
 
 runtime_profile_default_flag() {
     local profile="${1:-teleop_fullstack}"
@@ -102,6 +105,14 @@ apply_runtime_profile_defaults() {
     fi
 }
 
+resolve_workstation_device_status_url() {
+    if [[ -n "${EDGE_WORKSTATION_DEVICE_STATUS_URL}" ]]; then
+        echo "${EDGE_WORKSTATION_DEVICE_STATUS_URL}"
+    else
+        echo "http://${STACK_CHECK_HOST}:${VIEWER_PORT}/devices/status"
+    fi
+}
+
 service_pid_file() {
     echo "${RUNTIME_DIR}/$1.pid"
 }
@@ -120,8 +131,8 @@ usage() {
   ./scripts/teleop_local_stack.sh logs [edge|leap|unitree|sim|viewer] [--follow]
 
 说明：
-  start     启动 edge-orchestrator + LEAP bridge + Unitree bridge + operator 模拟器 + React 工作站
-  stop      停止整套本机遥操调试栈
+  start     启动 edge-orchestrator + React 工作站；control profile 才启动 LEAP / Unitree / 模拟器
+  stop      停止整套本机 EGO 采集栈
   restart   先 stop 再 start
   status    查看各服务进程、健康检查与 edge control/state
   logs      查看日志；默认输出全部服务的最近日志
@@ -299,6 +310,9 @@ SIM_FPS=${SIM_FPS}
 ENABLE_SIM=${ENABLE_SIM}
 EDGE_RUNTIME_PROFILE=${EDGE_RUNTIME_PROFILE}
 CONTROL_STACK_ENABLED=${CONTROL_STACK_ENABLED}
+EDGE_UPLOAD_TOKEN_REGISTRY_PATH=${DEVICE_REGISTRY_PATH}
+EDGE_UPLOAD_TOKEN_AUTHORITY_DB_PATH=${TOKEN_AUTHORITY_DB_PATH}
+EDGE_WORKSTATION_DEVICE_STATUS_URL=${EDGE_WORKSTATION_DEVICE_STATUS_URL}
 USE_RELEASE=${USE_RELEASE}
 EOF
 }
@@ -561,6 +575,13 @@ start_edge() {
         EDGE_PHONE_VISION_SERVICE_AUTOSTART="${EDGE_PHONE_VISION_SERVICE_AUTOSTART:-0}" \
         EDGE_PHONE_VISION_PROCESSING_ENABLED="${EDGE_PHONE_VISION_PROCESSING_ENABLED:-1}" \
         EDGE_RUNTIME_PROFILE="${EDGE_RUNTIME_PROFILE}" \
+        EDGE_UPLOAD_TOKEN_REGISTRY_PATH="${DEVICE_REGISTRY_PATH}" \
+        EDGE_UPLOAD_TOKEN_AUTHORITY_DB_PATH="${TOKEN_AUTHORITY_DB_PATH}" \
+        EDGE_PAIRING_PROFILE_ID="ego_wide_rgbd_multi_iphone_v1" \
+        EDGE_PAIRING_EDGE_BASE_URL="http://${STACK_PUBLIC_HOST}:${EDGE_HTTP_PORT}" \
+        EDGE_PAIRING_EDGE_WS_URL="ws://${STACK_PUBLIC_HOST}:${EDGE_WS_PORT}" \
+        EDGE_PAIRING_STATUS_UI_URL="http://${STACK_PUBLIC_HOST}:${VIEWER_PORT}/#/capture" \
+        EDGE_WORKSTATION_DEVICE_STATUS_URL="$(resolve_workstation_device_status_url)" \
         EDGE_PHONE_INGEST_ENABLED="${EDGE_PHONE_INGEST_ENABLED:-$(runtime_profile_default_flag "${EDGE_RUNTIME_PROFILE}" phone_ingest)}" \
         EDGE_STEREO_ENABLED="${EDGE_STEREO_ENABLED:-$(runtime_profile_default_flag "${EDGE_RUNTIME_PROFILE}" stereo)}" \
         EDGE_WIFI_ENABLED="${EDGE_WIFI_ENABLED:-$(runtime_profile_default_flag "${EDGE_RUNTIME_PROFILE}" wifi)}" \
@@ -680,8 +701,15 @@ start_viewer() {
         python3 "${WORKSTATION_SERVER_SCRIPT}" \
         --bind "${STACK_BIND_HOST}" \
         --port "${VIEWER_PORT}" \
+        --public-host "${STACK_PUBLIC_HOST}" \
         --dist-dir "${WORKSTATION_DIST_DIR}" \
         --edge-http-base "http://${STACK_CHECK_HOST}:${EDGE_HTTP_PORT}" \
+        --edge-public-base "http://${STACK_PUBLIC_HOST}:${EDGE_HTTP_PORT}" \
+        --edge-ws-base "ws://${STACK_CHECK_HOST}:${EDGE_WS_PORT}" \
+        --edge-ws-public-base "ws://${STACK_PUBLIC_HOST}:${EDGE_WS_PORT}" \
+        --status-ui-public-base "http://${STACK_PUBLIC_HOST}:${VIEWER_PORT}" \
+        --device-registry-path "${DEVICE_REGISTRY_PATH}" \
+        --upload-token-authority-db-path "${TOKEN_AUTHORITY_DB_PATH}" \
         --sensing-http-base "http://${STACK_CHECK_HOST}:${SENSING_HTTP_PORT}" \
         --sim-control-http-base "http://${STACK_CHECK_HOST}:${SIM_CONTROL_PORT}" \
         --replay-http-base "http://${STACK_CHECK_HOST}:${REPLAY_HTTP_PORT}"
@@ -692,14 +720,14 @@ start_viewer() {
 print_summary() {
     local workstation_url viewer_url
     if [[ "${ENABLE_SIM}" -eq 1 ]]; then
-        workstation_url="http://${STACK_PUBLIC_HOST}:${EDGE_HTTP_PORT}/?token=${EDGE_TOKEN}#/overview"
-        viewer_url="http://${STACK_PUBLIC_HOST}:${VIEWER_PORT}/?token=${EDGE_TOKEN}#/overview"
+        workstation_url="http://${STACK_PUBLIC_HOST}:${EDGE_HTTP_PORT}/?token=${EDGE_TOKEN}#/capture"
+        viewer_url="http://${STACK_PUBLIC_HOST}:${VIEWER_PORT}/?token=${EDGE_TOKEN}#/capture"
     else
-        workstation_url="http://${STACK_PUBLIC_HOST}:${EDGE_HTTP_PORT}/?token=${EDGE_TOKEN}#/overview"
-        viewer_url="http://${STACK_PUBLIC_HOST}:${VIEWER_PORT}/?token=${EDGE_TOKEN}#/overview"
+        workstation_url="http://${STACK_PUBLIC_HOST}:${EDGE_HTTP_PORT}/?token=${EDGE_TOKEN}#/capture"
+        viewer_url="http://${STACK_PUBLIC_HOST}:${VIEWER_PORT}/?token=${EDGE_TOKEN}#/capture"
     fi
     cat <<EOF
-本机遥操调试栈已启动
+本机 EGO 采集栈已启动
   edge HTTP:      http://${STACK_PUBLIC_HOST}:${EDGE_HTTP_PORT}/health
   edge control:   http://${STACK_PUBLIC_HOST}:${EDGE_HTTP_PORT}/control/state
   edge WS fusion: ws://${STACK_PUBLIC_HOST}:${EDGE_WS_PORT}/stream/fusion
@@ -709,6 +737,10 @@ print_summary() {
   独立预览:       ${viewer_url}
   模拟控制:       $( [[ "${ENABLE_SIM}" -eq 1 ]] && echo "http://${STACK_PUBLIC_HOST}:${SIM_CONTROL_PORT}/state" || echo "未启动（真机/真实传感器模式）" )
   trip/session:   ${TRIP_ID} / ${SESSION_ID}
+  设备注册表:     ${DEVICE_REGISTRY_PATH}
+  scoped token:   EDGE_UPLOAD_TOKEN_REGISTRY_PATH=${DEVICE_REGISTRY_PATH}
+  token authority:${TOKEN_AUTHORITY_DB_PATH}
+  ACK 状态回写:   $(resolve_workstation_device_status_url)
   runtime profile:${EDGE_RUNTIME_PROFILE}
   运行目录:       ${RUNTIME_DIR}
 EOF
@@ -902,9 +934,9 @@ PY
     echo "[viewer]"
     if [[ "${viewer_running}" -eq 1 ]]; then
         if [[ "${sim_running}" -eq 1 ]]; then
-            echo "http://${STACK_PUBLIC_HOST}:${VIEWER_PORT}/?token=${EDGE_TOKEN}&control=http://${STACK_PUBLIC_HOST}:${SIM_CONTROL_PORT}#/overview"
+            echo "http://${STACK_PUBLIC_HOST}:${VIEWER_PORT}/?token=${EDGE_TOKEN}&control=http://${STACK_PUBLIC_HOST}:${SIM_CONTROL_PORT}#/capture"
         else
-            echo "http://${STACK_PUBLIC_HOST}:${VIEWER_PORT}/?token=${EDGE_TOKEN}#/overview"
+            echo "http://${STACK_PUBLIC_HOST}:${VIEWER_PORT}/?token=${EDGE_TOKEN}#/capture"
         fi
     else
         echo "viewer 未运行，跳过探活"

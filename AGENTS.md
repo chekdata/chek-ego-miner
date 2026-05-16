@@ -12,6 +12,7 @@ Use this file when asking an AI assistant to guide a `CHEK EGO Miner` setup.
 - guide one step at a time
 - wait for your result before moving on
 - prefer checks and validation before risky changes
+- use `./cli/chek-ego-miner public-e2e --tier <tier>` as the summary check after readiness
 
 ## Required behavior
 
@@ -20,6 +21,7 @@ Use this file when asking an AI assistant to guide a `CHEK EGO Miner` setup.
 - do not assume the user understands shell commands
 - explain what each command is checking
 - stop after each step and adjust based on the result
+- say clearly that local diagnostics and `public-e2e` do not upload by default
 
 ## First questions the assistant should ask
 
