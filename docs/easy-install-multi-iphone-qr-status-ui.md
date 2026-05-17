@@ -38,9 +38,12 @@ The CLI already forwards to install / status / start / bind / service-install / 
 
 What is still missing for the new dataset direction:
 
-- continuous fisheye/secondary track validation for profiles that require more than a single auxiliary snapshot;
-- a longer multi-iPhone soak after whole-disk storage pressure is cleared;
-- production GitOps / DEV merge and environment sync.
+- a longer multi-iPhone soak after whole-disk storage pressure is reduced further or the Edge data root is moved to a larger volume.
+
+Resolved on 2026-05-17 CST:
+
+- Continuous fisheye / ultrawide secondary video is not required for the current pure EGO final deliverable. Keep any fisheye snapshots or merged fisheye review media as optional supporting evidence only; missing continuous fisheye must not block `ego_wide_rgbd_multi_iphone_v1`.
+- The Edge/RuView production path and iOS DEV follow-up have both been merged into their shared lanes.
 
 ## Product Goal
 
@@ -117,12 +120,12 @@ Latest verified two-iPhone LAN run:
 - Device/session A: `device_id=BDFAAA1C-E772-4A2C-B344-6421F98560D7`, session `bd550c06-324e-421b-81a0-cd868ece2d1d`, `last_ack.chunk_index=55`.
 - Device/session B: `device_id=EF2C2093-1969-499A-AE82-3255818B539E`, session `8b1481e7-3ca1-4da7-97d2-c79f9688dd78`, `last_ack.chunk_index=21`.
 - Manifest identity: both `manifest.json`, `demo_capture_bundle.json`, and `upload/upload_manifest.json` carry the scoped pairing context under `session_context`, including `capture_device_id`, `login_identity`, `device_name`, `pairing_profile_id`, and `upload_auth_kind=scoped_upload_token`.
-- QA status after metadata recompute: both sessions report `ready_for_upload=true`, `status=retry_recommended`, `score_percent=91.67`, and `missing_artifacts=["fisheye_track_present"]`.
+- QA status after metadata recompute: both sessions originally reported `ready_for_upload=true`, `status=retry_recommended`, `score_percent=91.67`, and `missing_artifacts=["fisheye_track_present"]`. The 2026-05-17 product decision makes continuous fisheye optional, so this item is no longer a delivery blocker and the QA rule has been relaxed.
 - Core EGO artifacts present in both sessions: `capture_pose_present`, `pose_imu_present`, `raw_depth_present`, `iphone_calibration_present`, `time_sync_present`, `human_demo_pose_present`, `teleop_frame_present`, `media_tracks_present`, and `robot_state_present` treated as satisfied because `control_enabled=false`.
 - Line counts after recompute:
   - `bd550c06-324e-421b-81a0-cd868ece2d1d`: `raw/iphone/wide/kpts_depth.jsonl=1442`, `pose_imu=722`, `depth/index=722`, `raw/iphone/depth/media_index.jsonl=56`, `sync/time_sync_samples.jsonl=46`, `chunks/chunk_state.jsonl=189`.
   - `8b1481e7-3ca1-4da7-97d2-c79f9688dd78`: `raw/iphone/wide/kpts_depth.jsonl=114`, `pose_imu=57`, `depth/index=57`, `raw/iphone/depth/media_index.jsonl=23`, `sync/time_sync_samples.jsonl=18`, `chunks/chunk_state.jsonl=86`.
-- Storage caveat: `/storage/status` remained `critical` with rolling pool `over_hard_limit`; this run intentionally stayed short. Do not run long captures until storage is cleaned or moved.
+- Storage caveat at capture time: `/storage/status` remained `critical` with rolling pool `over_hard_limit`; this run intentionally stayed short. After the 2026-05-17 safe cache cleanup, `/storage/status` improved to `warning`; short validation can continue, but long soak should still wait for more headroom or a larger Edge data volume.
 
 Merged review media generated from that run:
 
@@ -166,8 +169,9 @@ Local storage cleanup performed:
 
 - Old reject/probe/smoke sessions were removed.
 - The three ACKed true-device sessions above were retained as protected evidence.
-- Edge rolling pool is now empty/tracked; `/storage/status` remains `critical` because the whole disk free ratio is still under the Edge critical threshold, not because stale Edge sessions remain.
-- Long captures and soak runs should wait until the machine has substantially more free disk space or the Edge data directory is moved to a larger volume.
+- 2026-05-17 safe cache cleanup removed generated build/cache/simulator/temp artifacts without deleting source, device registry, `devices.json`, SQLite state, bridge logs, or retained sessions.
+- Edge rolling pool is small/tracked; `/storage/status` now reports `warning`, not `critical`, because whole-disk pressure is improved but not yet ideal for long soak.
+- Long captures and soak runs should still wait until the machine has substantially more free disk space or the Edge data directory is moved to a larger volume.
 
 Latest verified single-iPhone run:
 
@@ -179,12 +183,12 @@ Latest verified single-iPhone run:
 - Good log markers: `pairing_exchange_ok`, `launch_bootstrap_ok`, `health_ok`, `scoped_ego_pairing_health_ok_skip_legacy_gate`, `auto_enter_allowed`, `session_start_ok`, `phone_vision_http infer_ok`, `diagnostic_reason=vision_3d_ok`, `capture_pose send_http_primary accepted=1`, `upload_ok`, `chunk_ack stored`, and `chunk_cleaned posted_ok`.
 - Device registry status: `/devices.json` reported `session_id=48e661b3-f251-4b6a-81e9-8c23a80b2a5c`, `last_ack.chunk_index=27`, `upload_queue_depth=0`, and `ingest_status=acked`.
 - Manifest identity: `capture_device_id`, `login_identity`, `device_name`, `pairing_profile_id`, and `upload_auth_kind=scoped_upload_token` are present.
-- QA status after metadata recompute: `ready_for_upload=true`, `status=retry_recommended`, `missing_artifacts=["fisheye_track_present"]`.
+- QA status after metadata recompute originally reported `ready_for_upload=true`, `status=retry_recommended`, `missing_artifacts=["fisheye_track_present"]`; continuous fisheye is now optional for the current EGO deliverable.
 - Core EGO artifacts present: `capture_pose_present`, `pose_imu_present`, `raw_depth_present`, `iphone_calibration_present`, `time_sync_present`, `human_demo_pose_present`, `teleop_frame_present`, `media_tracks_present`.
 - Line counts: `raw/iphone/wide/kpts_depth.jsonl=342`, `raw/iphone/wide/pose_imu.jsonl=171`, `raw/iphone/wide/depth/index.jsonl=171`, `raw/iphone/depth/media_index.jsonl=28`, `sync/time_sync_samples.jsonl=23`, `chunks/chunk_state.jsonl=84`.
 - Pure EGO QA rule: `robot_state_present` is now optional when `control_enabled=false`; the verified session reports `raw/robot/state.jsonl 行数=0（control disabled by runtime profile）`.
-- Remaining recommendation: `raw/iphone/fisheye/media_index.jsonl` has one auxiliary snapshot, not a continuous fisheye track. Treat this as non-blocking for the scoped EGO upload path, but still unresolved if the dataset profile requires continuous auxiliary/fisheye media.
-- Storage caveat: local storage was still `critical` / rolling pool `over_hard_limit`; avoid long captures until storage is cleaned or moved.
+- Fisheye note: `raw/iphone/fisheye/media_index.jsonl` has one auxiliary snapshot, not a continuous fisheye track. This is acceptable for the current scoped EGO deliverable and should be treated as optional review evidence.
+- Storage caveat: local storage was still `critical` / rolling pool `over_hard_limit` at the time of this run. After cleanup it is `warning`; avoid long soak until more headroom is available.
 
 ## Status UI
 
@@ -273,10 +277,11 @@ P0 implemented in this pass:
 - The local phone-vision sidecar dependency set includes `rtmlib`, and the verified run produced `vision_3d_ok` with body/hand 3D points.
 - QA now accepts depth from either the legacy wide depth index or the chunk media index and treats missing robot state as non-blocking when `control_enabled=false`.
 
-P0 still required before real multi-iPhone collection:
+P0 closure notes before real multi-iPhone collection:
 
-- Decide whether `ego_wide_rgbd_multi_iphone_v1` requires continuous fisheye media. If yes, fix the iOS secondary/fisheye capture path and rerun a short capture; if no, relax/document the QA recommendation for this profile.
-- Clear or move local storage before any long capture or multi-iPhone soak; Edge rolling sessions are clean, but `/storage/status` is still `critical` due to whole-disk pressure.
+- [x] Continuous fisheye media is not required for `ego_wide_rgbd_multi_iphone_v1`; keep it optional / best-effort and do not block final EGO delivery on `fisheye_track_present`.
+- [x] Safe local cache cleanup improved Edge storage from `critical` to `warning` without deleting retained sessions or user data.
+- [ ] Before long capture or multi-iPhone soak, create more disk headroom or move the Edge data directory to a larger volume.
 
 P1 recommended before pilot:
 
