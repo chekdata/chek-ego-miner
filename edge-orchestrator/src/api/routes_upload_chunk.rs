@@ -216,9 +216,11 @@ async fn upload_chunk(
     update_session_identity_from_upload(&state, &meta, &upload_auth_context).await;
 
     // 最终落盘位置（与 PRD 目录结构对齐：/data/ruview/session/<session_id>/raw/<scope>/<track>/...）
-    let media_scope = match meta.media_scope.as_deref() {
+    let media_scope = match meta.media_scope.as_deref().map(str::trim) {
+        Some("android") => "android",
         Some("stereo") => "stereo",
-        _ => "iphone",
+        Some("iphone") | Some("") | None => "iphone",
+        Some(_) => meta.media_scope.as_deref().unwrap_or("iphone").trim(),
     };
     let media_track = match resolve_media_track(media_scope, meta.media_track.as_deref()) {
         Ok(track) => track,
@@ -544,7 +546,7 @@ async fn upload_chunk(
         meta.file_type.as_deref(),
         &state.config.upload_required_file_types,
     );
-    let should_ack = if media_scope == "iphone" {
+    let should_ack = if matches!(media_scope, "iphone" | "android") {
         state.chunk_sm.note_file_stored(
             &meta.trip_id,
             &meta.session_id,
@@ -735,7 +737,7 @@ fn upload_required_file_types_for_chunk(
     let configured_is_legacy_default = configured_types.as_slice() == ["csv", "det"];
     let file_type = file_type.unwrap_or("").trim();
 
-    if media_scope == "iphone"
+    if matches!(media_scope, "iphone" | "android")
         && configured_is_legacy_default
         && matches!(file_type, "video" | "depth16")
     {
@@ -878,6 +880,13 @@ fn resolve_media_track<'a>(
             other => Err((
                 "invalid_media_track",
                 format!("iphone media_track 不支持: {other}"),
+            )),
+        },
+        "android" => match media_track.unwrap_or("main") {
+            "main" | "depth" | "aux" => Ok(media_track.unwrap_or("main")),
+            other => Err((
+                "invalid_media_track",
+                format!("android media_track 不支持: {other}"),
             )),
         },
         "stereo" => match media_track.unwrap_or("preview") {

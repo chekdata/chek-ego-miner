@@ -4491,7 +4491,7 @@ impl ActiveSession {
                 }
                 "wifi_or_csi_present" => "建议补齐 Wi-Fi pose/CSI，保留多源观测。".to_string(),
                 "fisheye_track_present" => {
-                    "建议开启超广角连续辅路；若机型只支持快照辅路，至少提高抽帧频率并确认正式 fisheye 轨已落盘。".to_string()
+                    "超广角连续辅路仅作为可选辅助素材；当前 EGO 交付不要求补录。".to_string()
                 }
                 "media_tracks_present" => "建议补录至少一条可回放媒体轨。".to_string(),
                 _ => format!("检查 `{missing}` 对应的采集链路。"),
@@ -4895,11 +4895,17 @@ impl ActiveSession {
             },
             LocalQualityCheck {
                 id: "fisheye_track_present",
-                ok: fisheye_track_present,
-                score: if fisheye_track_present { 1.0 } else { 0.0 },
+                ok: true,
+                score: 1.0,
                 detail: format!(
-                    "raw/iphone/fisheye/media_index 行数={}，累计 frame_count={}",
-                    fisheye_summary.record_count, fisheye_summary.frame_count
+                    "raw/iphone/fisheye/media_index 行数={}，累计 frame_count={}{}",
+                    fisheye_summary.record_count,
+                    fisheye_summary.frame_count,
+                    if fisheye_track_present {
+                        "（可选辅助轨已存在）"
+                    } else {
+                        "（连续超广角轨为可选辅助素材，非当前 EGO 交付门槛）"
+                    }
                 ),
             },
             LocalQualityCheck {
@@ -7346,6 +7352,15 @@ mod tests {
                 .unwrap()
                 .iter()
                 .any(|item| item.as_str() == Some("robot_state_present")),
+            false
+        );
+        assert_eq!(
+            quality
+                .get("missing_artifacts")
+                .and_then(|value| value.as_array())
+                .unwrap()
+                .iter()
+                .any(|item| item.as_str() == Some("fisheye_track_present")),
             false
         );
         assert!(!result

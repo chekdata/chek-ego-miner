@@ -155,5 +155,6 @@ For production rollout, the authority side is no longer just a design document. 
 - push and merge the local branches into the chosen DEV / production lanes;
 - deploy the Edge build with `EDGE_PAIRING_AUTHORITY=sqlite`;
 - run a post-deploy QR pair/exchange/upload/revoke smoke;
-- keep whole-disk storage above the Edge critical threshold before long captures;
-- decide whether continuous fisheye is mandatory for `ego_wide_rgbd_multi_iphone_v1`.
+- keep whole-disk storage above the Edge warning threshold before long captures.
+
+Resolved on 2026-05-17 CST: continuous fisheye / ultrawide secondary video is optional supporting evidence for `ego_wide_rgbd_multi_iphone_v1`, not a final-delivery gate.
