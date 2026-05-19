@@ -393,6 +393,86 @@ async fn upload_chunk_ack_updates_workstation_device_status_for_iphone_raw_media
 }
 
 #[tokio::test]
+async fn upload_chunk_accepts_android_motion_sidecar_track() -> anyhow::Result<()> {
+    let server = support::TestServer::spawn().await?;
+    let client = reqwest::Client::new();
+
+    let trip_id = "trip-android-motion-001";
+    let session_id = "sess-android-motion-001";
+    let device_id = "android-motion-001";
+    let chunk_index: u32 = 5;
+    let file_name = "motion_000005.json";
+
+    let meta = serde_json::json!({
+        "trip_id": trip_id,
+        "session_id": session_id,
+        "device_id": device_id,
+        "chunk_index": chunk_index,
+        "file_type": "json",
+        "file_name": file_name,
+        "media_scope": "android",
+        "media_track": "motion",
+        "source_kind": "android_sensor_manager_motion_sidecar",
+        "clock_domain": "android_elapsed_realtime_ns",
+        "source_time_ns": 1234567890_u64,
+        "frame_count": 15,
+        "frame_rate_hz": 15.0
+    });
+    let form = multipart::Form::new()
+        .part(
+            "file",
+            multipart::Part::bytes(
+                br#"{"world_pose_available":false,"world_pose_semantics":"device_relative"}"#
+                    .to_vec(),
+            )
+            .file_name(file_name.to_string()),
+        )
+        .text("metadata", meta.to_string());
+
+    let response = client
+        .post(format!("{}/common_task/upload_chunk", server.http_base))
+        .bearer_auth(&server.edge_token)
+        .multipart(form)
+        .send()
+        .await?
+        .error_for_status()?
+        .json::<serde_json::Value>()
+        .await?;
+
+    assert_eq!(
+        response.get("media_scope").and_then(|value| value.as_str()),
+        Some("android")
+    );
+    assert_eq!(
+        response.get("media_track").and_then(|value| value.as_str()),
+        Some("motion")
+    );
+
+    let session_dir = server.data_dir.join("session").join(session_id);
+    let motion_file = session_dir
+        .join("raw")
+        .join("android")
+        .join("motion")
+        .join("chunks")
+        .join("000005")
+        .join("json__motion_000005.json");
+    support::wait_for_file(motion_file).await?;
+
+    let motion_index = session_dir
+        .join("raw")
+        .join("android")
+        .join("motion")
+        .join("media_index.jsonl");
+    support::wait_for_file(motion_index.clone()).await?;
+    let index = tokio::fs::read_to_string(motion_index).await?;
+    assert!(index.contains("\"media_scope\":\"android\""));
+    assert!(index.contains("\"media_track\":\"motion\""));
+    assert!(index.contains("\"source_kind\":\"android_sensor_manager_motion_sidecar\""));
+
+    Ok(())
+}
+
+#[tokio::test]
 async fn upload_chunk_accepts_pairing_scoped_token_bound_to_device() -> anyhow::Result<()> {
     let scoped_token = "scoped-upload-token-test-001";
     let device_id = "iphone-scoped-token-001";

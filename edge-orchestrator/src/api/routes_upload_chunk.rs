@@ -883,7 +883,7 @@ fn resolve_media_track<'a>(
             )),
         },
         "android" => match media_track.unwrap_or("main") {
-            "main" | "depth" | "aux" => Ok(media_track.unwrap_or("main")),
+            "main" | "depth" | "aux" | "motion" => Ok(media_track.unwrap_or("main")),
             other => Err((
                 "invalid_media_track",
                 format!("android media_track 不支持: {other}"),
