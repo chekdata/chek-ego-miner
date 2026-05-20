@@ -41,8 +41,8 @@ def pairing_config(
         public_host="192.168.1.20",
         edge_http_base="http://127.0.0.1:8080",
         edge_public_base="http://192.168.1.20:8080",
-        edge_ws_base="ws://127.0.0.1:8765",
-        edge_ws_public_base="ws://192.168.1.20:8765",
+        edge_ws_base="ws://127.0.0.1:8765/stream/fusion",
+        edge_ws_public_base="ws://192.168.1.20:8765/stream/fusion",
         status_ui_public_base="http://192.168.1.20:3010",
         profile_id="ego_wide_rgbd_multi_iphone_v1",
         pairing_ttl_sec=300,
@@ -64,7 +64,7 @@ def test_pairing_envelope_uses_lan_public_urls() -> None:
     assert envelope["type"] == "chek_ego_edge_pairing"
     assert envelope["profile_id"] == "ego_wide_rgbd_multi_iphone_v1"
     assert envelope["edge_base_url"] == "http://192.168.1.20:8080"
-    assert envelope["edge_ws_url"] == "ws://192.168.1.20:8765"
+    assert envelope["edge_ws_url"] == "ws://192.168.1.20:8765/stream/fusion"
     assert envelope["status_ui_url"] == "http://192.168.1.20:3010/#/capture"
     assert len(envelope["pairing_code"]) == 6
     assert envelope["pairing_challenge"] in config.pairing_challenges
