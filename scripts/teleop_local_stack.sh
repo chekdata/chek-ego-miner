@@ -53,6 +53,9 @@ SIM_FLAG_EXPLICIT=0
 STACK_BIND_HOST="${STACK_BIND_HOST:-127.0.0.1}"
 STACK_CHECK_HOST="${STACK_CHECK_HOST:-127.0.0.1}"
 STACK_PUBLIC_HOST="${STACK_PUBLIC_HOST:-${STACK_BIND_HOST}}"
+EDGE_PAIRING_EDGE_BASE_URL="${EDGE_PAIRING_EDGE_BASE_URL:-}"
+EDGE_PAIRING_EDGE_WS_URL="${EDGE_PAIRING_EDGE_WS_URL:-}"
+EDGE_PAIRING_STATUS_UI_URL="${EDGE_PAIRING_STATUS_UI_URL:-}"
 USE_RELEASE=0
 FOLLOW_LOGS=0
 LOG_SERVICE="all"
@@ -110,6 +113,72 @@ resolve_workstation_device_status_url() {
         echo "${EDGE_WORKSTATION_DEVICE_STATUS_URL}"
     else
         echo "http://${STACK_CHECK_HOST}:${VIEWER_PORT}/devices/status"
+    fi
+}
+
+edge_pairing_base_url() {
+    if [[ -n "${EDGE_PAIRING_EDGE_BASE_URL}" ]]; then
+        echo "${EDGE_PAIRING_EDGE_BASE_URL%/}"
+    else
+        echo "http://${STACK_PUBLIC_HOST}:${EDGE_HTTP_PORT}"
+    fi
+}
+
+edge_pairing_ws_url() {
+    if [[ -n "${EDGE_PAIRING_EDGE_WS_URL}" ]]; then
+        echo "${EDGE_PAIRING_EDGE_WS_URL%/}"
+    else
+        echo "ws://${STACK_PUBLIC_HOST}:${EDGE_WS_PORT}/stream/fusion"
+    fi
+}
+
+edge_pairing_status_ui_url() {
+    if [[ -n "${EDGE_PAIRING_STATUS_UI_URL}" ]]; then
+        echo "${EDGE_PAIRING_STATUS_UI_URL%/}"
+    else
+        echo "http://${STACK_PUBLIC_HOST}:${VIEWER_PORT}/#/capture"
+    fi
+}
+
+status_ui_public_base() {
+    local url
+    url="$(edge_pairing_status_ui_url)"
+    echo "${url%%#*}"
+}
+
+local_private_ip_present() {
+    local host="$1"
+    if [[ "${host}" == "localhost" || "${host}" == "127.0.0.1" || "${host}" == "::1" ]]; then
+        return 0
+    fi
+    if ! [[ "${host}" =~ ^(10\.|192\.168\.|172\.(1[6-9]|2[0-9]|3[0-1])\.) ]]; then
+        return 0
+    fi
+    if ifconfig 2>/dev/null | grep -E "inet ${host}([[:space:]]|/)" >/dev/null; then
+        return 0
+    fi
+    if command -v ip >/dev/null 2>&1 && ip addr 2>/dev/null | grep -E "inet ${host}([/[:space:]])" >/dev/null; then
+        return 0
+    fi
+    return 1
+}
+
+validate_pairing_public_host() {
+    if [[ -n "${EDGE_PAIRING_EDGE_BASE_URL}" \
+        && -n "${EDGE_PAIRING_EDGE_WS_URL}" \
+        && -n "${EDGE_PAIRING_STATUS_UI_URL}" ]]
+    then
+        return 0
+    fi
+    if ! local_private_ip_present "${STACK_PUBLIC_HOST}"; then
+        cat >&2 <<EOF
+public-host ${STACK_PUBLIC_HOST} 不是当前主机上的私网地址，手机扫码后很可能连不上。
+请改用当前 LAN IP，或同时显式传入：
+  EDGE_PAIRING_EDGE_BASE_URL=https://<reachable-edge>
+  EDGE_PAIRING_EDGE_WS_URL=wss://<reachable-ws>/stream/fusion
+  EDGE_PAIRING_STATUS_UI_URL=https://<reachable-ui>/#/capture
+EOF
+        return 1
     fi
 }
 
@@ -313,6 +382,9 @@ CONTROL_STACK_ENABLED=${CONTROL_STACK_ENABLED}
 EDGE_UPLOAD_TOKEN_REGISTRY_PATH=${DEVICE_REGISTRY_PATH}
 EDGE_UPLOAD_TOKEN_AUTHORITY_DB_PATH=${TOKEN_AUTHORITY_DB_PATH}
 EDGE_WORKSTATION_DEVICE_STATUS_URL=${EDGE_WORKSTATION_DEVICE_STATUS_URL}
+EDGE_PAIRING_EDGE_BASE_URL=${EDGE_PAIRING_EDGE_BASE_URL}
+EDGE_PAIRING_EDGE_WS_URL=${EDGE_PAIRING_EDGE_WS_URL}
+EDGE_PAIRING_STATUS_UI_URL=${EDGE_PAIRING_STATUS_UI_URL}
 USE_RELEASE=${USE_RELEASE}
 EOF
 }
@@ -578,9 +650,9 @@ start_edge() {
         EDGE_UPLOAD_TOKEN_REGISTRY_PATH="${DEVICE_REGISTRY_PATH}" \
         EDGE_UPLOAD_TOKEN_AUTHORITY_DB_PATH="${TOKEN_AUTHORITY_DB_PATH}" \
         EDGE_PAIRING_PROFILE_ID="ego_wide_rgbd_multi_iphone_v1" \
-        EDGE_PAIRING_EDGE_BASE_URL="http://${STACK_PUBLIC_HOST}:${EDGE_HTTP_PORT}" \
-        EDGE_PAIRING_EDGE_WS_URL="ws://${STACK_PUBLIC_HOST}:${EDGE_WS_PORT}/stream/fusion" \
-        EDGE_PAIRING_STATUS_UI_URL="http://${STACK_PUBLIC_HOST}:${VIEWER_PORT}/#/capture" \
+        EDGE_PAIRING_EDGE_BASE_URL="$(edge_pairing_base_url)" \
+        EDGE_PAIRING_EDGE_WS_URL="$(edge_pairing_ws_url)" \
+        EDGE_PAIRING_STATUS_UI_URL="$(edge_pairing_status_ui_url)" \
         EDGE_WORKSTATION_DEVICE_STATUS_URL="$(resolve_workstation_device_status_url)" \
         EDGE_PHONE_INGEST_ENABLED="${EDGE_PHONE_INGEST_ENABLED:-$(runtime_profile_default_flag "${EDGE_RUNTIME_PROFILE}" phone_ingest)}" \
         EDGE_STEREO_ENABLED="${EDGE_STEREO_ENABLED:-$(runtime_profile_default_flag "${EDGE_RUNTIME_PROFILE}" stereo)}" \
@@ -704,10 +776,10 @@ start_viewer() {
         --public-host "${STACK_PUBLIC_HOST}" \
         --dist-dir "${WORKSTATION_DIST_DIR}" \
         --edge-http-base "http://${STACK_CHECK_HOST}:${EDGE_HTTP_PORT}" \
-        --edge-public-base "http://${STACK_PUBLIC_HOST}:${EDGE_HTTP_PORT}" \
+        --edge-public-base "$(edge_pairing_base_url)" \
         --edge-ws-base "ws://${STACK_CHECK_HOST}:${EDGE_WS_PORT}" \
-        --edge-ws-public-base "ws://${STACK_PUBLIC_HOST}:${EDGE_WS_PORT}" \
-        --status-ui-public-base "http://${STACK_PUBLIC_HOST}:${VIEWER_PORT}" \
+        --edge-ws-public-base "$(edge_pairing_ws_url)" \
+        --status-ui-public-base "$(status_ui_public_base)" \
         --device-registry-path "${DEVICE_REGISTRY_PATH}" \
         --upload-token-authority-db-path "${TOKEN_AUTHORITY_DB_PATH}" \
         --sensing-http-base "http://${STACK_CHECK_HOST}:${SENSING_HTTP_PORT}" \
@@ -728,13 +800,14 @@ print_summary() {
     fi
     cat <<EOF
 本机 EGO 采集栈已启动
-  edge HTTP:      http://${STACK_PUBLIC_HOST}:${EDGE_HTTP_PORT}/health
+  edge HTTP:      $(edge_pairing_base_url)/health
   edge control:   http://${STACK_PUBLIC_HOST}:${EDGE_HTTP_PORT}/control/state
-  edge WS fusion: ws://${STACK_PUBLIC_HOST}:${EDGE_WS_PORT}/stream/fusion
+  edge WS fusion: $(edge_pairing_ws_url)
   leap health:    $( [[ "${CONTROL_STACK_ENABLED}" == "1" ]] && echo "http://${STACK_PUBLIC_HOST}:${LEAP_HTTP_PORT}/health" || echo "未启动（control disabled）" )
   unitree health: $( [[ "${CONTROL_STACK_ENABLED}" == "1" ]] && echo "http://${STACK_PUBLIC_HOST}:${UNITREE_HTTP_PORT}/health" || echo "未启动（control disabled）" )
   工作站入口:     ${workstation_url}
   独立预览:       ${viewer_url}
+  QR 配对入口:    $(edge_pairing_status_ui_url)
   模拟控制:       $( [[ "${ENABLE_SIM}" -eq 1 ]] && echo "http://${STACK_PUBLIC_HOST}:${SIM_CONTROL_PORT}/state" || echo "未启动（真机/真实传感器模式）" )
   trip/session:   ${TRIP_ID} / ${SESSION_ID}
   设备注册表:     ${DEVICE_REGISTRY_PATH}
@@ -750,6 +823,7 @@ start_stack() {
     parse_start_args "$@"
     apply_runtime_profile_defaults
     ensure_runtime_dir
+    validate_pairing_public_host
 
     for service in edge leap unitree sim viewer; do
         if is_pid_running "$(service_pid_file "${service}")"; then

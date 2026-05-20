@@ -644,6 +644,7 @@ def exchange_pairing_challenge(config, payload: dict) -> tuple[int, dict]:
         "expires_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(token_expires_ms / 1000)),
         "expires_unix_ms": token_expires_ms,
         "edge_base_url": _edge_public_base(config),
+        "edge_ws_url": _edge_ws_public_base(config),
         "status_ui_url": f"{_status_ui_base(config)}/#/capture",
     }
 
