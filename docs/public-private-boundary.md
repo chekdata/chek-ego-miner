@@ -4,6 +4,9 @@
 dump of the internal edge runtime, and it should not become a second private
 runtime with public names.
 
+For the current cross-repo target-state table, shared contract, and multi-phone
+ownership rule, see [Repo Business Contract](./repo-business-contract.md).
+
 ## Public Repo Responsibilities
 
 This repo owns the contributor-facing path:

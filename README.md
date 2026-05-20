@@ -12,6 +12,7 @@ and browse reusable datasets.
 - Check the current public roadmap: [TODO](./TODO.md)
 - See validation status: [Public Validation Matrix](./docs/public-validation-matrix.md)
 - Understand the repo boundary: [Public and Private Runtime Boundary](./docs/public-private-boundary.md)
+- Understand the business goals, shared contract, and multi-phone ownership rule between the two repos: [Repo Business Contract](./docs/repo-business-contract.md)
 - Get step-by-step help:
   - [Codex Guide](./docs/agent-guides/codex.md)
   - [Claude Guide](./docs/agent-guides/claude.md)
@@ -331,6 +332,7 @@ Search and download contributed data from:
 - [Public Roadmap / TODO](./TODO.md)
 - [Public Validation Matrix](./docs/public-validation-matrix.md)
 - [Public and Private Runtime Boundary](./docs/public-private-boundary.md)
+- [Repo Business Contract](./docs/repo-business-contract.md)
 - [Hardware Guide](./docs/hardware.md)
 - [Quickstart](./docs/quickstart.md)
 - [Stereo Calibration Checklist](./docs/stereo-calibration-checklist.md)
