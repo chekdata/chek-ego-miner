@@ -579,7 +579,7 @@ start_edge() {
         EDGE_UPLOAD_TOKEN_AUTHORITY_DB_PATH="${TOKEN_AUTHORITY_DB_PATH}" \
         EDGE_PAIRING_PROFILE_ID="ego_wide_rgbd_multi_iphone_v1" \
         EDGE_PAIRING_EDGE_BASE_URL="http://${STACK_PUBLIC_HOST}:${EDGE_HTTP_PORT}" \
-        EDGE_PAIRING_EDGE_WS_URL="ws://${STACK_PUBLIC_HOST}:${EDGE_WS_PORT}" \
+        EDGE_PAIRING_EDGE_WS_URL="ws://${STACK_PUBLIC_HOST}:${EDGE_WS_PORT}/stream/fusion" \
         EDGE_PAIRING_STATUS_UI_URL="http://${STACK_PUBLIC_HOST}:${VIEWER_PORT}/#/capture" \
         EDGE_WORKSTATION_DEVICE_STATUS_URL="$(resolve_workstation_device_status_url)" \
         EDGE_PHONE_INGEST_ENABLED="${EDGE_PHONE_INGEST_ENABLED:-$(runtime_profile_default_flag "${EDGE_RUNTIME_PROFILE}" phone_ingest)}" \
