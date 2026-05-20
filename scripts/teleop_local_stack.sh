@@ -165,10 +165,20 @@ local_private_ip_present() {
 
 validate_pairing_public_host() {
     if [[ -n "${EDGE_PAIRING_EDGE_BASE_URL}" \
-        && -n "${EDGE_PAIRING_EDGE_WS_URL}" \
-        && -n "${EDGE_PAIRING_STATUS_UI_URL}" ]]
+        || -n "${EDGE_PAIRING_EDGE_WS_URL}" \
+        || -n "${EDGE_PAIRING_STATUS_UI_URL}" ]]
     then
-        return 0
+        if [[ -n "${EDGE_PAIRING_EDGE_BASE_URL}" \
+            && -n "${EDGE_PAIRING_EDGE_WS_URL}" \
+            && -n "${EDGE_PAIRING_STATUS_UI_URL}" ]]
+        then
+            return 0
+        fi
+        cat >&2 <<EOF
+EDGE_PAIRING_EDGE_BASE_URL / EDGE_PAIRING_EDGE_WS_URL / EDGE_PAIRING_STATUS_UI_URL 需要全部同时配置，或全部留空。
+当前仅检测到部分设置，可能导致 QR 配对入口与 edge/ws 地址不一致，请修正后重试。
+EOF
+        return 1
     fi
     if ! local_private_ip_present "${STACK_PUBLIC_HOST}"; then
         cat >&2 <<EOF
