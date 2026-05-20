@@ -11,6 +11,7 @@
 - 查看当前公开路线：[TODO](./TODO.md)
 - 查看验证状态：[Public Validation Matrix](./docs/public-validation-matrix.md)
 - 理解公开仓库和内部 runtime 的边界：[Public and Private Runtime Boundary](./docs/public-private-boundary.md)
+- 理解两个仓库的业务目标、共享契约和多手机归属规则：[Repo Business Contract](./docs/repo-business-contract.md)
 - 获取一步一步的指导：
   - [Codex 指南](./docs/agent-guides/codex.md)
   - [Claude 指南](./docs/agent-guides/claude.md)
