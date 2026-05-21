@@ -66,6 +66,10 @@ def test_pairing_envelope_uses_lan_public_urls() -> None:
     assert envelope["edge_base_url"] == "http://192.168.1.20:8080"
     assert envelope["edge_ws_url"] == "ws://192.168.1.20:8765/stream/fusion"
     assert envelope["status_ui_url"] == "http://192.168.1.20:3010/#/capture"
+    assert envelope["transport_profile"] == "lan_direct"
+    assert envelope["connectivity_contract"]["required_for_capture"] == ["pairing_http", "edge_http"]
+    assert envelope["connectivity_contract"]["endpoints"]["pairing_http"] == "http://192.168.1.20:3010/pairing/exchange"
+    assert "edge_ws" in envelope["connectivity_contract"]["optional_for_pure_ego"]
     assert len(envelope["pairing_code"]) == 6
     assert envelope["pairing_challenge"] in config.pairing_challenges
 
@@ -89,13 +93,30 @@ def test_pairing_exchange_registers_device_identity() -> None:
     assert response["ok"] is True
     assert response["device"]["device_id"] == "iphone-15-pro-a"
     assert response["device"]["login_identity"] == "alice@example.com"
+    assert response["device"]["pairing_state"] == "paired"
+    assert response["device"]["online_state"] == "not_connected"
+    assert response["device"]["lifecycle_state"] == "paired_pending_device_status"
+    assert response["device"]["transport_profile"] == "lan_direct"
     assert "upload_token_sha256" not in response["device"]
     assert response["scoped_upload_token"]
+    assert response["transport_profile"] == "lan_direct"
     assert (
         config.device_registry["iphone-15-pro-a"]["upload_token_sha256"]
         == WORKSTATION.hash_upload_token(response["scoped_upload_token"])
     )
     assert config.device_registry["iphone-15-pro-a"]["device_name"] == "Alice iPhone"
+
+
+def test_pairing_envelope_warns_when_loopback_ws_is_advertised_as_direct_lan() -> None:
+    config = pairing_config()
+    config.edge_ws_base = "ws://127.0.0.1:18765/stream/fusion"
+    config.edge_ws_public_base = "ws://172.20.10.4:18765/stream/fusion"
+
+    envelope = WORKSTATION.build_pairing_envelope(config)
+
+    assert envelope["edge_ws_url"] == "ws://172.20.10.4:18765/stream/fusion"
+    assert "edge_ws_loopback_source_advertised_as_lan_direct" in envelope["connectivity_warnings"]
+    assert envelope["connectivity_contract"]["reachability"]["edge_ws"]["required"] is False
 
 
 def test_pairing_exchange_mirrors_token_to_sqlite_authority(tmp_path: Path) -> None:
@@ -172,6 +193,9 @@ def test_device_registry_persists_pairing_and_status_updates(tmp_path: Path) -> 
     assert status == 200
     assert response["device"]["session_id"] == "session-001"
     assert response["device"]["upload_queue_depth"] == 2
+    assert response["device"]["online_state"] == "acknowledged"
+    assert response["device"]["last_ack_state"] == "acknowledged"
+    assert response["device"]["lifecycle_state"] == "live_ack"
     assert "upload_token_sha256" not in response["device"]
 
     persisted = WORKSTATION.load_device_registry(registry_path)
@@ -260,6 +284,7 @@ def test_capture_proxy_allowlist_includes_status_ui_dependencies() -> None:
         "/time/sync/current",
         "/control/state",
         "/control/disarm",
+        "/control/profile",
         "/control/keepalive",
         "/session/start",
         "/session/stop",
