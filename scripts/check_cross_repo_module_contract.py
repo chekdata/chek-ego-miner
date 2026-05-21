@@ -101,12 +101,19 @@ def infer_roots(args: argparse.Namespace) -> tuple[Path, Path]:
         return args.public_repo.resolve(), args.runtime_repo.resolve()
 
     current = find_current_repo()
-    if current.name == "chek-ego-miner":
+    if args.public_repo:
+        public_repo = args.public_repo
+    elif current.name == "chek-ego-miner":
         public_repo = current
-        runtime_repo = args.runtime_repo.resolve() if args.runtime_repo else current.parent / "chek-edge-runtime"
     else:
+        public_repo = current.parent / "chek-ego-miner"
+
+    if args.runtime_repo:
+        runtime_repo = args.runtime_repo
+    elif current.name == "chek-edge-runtime":
         runtime_repo = current
-        public_repo = args.public_repo.resolve() if args.public_repo else current.parent / "chek-ego-miner"
+    else:
+        runtime_repo = current.parent / "chek-edge-runtime"
 
     return public_repo.resolve(), runtime_repo.resolve()
 
