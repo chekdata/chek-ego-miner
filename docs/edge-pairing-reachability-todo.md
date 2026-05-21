@@ -1,7 +1,7 @@
 # Edge Pairing Reachability Productization ToDo
 
 Date: 2026-05-21
-Status: implemented
+Status: implemented and merged
 
 ## Goal
 
@@ -39,14 +39,16 @@ Make phone pairing, capture readiness, and workstation device status describe th
    - DONE Run workstation Python tests/syntax checks.
    - DONE Run edge-runtime type/build/smoke checks.
    - DONE Run Android compile/unit tests and install on Xiaomi.
-   - BLOCKED Run iOS compile/test if iOS code changed: local Debug simulator and generic iOS builds reach the link phase but fail because the local third-party `UMAPM` framework is missing from DerivedData/Pods search paths, not because of the pairing Swift changes.
-   - DOING Push shared DEV lanes or create the required PR for protected public main, then state any remaining merge gap.
+   - DONE Run iOS release/upload validation through the TestFlight archive/export/upload lane.
+   - CAVEAT Full local iOS Debug simulator/generic builds can still reach the link phase and fail if the local third-party `UMAPM` framework is missing from DerivedData/Pods search paths. That is a local build-environment issue, not a pairing Swift regression.
+   - DONE Push shared DEV lanes and merge the protected public main PR. No pairing reachability merge gap remains.
 
 ## Validation Evidence
 
 - `chek-app`: `:app:compileDebugKotlin :app:testDebugUnitTest` passed; `:chek:installDebug` installed on Xiaomi `21121119SC`; unreachable Edge smoke showed the gate in checking/waiting state with `开始采集` disabled.
 - `chek-ego-miner`: `python3 -m py_compile RuView/ui-react/scripts/workstation_server.py` passed; `python3 -m pytest tests/test_workstation_pairing_and_status_ui.py` passed with 13 tests.
 - `chek-edge-runtime`: `python3 -m py_compile RuView/ui-react/scripts/workstation_server.py`, `npm run check`, `npm run build`, `node scripts/capture_page_registry_smoke.mjs`, and `python3 scripts/check_cross_repo_module_contract.py --public-repo <path-to-public-repo>` passed.
+- Release state: `chek-app` `origin/dev`, `chek-edge-runtime` `origin/dev`, and `chek-ego-miner` `origin/main` carry the productized pairing reachability/status contract. `chek-ego-miner` PR #43 was merged as `2840c20 fix(edge): clarify pairing reachability status (#43)`.
 
 ## Local Data Boundary
 
