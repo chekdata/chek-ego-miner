@@ -38,6 +38,8 @@ Shared contract objects:
 - `ProfileId`
 - `OwnerResolution`
 - `/devices.json` public status schema
+- `PairingTransportProfile`
+- `PairingEndpointContract`
 
 When one of these objects changes, update this contract first, then update both
 repo implementations and tests.
@@ -55,6 +57,9 @@ The two repos must stay aligned on these fields and behaviors:
 - `upload_auth_kind=scoped_upload_token` distinguishes public phone pairing uploads from trusted local edge-token traffic.
 - `/devices.json` must expose public device status but must never expose raw upload tokens, token hashes, or local DB paths.
 - Session manifests must carry enough identity to audit where a session came from: `capture_device_id`, `login_identity`, `device_name`, `pairing_profile_id`, and upload auth kind.
+- `transport_profile` tells the client whether the pairing is LAN/direct, workstation-proxied HTTP, USB-reverse/debug, or unknown.
+- `connectivity_contract` tells the client which endpoint is used for pairing HTTP, Edge HTTP upload/control, optional fusion WS, and status UI.
+- `connectivity_warnings` are product-facing warnings. Clients and status pages must surface them as reachability concerns, not as successful pairing.
 
 ## Device Status Semantics
 
@@ -76,6 +81,36 @@ Use these meanings consistently:
 
 Stale loopback URLs, private-host URLs, expired tokens, or missing edge services
 must not be shown as ready-to-capture pairing.
+
+Derived `/devices.json` fields:
+
+- `pairing_state`: `registered`, `paired`, or `expired`.
+- `online_state`: `not_connected`, `active_session`, `acknowledged`, or `stale`.
+- `last_ack_state`: `missing` or `acknowledged`.
+- `lifecycle_state`: UI-friendly combined state such as `paired_pending_device_status`, `active_session`, `live_ack`, or `stale`.
+
+A row with only `upload_token_status=issued_by_workstation_pairing_endpoint` and no
+`session_id`, `upload_queue_depth`, or `last_ack` is a signed pairing/token record
+only. It is not live and must not be displayed as current online pairing.
+
+## Pairing Reachability Contract
+
+The pairing envelope stays backward compatible with existing fields:
+
+- `edge_base_url`: HTTP upload/control endpoint used by phone clients.
+- `edge_ws_url`: optional fusion/control WebSocket endpoint.
+- `status_ui_url`: workstation status page.
+
+New clients should also read:
+
+- `transport_profile`: `lan_direct`, `workstation_proxy`, `usb_reverse`, or `unknown`.
+- `connectivity_contract.endpoints`: role-labeled endpoint URLs.
+- `connectivity_contract.required_for_capture`: `edge_http` and `pairing_http` are required for pure EGO capture; `edge_ws` is optional unless teleop/control mode is enabled.
+- `connectivity_warnings`: warnings such as loopback-only addresses or a WS URL that appears to be advertised from a loopback source.
+
+Pure EGO capture is allowed to continue when HTTP upload is healthy and optional
+fusion WS is unavailable. Teleop/control-critical modes may still disarm on long
+WS/control disconnects.
 
 ## Multi-Phone Ownership Model
 

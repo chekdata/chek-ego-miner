@@ -147,6 +147,8 @@ def normalize_proxy_path(raw_suffix: str) -> str:
         return "/control/state"
     if normalized == "/control/disarm":
         return "/control/disarm"
+    if normalized == "/control/profile":
+        return "/control/profile"
     if normalized == "/live-preview.json":
         return "/live-preview.json"
     if normalized == "/time":
@@ -485,9 +487,155 @@ def mirror_device_status_to_authority(config, record: dict, now_ms: int) -> None
         )
 
 
+def _url_host(raw_url: str) -> str:
+    try:
+        return (urlsplit(str(raw_url or "").strip()).hostname or "").lower()
+    except ValueError:
+        return ""
+
+
+def _url_authority(raw_url: str) -> str:
+    try:
+        parsed = urlsplit(str(raw_url or "").strip())
+    except ValueError:
+        return ""
+    if not parsed.scheme or not parsed.netloc:
+        return ""
+    return f"{parsed.scheme}://{parsed.netloc}".lower()
+
+
+def _is_loopback_url(raw_url: str) -> bool:
+    host = _url_host(raw_url)
+    if host in {"localhost", "0.0.0.0"}:
+        return True
+    try:
+        return ipaddress.ip_address(host).is_loopback
+    except ValueError:
+        return False
+
+
+def _status_ui_url(config) -> str:
+    return f"{_status_ui_base(config)}/#/capture"
+
+
+def _pairing_endpoint_url(config) -> str:
+    return f"{_status_ui_base(config)}/pairing/exchange"
+
+
+def _pairing_transport_profile(config) -> str:
+    edge_http = _edge_public_base(config)
+    edge_ws = _edge_ws_public_base(config)
+    status_base = _status_ui_base(config)
+    if _is_loopback_url(edge_http) and _is_loopback_url(status_base):
+        return "usb_reverse"
+    if edge_http.startswith(status_base.rstrip("/") + "/edge"):
+        return "workstation_proxy"
+    if _url_host(edge_http) and _url_host(edge_http) == _url_host(status_base):
+        return "lan_direct"
+    if _url_host(edge_ws) and _url_host(edge_ws) == _url_host(status_base):
+        return "lan_direct"
+    return "unknown"
+
+
+def _connectivity_warnings(config) -> list[str]:
+    warnings: list[str] = []
+    edge_http = _edge_public_base(config)
+    edge_ws = _edge_ws_public_base(config)
+    status_base = _status_ui_base(config)
+    edge_http_base = str(getattr(config, "edge_http_base", "") or "")
+    edge_ws_base = str(getattr(config, "edge_ws_base", "") or "")
+
+    if _is_loopback_url(edge_http) and not _is_loopback_url(status_base):
+        warnings.append("edge_http_loopback_not_phone_reachable")
+    if _is_loopback_url(edge_ws) and not _is_loopback_url(status_base):
+        warnings.append("edge_ws_loopback_not_phone_reachable")
+    if _is_loopback_url(edge_http_base) and not _is_loopback_url(edge_http) and not edge_http.startswith(status_base.rstrip("/") + "/edge"):
+        warnings.append("edge_http_loopback_source_advertised_as_lan_direct")
+    if _is_loopback_url(edge_ws_base) and not _is_loopback_url(edge_ws):
+        warnings.append("edge_ws_loopback_source_advertised_as_lan_direct")
+    if _url_authority(edge_http) and _url_authority(edge_ws) and _url_host(edge_http) != _url_host(edge_ws):
+        warnings.append("edge_http_and_ws_hosts_differ")
+    return sorted(set(warnings))
+
+
+def _connectivity_contract(config) -> dict:
+    edge_http = _edge_public_base(config)
+    edge_ws = _edge_ws_public_base(config)
+    status_ui = _status_ui_url(config)
+    return {
+        "transport_profile": _pairing_transport_profile(config),
+        "required_for_capture": ["pairing_http", "edge_http"],
+        "optional_for_pure_ego": ["edge_ws"],
+        "endpoints": {
+            "pairing_http": _pairing_endpoint_url(config),
+            "edge_http": edge_http,
+            "edge_ws": edge_ws,
+            "status_ui": status_ui,
+        },
+        "reachability": {
+            "pairing_http": {"required": True, "url": _pairing_endpoint_url(config)},
+            "edge_http": {"required": True, "url": edge_http},
+            "edge_ws": {
+                "required": False,
+                "url": edge_ws,
+                "used_for": "fusion_visualization_and_teleop_control",
+            },
+            "status_ui": {"required": False, "url": status_ui},
+        },
+        "warnings": _connectivity_warnings(config),
+    }
+
+
+def _derive_device_status(record: dict) -> dict:
+    token_status = str(record.get("upload_token_status") or "").strip().lower()
+    token_expires_ms = int(record.get("token_expires_unix_ms") or 0)
+    expired = token_status == "expired" or (token_expires_ms > 0 and token_expires_ms <= _now_unix_ms())
+    has_pairing_token = bool(token_status or record.get("token_expires_unix_ms"))
+    has_ack = bool(record.get("last_ack"))
+    has_session = bool(str(record.get("session_id") or "").strip())
+    queue_reported = isinstance(record.get("upload_queue_depth"), int)
+
+    if expired:
+        pairing_state = "expired"
+        online_state = "stale"
+        lifecycle_state = "stale"
+    elif has_ack:
+        pairing_state = "paired" if has_pairing_token else "registered"
+        online_state = "acknowledged"
+        lifecycle_state = "live_ack"
+    elif has_session or queue_reported:
+        pairing_state = "paired" if has_pairing_token else "registered"
+        online_state = "active_session"
+        lifecycle_state = "active_session"
+    elif has_pairing_token:
+        pairing_state = "paired"
+        online_state = "not_connected"
+        lifecycle_state = "paired_pending_device_status"
+    else:
+        pairing_state = "registered"
+        online_state = "not_connected"
+        lifecycle_state = "registered_only"
+
+    warnings = []
+    if lifecycle_state == "paired_pending_device_status":
+        warnings.append("paired_token_has_no_device_ack")
+    if expired:
+        warnings.append("upload_token_expired")
+
+    return {
+        "pairing_state": pairing_state,
+        "online_state": online_state,
+        "last_ack_state": "acknowledged" if has_ack else "missing",
+        "lifecycle_state": lifecycle_state,
+        "connection_warnings": warnings,
+    }
+
+
 def public_device_record(record: dict) -> dict:
     hidden_keys = {"upload_token_sha256", "last_pairing_code"}
-    return {key: value for key, value in record.items() if key not in hidden_keys}
+    public = {key: value for key, value in record.items() if key not in hidden_keys}
+    public.update(_derive_device_status(record))
+    return public
 
 
 def _now_unix_ms() -> int:
@@ -543,13 +691,17 @@ def build_pairing_envelope(config) -> dict:
     expires_ms = created_ms + ttl_sec * 1000
     pairing_code = f"{secrets.randbelow(1_000_000):06d}"
     challenge = secrets.token_urlsafe(24)
+    connectivity_contract = _connectivity_contract(config)
     envelope = {
         "type": PAIRING_TYPE,
         "version": "1.0",
         "profile_id": config.profile_id,
         "edge_base_url": _edge_public_base(config),
         "edge_ws_url": _edge_ws_public_base(config),
-        "status_ui_url": f"{_status_ui_base(config)}/#/capture",
+        "status_ui_url": _status_ui_url(config),
+        "transport_profile": connectivity_contract["transport_profile"],
+        "connectivity_contract": connectivity_contract,
+        "connectivity_warnings": connectivity_contract["warnings"],
         "pairing_code": pairing_code,
         "pairing_challenge": challenge,
         "expires_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(expires_ms / 1000)),
@@ -608,6 +760,9 @@ def exchange_pairing_challenge(config, payload: dict) -> tuple[int, dict]:
     token_ttl_sec = max(300, int(config.upload_token_ttl_sec))
     token_expires_ms = now_ms + token_ttl_sec * 1000
     upload_token = secrets.token_urlsafe(32)
+    connectivity_contract = _connectivity_contract(config)
+    transport_profile = connectivity_contract["transport_profile"]
+    connectivity_warnings = connectivity_contract["warnings"]
     record = {
         "device_id": device_id,
         "device_name": device_name or device_id,
@@ -619,6 +774,7 @@ def exchange_pairing_challenge(config, payload: dict) -> tuple[int, dict]:
         "upload_token_sha256": hash_upload_token(upload_token),
         "upload_token_status": "issued_by_workstation_pairing_endpoint",
         "token_expires_unix_ms": token_expires_ms,
+        "transport_profile": transport_profile,
         "last_ack": None,
         "upload_queue_depth": None,
         "session_id": None,
@@ -645,7 +801,10 @@ def exchange_pairing_challenge(config, payload: dict) -> tuple[int, dict]:
         "expires_unix_ms": token_expires_ms,
         "edge_base_url": _edge_public_base(config),
         "edge_ws_url": _edge_ws_public_base(config),
-        "status_ui_url": f"{_status_ui_base(config)}/#/capture",
+        "status_ui_url": _status_ui_url(config),
+        "transport_profile": transport_profile,
+        "connectivity_contract": connectivity_contract,
+        "connectivity_warnings": connectivity_warnings,
     }
 
 
@@ -664,7 +823,7 @@ def update_device_status(config, payload: dict) -> tuple[int, dict]:
     record.setdefault("profile_id", config.profile_id)
     record.setdefault("paired_unix_ms", now_ms)
 
-    for key in ("device_name", "login_identity", "profile_id", "session_id", "upload_token_status"):
+    for key in ("device_name", "login_identity", "profile_id", "session_id", "upload_token_status", "transport_profile"):
         if key in payload and payload.get(key) is not None:
             record[key] = str(payload.get(key)).strip()
 
@@ -699,6 +858,7 @@ def build_device_registry_payload(config) -> dict:
     return {
         "generated_unix_ms": _now_unix_ms(),
         "profile_id": config.profile_id,
+        "connectivity_contract": _connectivity_contract(config),
         "devices": sorted(
             [public_device_record(record) for record in config.device_registry.values()],
             key=lambda item: str(item.get("device_id") or ""),
