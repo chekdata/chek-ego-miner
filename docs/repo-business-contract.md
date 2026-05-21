@@ -5,6 +5,9 @@ Status: active contract
 
 This document defines how `chek-ego-miner` and `chek-edge-runtime` should line up at the business layer. They are not meant to be file-identical repositories. They are two product lanes that must share the same EGO data, pairing, session, and upload semantics.
 
+For module-by-module ownership, allowed duplication, and drift checks, see
+[Cross-Repo Module Boundary](./cross-repo-module-boundary.md).
+
 ## Repository Roles
 
 | Area | `chek-ego-miner` | `chek-edge-runtime` |
@@ -16,6 +19,28 @@ This document defines how `chek-ego-miner` and `chek-edge-runtime` should line u
 | What should be shared | Pairing envelope contract, scoped upload token semantics, device registry fields, session manifest fields, media scope layout, upload ACK semantics, storage / health status meanings, profile IDs. | Same shared contracts. Runtime may add internal-only hardware and ops fields, but it must not redefine the shared EGO contract. |
 | What should differ | Public wording, public installation guidance, safe examples, contributor support paths, public evidence rules. | Internal host runbooks, factory bring-up, deeper hardware recovery, private operator URLs, deployment topology, fleet evidence. |
 | Current state | Public QR pairing, scoped-token upload identity, iOS/Android EGO capture evidence, and public boundary docs exist. Remaining public work is evidence expansion for Stereo / Pro, Windows / Jetson, and worker-to-reward-to-download continuity. | Runtime modularization and real-device post-processing are in progress. It has deeper edge operations, upload worker, post-process, QA, benchmark, and RuView integration paths, but the workspace still contains broad WIP that should be normalized before treating it as clean DEV source of truth. |
+
+## Contract Source Of Truth
+
+`chek-ego-miner` is the canonical public source for contributor-facing EGO
+semantics. `chek-edge-runtime` is the canonical runtime source for edge-machine
+operations. Neither repo may redefine the shared EGO contract in isolation.
+
+Shared contract objects:
+
+- `PairingEnvelope`
+- `ScopedUploadToken`
+- `DeviceRegistryEntry`
+- `SessionManifest`
+- `MediaScopeLayout`
+- `UploadAck`
+- `StorageHealth`
+- `ProfileId`
+- `OwnerResolution`
+- `/devices.json` public status schema
+
+When one of these objects changes, update this contract first, then update both
+repo implementations and tests.
 
 ## Shared Business Contract
 
@@ -30,6 +55,27 @@ The two repos must stay aligned on these fields and behaviors:
 - `upload_auth_kind=scoped_upload_token` distinguishes public phone pairing uploads from trusted local edge-token traffic.
 - `/devices.json` must expose public device status but must never expose raw upload tokens, token hashes, or local DB paths.
 - Session manifests must carry enough identity to audit where a session came from: `capture_device_id`, `login_identity`, `device_name`, `pairing_profile_id`, and upload auth kind.
+
+## Device Status Semantics
+
+Public UI and `/devices.json` must distinguish current reachability from
+history. A device record that only proves a past pairing is `registered`, not
+currently `paired`.
+
+Use these meanings consistently:
+
+- `registered`: a device record exists.
+- `paired`: a valid pairing/token binding exists.
+- `reachable`: the current edge/workstation URL is reachable from the device.
+- `ready`: capture dependencies are satisfied and Start can be enabled.
+- `capturing`: a session is actively recording.
+- `uploading`: chunks are still being sent or acknowledged.
+- `stopped`: capture was stopped for the session.
+- `stale`: the stored pairing is not usable anymore.
+- `invalid`: pairing, URL, token, or device identity failed validation.
+
+Stale loopback URLs, private-host URLs, expired tokens, or missing edge services
+must not be shown as ready-to-capture pairing.
 
 ## Multi-Phone Ownership Model
 
@@ -52,3 +98,6 @@ If the product later needs a visible "edge owner" or "primary contributor" conce
 When a behavior touches public contribution, keep `chek-ego-miner` readable and reproducible from public docs. When a behavior touches hardware recovery, private deployment, or fleet operations, keep it in `chek-edge-runtime` unless it becomes part of the public contributor promise.
 
 When both repos need the same behavior, converge on a shared contract, generated artifact, or versioned package. Do not let the same business rule drift in two independent implementations.
+
+Before merging a cross-repo behavior change, run the module boundary drift check
+from either repo and keep the result with the validation evidence.
