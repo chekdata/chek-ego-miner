@@ -760,6 +760,9 @@ def exchange_pairing_challenge(config, payload: dict) -> tuple[int, dict]:
     token_ttl_sec = max(300, int(config.upload_token_ttl_sec))
     token_expires_ms = now_ms + token_ttl_sec * 1000
     upload_token = secrets.token_urlsafe(32)
+    connectivity_contract = _connectivity_contract(config)
+    transport_profile = connectivity_contract["transport_profile"]
+    connectivity_warnings = connectivity_contract["warnings"]
     record = {
         "device_id": device_id,
         "device_name": device_name or device_id,
@@ -771,7 +774,7 @@ def exchange_pairing_challenge(config, payload: dict) -> tuple[int, dict]:
         "upload_token_sha256": hash_upload_token(upload_token),
         "upload_token_status": "issued_by_workstation_pairing_endpoint",
         "token_expires_unix_ms": token_expires_ms,
-        "transport_profile": _pairing_transport_profile(config),
+        "transport_profile": transport_profile,
         "last_ack": None,
         "upload_queue_depth": None,
         "session_id": None,
@@ -799,9 +802,9 @@ def exchange_pairing_challenge(config, payload: dict) -> tuple[int, dict]:
         "edge_base_url": _edge_public_base(config),
         "edge_ws_url": _edge_ws_public_base(config),
         "status_ui_url": _status_ui_url(config),
-        "transport_profile": _pairing_transport_profile(config),
-        "connectivity_contract": _connectivity_contract(config),
-        "connectivity_warnings": _connectivity_warnings(config),
+        "transport_profile": transport_profile,
+        "connectivity_contract": connectivity_contract,
+        "connectivity_warnings": connectivity_warnings,
     }
 
 

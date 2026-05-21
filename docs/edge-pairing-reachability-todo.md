@@ -46,7 +46,7 @@ Make phone pairing, capture readiness, and workstation device status describe th
 
 - `chek-app`: `:app:compileDebugKotlin :app:testDebugUnitTest` passed; `:chek:installDebug` installed on Xiaomi `21121119SC`; unreachable Edge smoke showed the gate in checking/waiting state with `开始采集` disabled.
 - `chek-ego-miner`: `python3 -m py_compile RuView/ui-react/scripts/workstation_server.py` passed; `python3 -m pytest tests/test_workstation_pairing_and_status_ui.py` passed with 13 tests.
-- `chek-edge-runtime`: `python3 -m py_compile RuView/ui-react/scripts/workstation_server.py`, `npm run check`, `npm run build`, `node scripts/capture_page_registry_smoke.mjs`, and `python3 scripts/check_cross_repo_module_contract.py --public-repo /Users/jasonhong/Desktop/开发项目/chek-ego-miner` passed.
+- `chek-edge-runtime`: `python3 -m py_compile RuView/ui-react/scripts/workstation_server.py`, `npm run check`, `npm run build`, `node scripts/capture_page_registry_smoke.mjs`, and `python3 scripts/check_cross_repo_module_contract.py --public-repo <path-to-public-repo>` passed.
 
 ## Local Data Boundary
 
