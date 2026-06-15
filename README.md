@@ -41,22 +41,23 @@ Those imperfect details are exactly what robots must learn before entering facto
 
 CHEK EGO Miner turns scattered daily action experience into robot-training data that can be organized, governed, and reused.
 
-## Product Names
+## Three Names You Will See
 
-- **CHEK EGO Miner**: the project, public data-network entry point, and repository name brought by the Qingkong Technology team.
-- **CHEK**: the mobile app for entering mobile capture flows, recording first-person footage, or participating in task-specific capture.
-- **Qingkong Miker**: the desktop app for task coordination, device checks, capture management, upload, and review flow.
+When you participate in CHEK EGO Miner, you will see three names:
 
-Use the names precisely: CHEK EGO Miner is the project, CHEK is the mobile app, and Qingkong Miker is the desktop app.
+- **CHEK EGO Miner**: the EGO data collection project started by the Qingkong Technology team. Its goal is to organize first-person human action into a data supply network that robots can learn from.
+- **CHEK**: the mobile app. You use it to enter mobile capture flows, record first-person footage, and follow task requirements.
+- **Qingkong Miker**: the desktop app. You use it for task coordination, device checks, capture management, upload, and review flow.
 
-## Who This Repo Is For
+In short: **CHEK EGO Miner is the project, CHEK is the mobile app, and Qingkong Miker is the desktop app.**
 
-1. **Public collectors** who want to use a phone and a computer to participate in EGO data tasks.
-2. **Community readers and media explainers** who want to understand why EGO data collection is being described as a new kind of data mining.
-3. **Device and scene partners** who need public hardware, privacy, and delivery boundaries.
-4. **Documentation contributors** who want to improve public-safe setup guides, screenshots, hardware notes, and troubleshooting.
+The rest of the docs use those names consistently so you can tell which client to download and which step to operate.
 
-Developers should note that this is not a source-code repository. Do not add runtime code, internal service scripts, private deployment instructions, credentials, or private logs here.
+## Who Should Start Here
+
+1. **Public collectors** who want to use a phone and a computer to participate in EGO data tasks, download CHEK and Qingkong Miker, and complete their first capture, upload, and review flow.
+2. **Community readers and media explainers** who want to explain why EGO data is being described as a new kind of data mining, and why it is not just ordinary video recording.
+3. **Device, scene, and task partners** who need to understand hardware needs, suitable scenarios, privacy, consent, and delivery boundaries.
 
 ## Start Here
 
@@ -83,11 +84,11 @@ Developers should note that this is not a source-code repository. Do not add run
 
 Public explainers sometimes describe this as data mining because real human actions and experience can become robot-training material. Actual rewards, review rules, and settlement terms depend on the specific task and platform policy. This repository does not promise a fixed hourly income.
 
-## Repository Boundary
+## About This GitHub Page
 
-The repository name stays `chek-ego-miner`, and the public project name is CHEK EGO Miner. The mobile app is CHEK, and the desktop app is Qingkong Miker.
+This is the public information entry for CHEK EGO Miner. It helps new users start with download, setup, capture, privacy, and troubleshooting.
 
-This repository keeps only public documentation:
+It mainly provides:
 
 - download and install instructions;
 - CHEK mobile app and Qingkong Miker desktop app guidance;
@@ -96,13 +97,7 @@ This repository keeps only public documentation:
 - privacy, consent, safety, and public issue boundaries;
 - troubleshooting for ordinary users.
 
-It does not keep:
-
-- source code;
-- internal runtime code;
-- private deployment scripts;
-- old product or temporary validation logic;
-- secrets, accounts, private URLs, or non-public logs.
+If you want to improve public docs, add hardware feedback, or fix download guidance, start with the contribution guide. App source code, internal runtime code, private deployment notes, and non-public logs are not published here.
 
 ## License Boundary
 
