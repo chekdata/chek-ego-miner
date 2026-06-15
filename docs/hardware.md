@@ -1,162 +1,57 @@
-# Hardware Guide
+# 硬件指南
 
-## Goal
+CHEK EGO Miner 的起点是降低采集门槛：普通人先用一台手机和一台电脑开始。更高质量或更复杂的任务，才需要额外相机、IMU、深度设备或更稳定的固定方案。
 
-Pick the cheapest setup that still lets you start collecting useful EGO data.
+## 最小起步组合
 
-## First-person phone mount
+- 一台 iPhone 或 Android 手机；
+- 一台桌面电脑或笔记本；
+- 一个能稳定固定手机的支架；
+- 足够的本地存储空间；
+- 稳定的网络和供电。
 
-You need a stable first-person phone mount before anything else.
+这个组合适合先理解流程：下载、登录、选择任务、预览、录制、上传、等待审核。
 
-Recommended buying criteria:
+## 手机固定比手机型号更重要
 
-- chest or shoulder mounting is preferred over handheld mounting
-- the phone should be firmly locked, not just clipped loosely
-- the mount should support walking, bending, and turning
-- the phone camera should not be blocked by the bracket
-- the setup should be comfortable for 10-30 minute sessions
+第一视角 EGO 数据最怕画面乱晃、遮挡和角度漂移。第一次准备时，优先保证：
 
-Suggested search keywords:
+- 手机固定牢；
+- 镜头不要被手、衣服、支架挡住；
+- 视角能看到任务相关的手、工具和物体；
+- 录制中不需要频繁手持调整。
 
-- `first person phone mount`
-- `chest phone mount for recording`
-- `body worn smartphone holder`
-- `POV phone mount`
+## 任务可能要求的额外设备
 
-Example products to anchor your search:
+不同任务会有不同要求：
 
-- Ulanzi magnetic chest mount harness:
-  - <https://www.ulanzi.com/collections/ulanzi-for-gopro/products/chest-mount-harness-c021gbb1>
-- PGYTECH CapLock magnetic smartphone neck mount:
-  - <https://www.pgytechbag.com/product/pgytech-caplock-magnetic-smartphone-neck-mount-max/>
-- Mainland China marketplace examples:
-  - Taobao share link:
-    - <https://e.tb.cn/h.iMtThciXXQuNjjk?tk=GrlR5fHlibQ>
-  - Douyin product link:
-    - <https://v.douyin.com/tnlIBM5XOWk/>
+- 真实产品相机：用于更稳定或多视角采集；
+- IMU：用于运动数据；
+- 深度相机：用于深度图、红外或空间轨道；
+- 多台相机：用于左右腕部、头前或其他角色视角；
+- 更大存储：用于长时间或多轨道录制；
+- 更稳定供电和线材：用于长跑采集。
 
-## Tier 1: Lite
+如果任务没有要求，不要为了“看起来专业”随便加设备。多设备会提高存储、同步和排障成本。
 
-### Setup
+## 选设备时看什么
 
-- one computer
-- your own camera
-- one iPhone with the CHEK app
-- one first-person phone mount
+- 是否是任务认可的产品设备，而不是系统自带摄像头或调试流；
+- 是否能被客户端识别为在线；
+- 是否能在预览里稳定出画面；
+- 是否满足这一次采集的角色、时长和轨道要求；
+- 是否有足够的线材、供电和本地存储。
 
-### Best for
+## 不建议拿来当正式交付的东西
 
-- first-time contributors
-- trying the workflow with minimum budget
-- indoor or desk-side experiments
+- 系统自带摄像头；
+- 代理流、镜像流、调试流；
+- 临时测试设备；
+- 没有经过任务确认的额外设备；
+- 录制中临时插入的新设备。
 
-### Buying advice
+这些内容可以帮助排障，但不应该被当成正式产品就绪或交付证据。
 
-- any reasonably modern laptop or desktop is fine for the first pass
-- start with the camera you already have before buying a new one
-- if you want a compact desktop example, a current Mac mini is a reasonable anchor SKU:
-  - <https://www.apple.com/mac-mini/>
+## 新用户建议
 
-### Visual guide
-
-```mermaid
-flowchart LR
-  Phone["iPhone on POV mount"] --> Computer["Computer"]
-  Camera["Your camera"] --> Computer
-```
-
-## Tier 2: Stereo
-
-### Setup
-
-- one computer
-- one stereo camera
-- one iPhone with the CHEK app
-- one first-person phone mount
-
-### Best for
-
-- contributors who want better spatial cues
-- users who want to move beyond the Lite lane
-
-### Buying advice
-
-- choose a stereo camera with stable desktop support on your OS
-- prefer models with active user communities and simple USB setup
-- verify cable length, power needs, and mounting options before buying
-
-Suggested search keywords:
-
-- `USB stereo camera`
-- `depth stereo camera for linux`
-- `stereo webcam sdk`
-
-Example stereo camera SKUs:
-
-- Stereolabs ZED Mini:
-  - <https://www.stereolabs.com/store/products/zed-mini>
-- Stereolabs ZED 2i:
-  - <https://www.stereolabs.com/en-hk/store/products/zed-2i>
-
-### Visual guide
-
-```mermaid
-flowchart LR
-  Phone["iPhone on POV mount"] --> Computer["Computer"]
-  Stereo["Stereo camera"] --> Computer
-```
-
-## Tier 3: Pro
-
-### Setup
-
-- one dedicated edge machine
-- one stereo camera
-- one iPhone with the CHEK app
-- one first-person phone mount
-
-### Best for
-
-- higher-throughput capture
-- more stable dedicated setups
-- users who plan to contribute repeatedly
-
-### Buying advice
-
-- buy this tier only after you understand the Lite or Stereo workflow
-- treat the edge machine as a dedicated capture host
-- verify power, cooling, mounting, and network access before purchase
-
-Example edge + stereo anchor SKUs:
-
-- NVIDIA Jetson Orin Nano Super Developer Kit:
-  - <https://www.nvidia.com/en-us/autonomous-machines/embedded-systems/jetson-orin/nano-super-developer-kit/>
-- NVIDIA Jetson AGX Orin family overview:
-  - <https://www.nvidia.com/en-us/autonomous-machines/embedded-systems/jetson-orin/>
-- Stereolabs ZED Box Mini:
-  - <https://www.stereolabs.com/store/products/zed-box-mini>
-- Stereolabs ZED 2i:
-  - <https://www.stereolabs.com/en-hk/store/products/zed-2i>
-
-### Visual guide
-
-```mermaid
-flowchart LR
-  Phone["iPhone on POV mount"] --> Edge["Edge machine"]
-  Stereo["Stereo camera"] --> Edge
-```
-
-## Recommendation
-
-If you are unsure, start with `Lite`.
-
-If you already know you want spatial depth, choose `Stereo`.
-
-If you plan to run a dedicated capture station, choose `Pro`.
-
-## Notes
-
-- These example SKUs are meant to anchor your search, not lock you into one vendor.
-- Verify local availability, shipping, and operating-system compatibility before purchase.
-- Some marketplace links may redirect to region-specific or app-specific detail pages.
-- The example product links in this document were link-checked on 2026-04-11.
+第一次不要追求复杂配置。先用手机和电脑跑通一次完整流程，再根据具体任务要求增加支架、真实产品相机、IMU 或深度设备。

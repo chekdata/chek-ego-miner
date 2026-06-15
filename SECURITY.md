@@ -5,14 +5,15 @@
 Do not open a public issue for:
 
 - secrets or credential leaks
-- internal-host information leaks
+- private download URLs or internal hostnames
+- unreleased app payloads or signing material
 - authentication bypasses
-- unsafe dataset access paths
+- unsafe hardware / device access details
 
-Use the published private security contact instead.
+If the report might expose sensitive data, use the private security flow
+published by the maintainers instead of posting it publicly.
 
-If you are unsure whether a report contains sensitive details, treat it as
-private and report it privately first.
+If you are unsure whether a report is sensitive, treat it as private first.
 
 ## What must never be published
 

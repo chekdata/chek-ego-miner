@@ -1,40 +1,50 @@
 ---
-name: Bug report
-about: Report a reproducible problem in the public repo, CLI, or docs
-title: "[Bug] "
-labels: bug
+name: 下载 / 安装 / 采集问题
+about: 普通采集者遇到官方下载、安装、预览、采集、上传或审核入口问题时使用。
+title: "[Help] "
+labels: help wanted
 assignees: ""
 ---
 
-## Summary
+## 发生了什么
 
-Describe the problem in one or two sentences.
+请用一两句话描述问题。
 
-## Environment
+## 你正在做哪一步
 
-- OS:
-- Hardware tier: `Lite / Stereo / Pro`
-- Host type: `Linux / macOS / Windows / Jetson / other`
-- Agent used, if any:
+- [ ] 下载客户端
+- [ ] 安装或登录
+- [ ] 选择任务
+- [ ] 手机或相机预览
+- [ ] 录制 EGO 数据
+- [ ] 上传或等待审核
+- [ ] 其他
 
-## Steps to reproduce
+## 环境
+
+- 平台: `桌面 / iOS / Android`
+- 操作系统:
+- 浏览器或 App 版本:
+- 你用的是哪个官方入口:
+
+## 复现步骤
 
 1.
 2.
 3.
 
-## Expected result
+## 期望结果
 
-What should have happened?
+本来应该发生什么？
 
-## Actual result
+## 实际结果
 
-What actually happened?
+实际发生了什么？
 
-## Logs or screenshots
+## 截图或日志
 
-Paste the smallest useful excerpt here.
+贴最小但有用的内容即可。不要公开账号、密钥、私有链接、完整设备序列号、身份证件、住址、无关人员人脸或内部地址。
 
-## Extra context
+## 其他说明
 
-Anything else that will help us reproduce the issue safely.
+还有哪些信息能帮助我们安全地定位问题？

@@ -2,15 +2,17 @@
 
 - what changed
 - why it changed
+- which audience this helps: collectors, media/community readers, device partners, or documentation maintainers
 
 ## Validation
 
-- [ ] docs updated if the public workflow changed
-- [ ] local checks or commands are listed below
-- [ ] no internal-only hostnames, IPs, or tokens were introduced
+- [ ] download links were verified
+- [ ] public wording was checked
+- [ ] rewards or settlement wording avoids fixed-income promises
+- [ ] no source code or private hostnames were introduced
 
 ## Commands
 
 ```bash
-# paste the commands you ran here
+# paste the commands or checks you ran here
 ```

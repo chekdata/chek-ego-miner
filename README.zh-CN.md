@@ -1,326 +1,81 @@
 [English](./README.md) | [简体中文](./README.zh-CN.md)
 
-# CHEK EGO Miner
+# CHEK EGO Miner / 擎控Miker
 
-用一台手机和一台电脑开始采集第一视角 EGO 数据，贡献 session，并检索可复用的数据集。
+一台 iPhone，一台电脑，把真实工作和生活里的第一视角动作采下来，参与具身智能 EGO 数据供给网络。
 
-## 先看这里
+CHEK EGO Miner 面向的第一类人不是机器人实验室工程师，而是普通采集者：你在整理桌面、洗碗、分拣、搬运、开门、取物、推轮椅或操作工具时，用手机记录“我正在做这件事”的视角，再通过擎控 CHEK / 擎控Miker 完成采集、上传、审核和任务结算。
 
-- 下载 iOS 应用：[TestFlight](https://testflight.apple.com/join/RrYdeDUv)
-- 选择你的硬件方案：[硬件指南](./docs/hardware.md)
-- 查看当前公开路线：[TODO](./TODO.md)
-- 查看验证状态：[Public Validation Matrix](./docs/public-validation-matrix.md)
-- 理解公开仓库和内部 runtime 的边界：[Public and Private Runtime Boundary](./docs/public-private-boundary.md)
-- 理解两个仓库的业务目标、共享契约和多手机归属规则：[Repo Business Contract](./docs/repo-business-contract.md)
-- 获取一步一步的指导：
-  - [Codex 指南](./docs/agent-guides/codex.md)
-  - [Claude 指南](./docs/agent-guides/claude.md)
-  - [OpenClaw 指南](./docs/agent-guides/openclaw.md)
-- 检索和下载大家贡献的数据：
-  - [EGO Dataset 数据门户](https://www.chekkk.com/humanoid/ego-dataset)
+这个仓库是公开入口，只放下载、安装、采集、硬件、隐私和排障文档。它不发布源码、构建脚本、内部运行时代码、旧产品逻辑或临时测试物料。
 
-## 你可以用它做什么
+## 先用一句话理解
 
-- 用手机和电脑开始采集第一视角 EGO 数据
-- 在需要更好空间信息时升级到双目摄像头
-- 在需要更高吞吐时升级到专用边缘机
-- 借助 Codex、Claude、OpenClaw 这类 agent 做安装与排障
-- 贡献自己的 session，并检索别人贡献的数据
+以前大家上传文字、图片、短视频，训练会说话、会生成内容的 AI。现在，EGO 数据把人的动作、视角、判断和操作过程记录下来，用来训练未来真正进入现实世界干活的机器人 AI。
 
-## 能力归边
+## 这个仓库写给谁
 
-从公开产品入口的角度看，`chek-ego-miner` 需要把 `SLAM`、`VLM`、`时间同步`
-这三类能力都暴露成用户可安装、可启动、可诊断、可操作的入口，这样用户自己组装
-边缘机或只用电脑安装时，才能真的把链路跑起来。
+1. **普通采集者**：想用手机和电脑参与 EGO 数据任务，先看清楚怎么下载、怎么装、怎么录、怎么上传。
+2. **传播者和项目观察者**：想快速理解 CHEK EGO Miner 为什么像“新时代的数据挖矿”，以及它和普通拍视频有什么不同。
+3. **设备和场景合作方**：想确认硬件、任务、隐私、安全和交付边界。
+4. **文档贡献者**：想补充公开安全的安装说明、截图、硬件反馈和排障经验。
 
-但这不等于这三类能力都应该在 `chek-ego-miner` 里各维护一套长期独立实现：
+如果你是开发者，请注意：这里不是源码仓库。请不要往这里提交运行时代码、内部服务脚本或私有部署说明。
 
-- `SLAM`
-  - 目前仍然更强地耦合在内部整机工程线，尤其是 sensing bring-up、标定、
-    replay、训练门槛和工程观测这几块
-  - `chek-ego-miner` 应该提供 public 安装与操作入口，但不应该再分叉出第二套
-    长期维护的核心 SLAM 栈
-- `VLM`
-  - 必须能直接通过 `chek-ego-miner` 被用户使用，包括模型下载、sidecar 启动、
-    service 接线和 public 诊断链路
-  - 但底层 runtime 语义仍应和内部整机工程线持续收敛，而不是演变成两套不同的
-    VLM 实现
-- `时间同步`
-  - 本质上是两条产品线都会依赖的采集质量能力
-  - `chek-ego-miner` 负责 public 安装、校验和用户可见反馈
-  - 更深的整机标定、工程观测和工厂集成能力可以继续放在 `chek-edge-runtime`
+## 你可以从这里开始
 
-后面的总规则很简单：如果两边表达的是同一个能力，在 `modules/`、`profiles/`、
-`services/`、install backend 或共享 UI panel 里就不应该长期双写，而应该继续往
-shared building block、模板或版本化资产去收口。
+| 你现在想做什么 | 入口 |
+| --- | --- |
+| 先下载安装 | [官方下载页](./docs/download.md) |
+| 第一次用手机和电脑开始采集 | [快速上手](./docs/quickstart.md) |
+| 确认手机、电脑、支架和相机怎么准备 | [硬件指南](./docs/hardware.md) |
+| 开始录一段真实 EGO 数据 | [采集指南](./docs/capture-guide.md) |
+| 看懂本次会保存什么 | [交付契约](./docs/delivery-contract.md) |
+| 遇到下载、预览、设备识别、存储问题 | [故障排查](./docs/troubleshooting.md) |
+| 先了解隐私、同意和公开截图边界 | [隐私说明](./docs/privacy.md) |
+| 快速查常见问题 | [常见问题](./docs/faq.md) |
 
-## 系统视图
+## 官方下载
 
-```mermaid
-flowchart LR
-  Phone["iPhone + CHEK App"] --> Host["电脑或边缘机"]
-  Camera["自有摄像头或双目摄像头"] --> Host
-  Agent["Codex / Claude / OpenClaw"] --> Host
-  Host --> Upload["上传 EGO Session"]
-  Upload --> Portal["数据门户"]
-  Upload --> Rewards["Token 奖励"]
-```
-
-## 选择你的方案
-
-| 档位 | 方案 | 适合谁 |
+| 平台 | 官方入口 | 说明 |
 | --- | --- | --- |
-| `Lite` | 电脑 + 自己的摄像头 | 想最低门槛开跑的人 |
-| `Stereo` | 电脑 + 外接双目摄像头 | 想要更好空间质量的人 |
-| `Pro` | 边缘机 + 双目摄像头 | 想做专用采集与更高吞吐的人 |
+| 桌面端 `macOS / Windows / Linux` | [smart-download](https://www.chekkk.com/smart-download) | 在电脑浏览器里打开，会自动进入桌面客户端下载分支。 |
+| `iOS` | [TestFlight](https://testflight.apple.com/join/RrYdeDUv) | 当前通过 TestFlight 分发。 |
+| `Android` | [smart-download](https://www.chekkk.com/smart-download) | 先走应用市场分发，失败后回落到 APK 下载。 |
 
-此外还建议准备一个第一视角手机支架。购买思路、选型标准和搜索关键词见
-[硬件指南](./docs/hardware.md)，其中也包含淘宝和抖音购买链接示例。
+## 它和普通拍视频有什么不同
 
-## 获取一步一步的指导
+普通视频拍完就结束了。EGO 数据采集要把一段真实动作变成可治理、可验收、可复用的数据资产，所以它更关心这些事情：
 
-如果你不想自己啃长文档，可以直接从下面开始：
+- 任务是谁发起的，采集的是什么场景；
+- 手机或相机是否按第一视角稳定记录；
+- 是否有清楚的开始、结束、上传和审核流程；
+- 数据是否经过隐私、质量和交付检查；
+- 这段数据是否能被检索、复用，并按任务规则进入奖励或结算流程。
 
-- [AGENTS.md](./AGENTS.md)
-- 复制一个现成 prompt 给 agent：
-  - [Lite 安装 Prompt](./prompts/install-lite.md)
-  - [Stereo 安装 Prompt](./prompts/install-stereo.md)
-  - [Pro 边缘机 Prompt](./prompts/install-pro-edge.md)
-  - [摄像头排障 Prompt](./prompts/troubleshoot-camera.md)
+## 关于收益
 
-推荐操作方式：
+公开传播里常把这件事叫“数据挖矿”，因为普通人的真实动作和经验开始变成机器人训练素材。实际收益、奖励、审核标准和结算方式，以你参与的具体任务和平台规则为准。不要把演示文案理解成固定收益承诺。
 
-1. 先告诉 agent 你是 `Lite / Stereo / Pro` 哪一档。
-2. 再告诉 agent 你的操作系统，以及你已经装好了什么。
-3. 要求 agent 一次只给你一步，并等待你反馈结果。
-4. 不要让 agent 跳过硬件检查、App 安装和相机验证。
+## 仓库边界
 
-## 安装前先做这些检查
+仓库名仍然保留为 `chek-ego-miner`，公开产品和用户入口使用 “CHEK EGO Miner / 擎控Miker”。
 
-在进入更长的安装流程前，可以先跑轻量自检：
+这里保留的是公开文档壳：
 
-```bash
-python3 scripts/check_host_basics.py
-```
+- 下载与安装说明；
+- 手机、电脑、支架、相机和 IMU 等硬件说明；
+- EGO 采集流程；
+- 隐私、同意、安全和公开 issue 边界；
+- 面向普通用户的排障说明。
 
-如果你准备公开分享自己的 fork 或改动，可以跑：
+不在这里保留：
 
-```bash
-./scripts/scan_public_safety.sh .
-```
+- 源码；
+- 内部运行时；
+- 私有部署脚本；
+- 旧产品、实验产品或临时验证逻辑；
+- 任何密钥、账号、私有地址或不可公开日志。
 
-或者直接用 CLI：
+## 版权边界
 
-```bash
-./cli/chek-ego-miner doctor
-./cli/chek-ego-miner camera-probe
-./cli/chek-ego-miner readiness --tier lite
-./cli/chek-ego-miner readiness --tier pro
-./cli/chek-ego-miner public-e2e --tier lite
-```
-
-如果需要区分“系统能列出摄像头”和“当前终端会话能打开摄像头并读到帧”，可以运行
-`./cli/chek-ego-miner camera-probe --capture-smoke`。
-
-`public-e2e` 是公开侧的汇总命令，会报告 host OS、硬件档位、摄像头 readiness、
-VLM policy、本地采集结果和 upload policy。它默认不会上传数据。
-
-## Linux 或 macOS 上的 Lite/basic 安装路径
-
-如果你想先走最直接的受支持路径，可以从这里开始：
-
-```bash
-./cli/chek-ego-miner install \
-  --profile basic \
-  --apply \
-  --system-install \
-  --enable-services
-
-python3 -m pip install --user --break-system-packages -r scripts/edge_phone_vision_requirements.txt
-./cli/chek-ego-miner fetch-phone-vision-models --json
-./scripts/start_edge_phone_vision_service.sh
-
-./cli/chek-ego-miner basic-e2e \
-  --edge-base-url http://127.0.0.1:8080 \
-  --edge-token chek-ego-miner-local-token \
-  --trip-id trip-public-basic-e2e \
-  --session-id sess-public-basic-e2e \
-  --output-dir ./artifacts/basic-e2e \
-  --json
-```
-
-也可以通过公开汇总命令跑同一条本地 basic flow：
-
-```bash
-./cli/chek-ego-miner public-e2e \
-  --tier lite \
-  --run-basic-e2e \
-  --edge-base-url http://127.0.0.1:8080 \
-  --edge-token chek-ego-miner-local-token \
-  --trip-id trip-public-basic-e2e \
-  --session-id sess-public-basic-e2e \
-  --json
-```
-
-如果 macOS 上的 Homebrew `python3` 因 PEP 668 拒绝 `pip install --user`，
-可以把同样的依赖装到兼容解释器里，例如 `python3.10`；启动脚本检测到后会自动切过去。
-
-这条 basic 路径成功后，你应该看到：
-
-- `ok: true`
-- `validation.ok: true`
-- `validation.score_percent: 100.0`
-- 输出目录里生成 `public_download/demo_capture_bundle.json`
-
-说明：
-
-- 这条路径适合 `Linux x86_64` 和 `macOS arm64` 的 basic 宿主。
-- 在 macOS 上，`install --system-install --enable-services` 会把 runtime
-  staging 到 `~/.chek-edge/runtime/macos/basic`。
-- 单手机 basic 路径里 `time_sync_samples` 可以为空。
-
-## 训练阈值验证
-
-raw 上传和下载成功，不等于这条 session 已经达到训练可用阈值。要检查下载出来的
-session 包是否满足 public 的 SLAM + time-sync 候选门禁：
-
-```bash
-python3 scripts/generate_slam_time_sync_benchmark.py \
-  --bundle /path/to/raw_bundle.tar.gz \
-  --tier pro \
-  --output /tmp/slam_time_sync_benchmark.json \
-  --json
-
-python3 scripts/validate_training_thresholds.py \
-  --bundle /path/to/raw_bundle.tar.gz \
-  --tier pro \
-  --slam-benchmark-report /tmp/slam_time_sync_benchmark.json \
-  --json
-```
-
-验证器会检查：
-
-- VLM 事件、片段、fallback 使用情况和延迟
-- time-sync 样本量、accepted mapping 比例、分 source RTT 和 offset span
-- phone pose、stereo pose、Wi-Fi pose、fisheye track 完整性
-- 是否存在带 drift、reprojection、pose-graph、body-tracking 指标的 SLAM
-  benchmark 报告，并且这些指标是否通过候选阈值
-
-benchmark 生成器只输出能从 bundle 事实中算出来的指标。当前 raw bundle 可计算
-stereo reprojection error 和 body-tracking coverage；trajectory drift 和 pose-graph
-residual 必须等 bundle 带有 ground truth、loop closure 证据或 SLAM optimizer 报告后
-才会解除 blocker，不会用假数补齐。
-
-只有 `training_ready=true` 时才返回 exit code `0`；未完成或仅达到候选信号的包会
-返回 exit code `2`，并列出阻塞项。`clock_offset_ns` 可能跨不同 clock domain，
-不能直接当同步误差读，验证器会按 source kind 看 offset span / 稳定性。
-
-它会刻意区分：
-
-- `signal_candidate_ready`：这条数据是否具备进入候选评审的实时信号
-- `training_ready`：是否已经通过冻结阈值和必需 SLAM benchmark 指标
-
-在 `configs/slam_time_sync_training_v1.json` 冻结、且真实 benchmark 指标齐全之前，
-工具不会宣称最终 training-ready。
-
-## Jetson 上的 Pro 安装路径
-
-如果你要走 Jetson 的完整 `Pro` 运行面，可以先执行 bootstrap。它会接入：
-
-- stereo 标定文件
-- Wi-Fi sensing 模型与 `sensing-server`
-- `edge-orchestrator`、`ruview-leap-bridge`、`ruview-unitree-bridge` 二进制
-- `RuView/ui-react/dist`
-- 现成的 Jetson GPU VLM 环境和 SmolVLM 模型缓存
-
-```bash
-./cli/chek-ego-miner jetson-professional-bootstrap -- --force
-./cli/chek-ego-miner install \
-  --profile professional \
-  --apply \
-  --system-install \
-  --runtime-edge-root "$PWD"
-```
-
-如果你只想走 Jetson 的 VLM 路径，也可以直接使用仓里自带的 VLM sidecar
-和模型下载链：
-
-```bash
-./cli/chek-ego-miner install \
-  --profile professional \
-  --apply \
-  --system-install \
-  --enable-services
-
-python3 -m pip install --user -r scripts/edge_vlm_requirements.txt
-./cli/chek-ego-miner fetch-vlm-models --json
-./cli/chek-ego-miner vlm-start
-```
-
-如果目标 Jetson 已经有现成的 GPU VLM 环境和本地模型目录，也可以只接入
-VLM 资产，再由 `systemd-user` 启 sidecar：
-
-```bash
-./cli/chek-ego-miner jetson-vlm-bootstrap -- --force
-./cli/chek-ego-miner service-install \
-  --profile professional \
-  --service chek-edge-vlm-sidecar \
-  --enable \
-  --runtime-edge-root "$PWD"
-```
-
-说明：
-
-- `fetch-vlm-models` 会下载 `transformers` 运行所需的核心 Hugging Face 文件。
-- 模型默认放在 `model-candidates/huggingface/` 下。
-- Jetson 路径成功后，你应该看到：
-  - `./cli/chek-ego-miner readiness --tier pro` 报告宿主可用
-  - 所需服务进入 `active`
-  - `/health`、`/association/hint`、`/api/v1/stream/status`、`/infer`
-    在宿主上返回正常结果
-
-## 数据门户
-
-可以通过下面的入口检索和下载大家贡献的数据：
-
-- [https://www.chekkk.com/humanoid/ego-dataset](https://www.chekkk.com/humanoid/ego-dataset)
-
-## 现在可以做什么
-
-- 完成新设备的上手
-- 选择硬件与配件
-- 用 prompts 获取一步一步的安装帮助
-- 在 Linux 或 macOS 上完成 Lite/basic 路径
-- 在 Jetson 上完成 Pro 的 VLM 与服务启动路径
-- 了解数据贡献、奖励和数据检索入口
-
-## 文档入口
-
-- [公开路线 / TODO](./TODO.md)
-- [Public Validation Matrix](./docs/public-validation-matrix.md)
-- [Public and Private Runtime Boundary](./docs/public-private-boundary.md)
-- [硬件指南](./docs/hardware.md)
-- [Quickstart](./docs/quickstart.md)
-- [Stereo Calibration Checklist](./docs/stereo-calibration-checklist.md)
-- [Pro Jetson Diagnostics](./docs/pro-jetson-diagnostics.md)
-- [Evidence Templates](./docs/evidence-templates/README.md)
-- [硬件与 profile 映射](./docs/profile-mapping.md)
-- [诊断工具](./docs/diagnostics.md)
-- [Token 奖励说明](./docs/token-rewards.md)
-- [隐私、同意与数据许可](./docs/privacy-data-license.md)
-- [常见问题](./docs/faq.md)
-- [Codex 指南](./docs/agent-guides/codex.md)
-- [Claude 指南](./docs/agent-guides/claude.md)
-- [OpenClaw 指南](./docs/agent-guides/openclaw.md)
-
-## 贡献方式
-
-见 [CONTRIBUTING.md](./CONTRIBUTING.md)。
-
-## 安全问题
-
-见 [SECURITY.md](./SECURITY.md)。
-
-## 许可证
-
-见 [LICENSE](./LICENSE)。
+文档内容开放使用；应用、服务、硬件协议、商标与正式发布物料不包含在这个开放边界内。

@@ -1,185 +1,77 @@
-# Quickstart
+# 快速上手
 
-## 1. Install the iOS app
+这是一条给第一次参与 EGO 数据采集的人看的最短路径。你不需要先懂机器人，也不需要先买昂贵头显；先准备一台手机和一台电脑，把第一条真实动作流程跑通。
 
-- [TestFlight](https://testflight.apple.com/join/RrYdeDUv)
+## 1. 先理解你要做什么
 
-## 2. Choose your tier
+EGO 数据不是普通自拍，也不是随手拍一段视频。它要记录的是“我正在做这件事”的第一视角：
 
-- `Lite`
-- `Stereo`
-- `Pro`
+- 你看到了什么；
+- 你先做哪一步、后做哪一步；
+- 你的手、工具、物体和环境如何变化；
+- 遇到小意外时你怎么调整。
 
-See [Hardware Guide](./hardware.md).
+这些动作和经验，未来可能成为机器人学习真实世界任务的训练素材。
 
-## 3. Run the CLI doctor
+## 2. 下载手机端和桌面端
 
-```bash
-./cli/chek-ego-miner doctor
-```
+- 桌面端：[`smart-download`](https://www.chekkk.com/smart-download)
+- iOS：[`TestFlight`](https://testflight.apple.com/join/RrYdeDUv)
+- Android：[`smart-download`](https://www.chekkk.com/smart-download)
 
-## 4. Run readiness for your tier
+建议用电脑浏览器打开桌面端下载入口，用手机打开对应移动端入口。如果在微信里打不开下载页，先点“在浏览器中打开”。
 
-```bash
-./cli/chek-ego-miner readiness --tier lite
-./cli/chek-ego-miner readiness --tier stereo
-./cli/chek-ego-miner readiness --tier pro
-```
+## 3. 准备最小硬件
 
-## 5. Run the public E2E summary
+最小起步组合：
 
-```bash
-./cli/chek-ego-miner public-e2e --tier lite --json
-```
+- 一台 iPhone 或 Android 手机；
+- 一台桌面电脑或笔记本；
+- 一个能稳定固定手机的支架；
+- 足够的本地存储空间；
+- 稳定的网络。
 
-Replace `lite` with your selected tier. Add `--capture-smoke` for `Stereo` or
-`Pro` evidence when you need to prove the current terminal session can open a
-camera and read a frame.
+如果任务要求真实产品相机、IMU、深度图或多视角，再按任务说明接入对应设备。
 
-The summary reports host OS, hardware tier, camera readiness, VLM policy, local
-capture result and upload policy. Upload is disabled unless you run a separate
-documented upload flow.
+## 4. 登录并选择任务
 
-## 6. Probe local cameras
+打开擎控Miker 后，先确认自己登录的是正确账号，再进入采集任务。不同任务可能要求不同场景、动作、时长、视角和硬件，不要把一个任务的要求套到另一个任务上。
 
-```bash
-./cli/chek-ego-miner camera-probe
-./cli/chek-ego-miner camera-probe --capture-smoke
-```
+## 5. 开始前先检查
 
-The first command checks OS-visible camera devices. The second command also
-tries to open one camera and read a frame from the current terminal session.
+正式录制前，先完成这些确认：
 
-## 7. Get guided help
+1. 手机或相机画面能正常预览；
+2. 本次参与的设备已经选中；
+3. 本次任务要求的内容已经通过预检；
+4. 页面已经明确列出“本次将保存 / 不会保存 / 不能保存”；
+5. 你理解并确认本次交付内容。
 
-Pick a prompt from:
+如果预览没有画面、设备变了、存储不够或任务要求没看懂，不要直接录制，先处理问题。
 
-- `prompts/install-lite.md`
-- `prompts/install-stereo.md`
-- `prompts/install-pro-edge.md`
+## 6. 录制真实动作
 
-## 8. If you need calibration
+选择一个真实、清楚、可复现的动作流程。比如整理桌面、洗碗、取物、开门、分拣、搬运、操作工具或照护辅助动作。
 
-```bash
-./cli/chek-ego-miner charuco --output-dir ./artifacts/charuco
-```
+录制中尽量做到：
 
-For Stereo evidence, follow the [Stereo Calibration Checklist](./stereo-calibration-checklist.md).
+- 手机固定稳定，不要频繁遮挡镜头；
+- 动作从开始到结束完整；
+- 不故意表演夸张动作；
+- 不拍入不该公开的人脸、屏幕、账号、地址或隐私信息；
+- 不在录制中随意拔插设备或切换任务。
 
-## 9. Set up Lite on Linux or macOS
+## 7. 等待上传、审核和处理
 
-```bash
-./cli/chek-ego-miner install \
-  --profile basic \
-  --apply \
-  --system-install \
-  --enable-services
-```
+录制结束后，客户端可能还要生成视频、写入索引、校验文件、上传结果和等待审核。界面还在处理大文件时，通常不是卡死。
 
-## 10. Enable the local phone-vision sidecar
+## 8. 关于收益
 
-```bash
-python3 -m pip install --user --break-system-packages -r scripts/edge_phone_vision_requirements.txt
-./cli/chek-ego-miner fetch-phone-vision-models --json
-./scripts/start_edge_phone_vision_service.sh
-```
+如果你参与的是带奖励或结算的任务，收益以具体任务页面、审核规则和平台结算规则为准。公开讲解里提到的“数据挖矿”是一种理解方式，不等于固定收益承诺。
 
-## 11. Run the basic capture flow
+## 下一步
 
-```bash
-./cli/chek-ego-miner basic-e2e \
-  --edge-base-url http://127.0.0.1:8080 \
-  --edge-token chek-ego-miner-local-token \
-  --trip-id trip-public-basic-e2e \
-  --session-id sess-public-basic-e2e \
-  --output-dir ./artifacts/basic-e2e \
-  --json
-```
-
-You can also run the basic local capture flow through the public summary:
-
-```bash
-./cli/chek-ego-miner public-e2e \
-  --tier lite \
-  --run-basic-e2e \
-  --edge-base-url http://127.0.0.1:8080 \
-  --edge-token chek-ego-miner-local-token \
-  --trip-id trip-public-basic-e2e \
-  --session-id sess-public-basic-e2e \
-  --json
-```
-
-You should see:
-
-- `ok: true`
-- `validation.ok: true`
-- `validation.score_percent: 100.0`
-- `public_download/demo_capture_bundle.json` exists
-
-Notes:
-
-- This path is intended for `Linux x86_64` and `macOS arm64` basic hosts.
-- On macOS, `install --system-install --enable-services` auto-stages the
-  runtime under `~/.chek-edge/runtime/macos/basic`.
-- The phone-vision start script auto-selects a compatible interpreter when
-  `python3` itself is not usable.
-- `time_sync_samples` may remain empty on the single-phone basic path.
-
-## 12. Set up Pro on Jetson
-
-```bash
-./cli/chek-ego-miner jetson-professional-bootstrap -- --force
-./cli/chek-ego-miner install \
-  --profile professional \
-  --apply \
-  --system-install \
-  --runtime-edge-root "$PWD"
-
-python3 -m pip install --user -r scripts/edge_vlm_requirements.txt
-./cli/chek-ego-miner fetch-vlm-models --json
-./cli/chek-ego-miner vlm-start
-```
-
-If your Jetson already has a working GPU VLM environment and local SmolVLM
-model cache, or if you only want to wire the VLM portion instead of the full
-professional asset set, use:
-
-```bash
-./cli/chek-ego-miner jetson-vlm-bootstrap -- --force
-./cli/chek-ego-miner service-install \
-  --profile professional \
-  --service chek-edge-vlm-sidecar \
-  --enable \
-  --runtime-edge-root "$PWD"
-```
-
-Notes:
-
-- `jetson-professional-bootstrap` connects stereo calibration, the Wi-Fi
-  sensing model and binary, runtime binaries, workstation dist, and an
-  existing Jetson VLM environment.
-- `fetch-vlm-models` downloads the core Hugging Face files only.
-- `vlm-start` auto-selects a compatible Python interpreter and looks for
-  `SmolVLM2-500M` plus `SmolVLM2-256M` under `model-candidates/huggingface/`.
-- A successful Jetson bring-up should end with required services in `active`
-  and working `/health`, `/association/hint`, `/api/v1/stream/status`, and
-  `/infer` responses on the host.
-
-For public Pro evidence, follow the [Pro Jetson Diagnostics](./pro-jetson-diagnostics.md).
-
-## Evidence Templates
-
-Use the templates under [evidence-templates](./evidence-templates/) for:
-
-- first contributor setup
-- interrupted install resume
-- agent-guided install
-- returning user readiness
-- camera troubleshooting
-- upload troubleshooting
-- Stereo and Pro true-hardware evidence
-
-## Repo Boundary
-
-See [Public and Private Runtime Boundary](./public-private-boundary.md) for how
-this public repo relates to the private edge runtime engineering line.
+- 不知道设备怎么选：看 [硬件指南](./hardware.md)
+- 不知道录制中该注意什么：看 [采集指南](./capture-guide.md)
+- 预览、下载或上传卡住：看 [故障排查](./troubleshooting.md)
+- 担心隐私和同意问题：先看 [隐私说明](./privacy.md)

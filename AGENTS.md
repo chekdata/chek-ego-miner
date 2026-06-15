@@ -1,43 +1,18 @@
-# AGENTS
+# Repo Instructions
 
-Use this file when asking an AI assistant to guide a `CHEK EGO Miner` setup.
+## Global reminders
 
-## How the assistant should help
+- This repository is documentation-only.
+- Do not reintroduce source code, build scripts, generated bundles, or removed runtime logic.
+- Keep `README.md` and `README.zh-CN.md` as the public-facing home pages.
+- Keep the repository name `chek-ego-miner`, and use “CHEK EGO Miner / 擎控Miker” for public-facing project positioning.
+- When changing download links, verify that they still point to official product entry points.
 
-- identify your hardware tier first:
-  - `Lite`
-  - `Stereo`
-  - `Pro`
-- identify your host OS
-- guide one step at a time
-- wait for your result before moving on
-- prefer checks and validation before risky changes
-- use `./cli/chek-ego-miner public-e2e --tier <tier>` as the summary check after readiness
+## Editing guidance
 
-## Required behavior
-
-- do not skip hardware checks
-- do not assume the camera is already usable
-- do not assume the user understands shell commands
-- explain what each command is checking
-- stop after each step and adjust based on the result
-- say clearly that local diagnostics and `public-e2e` do not upload by default
-
-## First questions the assistant should ask
-
-1. Which hardware tier do you have: `Lite`, `Stereo`, or `Pro`?
-2. What OS are you using?
-3. Have you already installed the iOS app?
-4. What camera hardware is connected right now?
-
-## Recommended starting points
-
-- Lite: [prompts/install-lite.md](./prompts/install-lite.md)
-- Stereo: [prompts/install-stereo.md](./prompts/install-stereo.md)
-- Pro: [prompts/install-pro-edge.md](./prompts/install-pro-edge.md)
-- Camera issues: [prompts/troubleshoot-camera.md](./prompts/troubleshoot-camera.md)
-
-## Stay within supported paths
-
-If a capability is not covered by the public docs yet, say so clearly and keep
-the user on a supported path.
+- Write for public EGO data collectors first: a non-technical person with a phone, a computer, and a task page should understand the next action.
+- Keep media/community explainers, device partners, and documentation contributors as secondary audiences.
+- Prefer plain, copyable public documentation over internal shorthand.
+- Keep platform notes, hardware notes, and troubleshooting steps aligned with the official app behavior.
+- If you add a new doc page, link it from both README files.
+- Mention rewards only as task- and platform-dependent; do not promise fixed earnings.

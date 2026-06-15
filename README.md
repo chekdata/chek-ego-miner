@@ -1,359 +1,81 @@
-[English](./README.md) | [简体中文](./README.zh-CN.md)
+[简体中文](./README.zh-CN.md)
 
-# CHEK EGO Miner
+# CHEK EGO Miner / Qingkong Miker
 
-Capture first-person EGO data with a phone and computer, contribute sessions,
-and browse reusable datasets.
+Use an iPhone and a computer to capture first-person everyday actions for embodied-AI data collection.
+
+CHEK EGO Miner is primarily for public collectors, not only robotics engineers. A collector can record real work or daily tasks from the “I am doing this” point of view, then use CHEK / Qingkong Miker to follow the task flow for capture, upload, review, and task-based rewards when a task supports them.
+
+This repository is the public documentation hub. It contains download, setup, capture, hardware, privacy, and troubleshooting docs. It does not publish source code, build scripts, internal runtime code, old product logic, or temporary test materials.
+
+## One-Sentence Idea
+
+The internet era turned text, photos, and videos into AI training material. Embodied AI now needs human actions, viewpoints, decisions, and work sequences so robots can learn how real people handle the physical world.
+
+## Who This Repo Is For
+
+1. **Public collectors** who want to use a phone and a computer to participate in EGO data tasks.
+2. **Community readers and media explainers** who want to understand why EGO data collection is being described as a new kind of data mining.
+3. **Device and scene partners** who need public hardware, privacy, and delivery boundaries.
+4. **Documentation contributors** who want to improve public-safe setup guides, screenshots, hardware notes, and troubleshooting.
+
+Developers should note that this is not a source-code repository. Do not add runtime code, internal service scripts, private deployment instructions, credentials, or private logs here.
 
 ## Start Here
 
-- Download the iOS app: [TestFlight](https://testflight.apple.com/join/RrYdeDUv)
-- Choose your hardware: [Hardware Guide](./docs/hardware.md)
-- Check the current public roadmap: [TODO](./TODO.md)
-- See validation status: [Public Validation Matrix](./docs/public-validation-matrix.md)
-- Understand the repo boundary: [Public and Private Runtime Boundary](./docs/public-private-boundary.md)
-- Understand the business goals, shared contract, and multi-phone ownership rule between the two repos: [Repo Business Contract](./docs/repo-business-contract.md)
-- Get step-by-step help:
-  - [Codex Guide](./docs/agent-guides/codex.md)
-  - [Claude Guide](./docs/agent-guides/claude.md)
-  - [OpenClaw Guide](./docs/agent-guides/openclaw.md)
-- Browse and download contributed datasets:
-  - [EGO Dataset Portal](https://www.chekkk.com/humanoid/ego-dataset)
+| Goal | Link |
+| --- | --- |
+| Download the clients | [Download guide](./docs/download.md) |
+| Start your first phone-and-computer collection | [Quick start](./docs/quickstart.md) |
+| Prepare phone, computer, mount, camera, or IMU hardware | [Hardware guide](./docs/hardware.md) |
+| Record a real EGO data session | [Capture guide](./docs/capture-guide.md) |
+| Understand what a session will save | [Delivery contract](./docs/delivery-contract.md) |
+| Fix download, preview, storage, or device-recognition issues | [Troubleshooting](./docs/troubleshooting.md) |
+| Understand consent and public-screenshot boundaries | [Privacy](./docs/privacy.md) |
+| Read common questions | [FAQ](./docs/faq.md) |
 
-## What You Can Do
+## Official Downloads
 
-- start with one phone and one computer
-- add a stereo camera when you want better spatial cues
-- move to a dedicated edge setup for higher-throughput capture
-- use an AI assistant for guided install and troubleshooting
-- contribute sessions and explore downloadable datasets
-
-## Public-First Scope
-
-This repository is the public-first entry point for contributors. It should
-give people a clear install path, working operator surfaces, agent-guided
-troubleshooting, and a usable frontend without forcing them to understand the
-full internal runtime topology first.
-
-It is the path for people who want to assemble their own edge machine or run
-the stack from a computer install, instead of depending on a factory-integrated
-device workflow.
-
-As the project evolves, this repo should keep that public-first experience
-while sharing common building blocks with the factory edge engineering line.
-The goal is to avoid long-term duplicate runtime or module implementations,
-while still supporting a genuinely different installation and hardware path.
-
-## Capability Lanes
-
-From the public product point of view, `chek-ego-miner` should expose usable
-entry points for `SLAM`, `VLM`, and `time-sync` so that a self-assembled edge
-host or a computer install can actually run those capabilities.
-
-That does not mean all three should become long-term `ego-miner`-only module
-implementations:
-
-- `SLAM`
-  - today is still more tightly coupled to the factory-integrated edge line,
-    especially around sensing bring-up, calibration, replay, training gates,
-    and engineering observability
-  - `chek-ego-miner` should expose the public install and operator path for it,
-    but should not fork a second long-lived core SLAM stack
-- `VLM`
-  - must remain directly usable from `chek-ego-miner`, including model fetch,
-    sidecar startup, service wiring, and public diagnostics
-  - the underlying runtime behavior should converge with the factory edge line
-    instead of drifting into two different VLM implementations
-- `time-sync`
-  - is a shared capture-quality capability needed by both product lines
-  - `chek-ego-miner` should surface install, validation, and operator feedback,
-    while deeper factory calibration and engineering observability can stay in
-    `chek-edge-runtime`
-
-The rule going forward is simple: if two files express the same capability in
-`modules/`, `profiles/`, `services/`, install backends, or shared UI panels,
-they should be deduped into shared building blocks, templates, or versioned
-assets instead of being maintained as two drifting copies.
-
-## System View
-
-```mermaid
-flowchart LR
-  Phone["iPhone + CHEK App"] --> Host["Computer or Edge Host"]
-  Camera["Your Camera or Stereo Camera"] --> Host
-  Agent["Codex / Claude / OpenClaw"] --> Host
-  Host --> Upload["Upload EGO Sessions"]
-  Upload --> Portal["Dataset Portal"]
-  Upload --> Rewards["Token Rewards"]
-```
-
-## Choose a Setup
-
-| Tier | Setup | Who it is for |
+| Platform | Official entry | Notes |
 | --- | --- | --- |
-| `Lite` | computer + your own camera | fastest way to start |
-| `Stereo` | computer + stereo camera | better spatial quality |
-| `Pro` | edge machine + stereo camera | dedicated capture and higher throughput |
+| Desktop `macOS / Windows / Linux` | [smart-download](https://www.chekkk.com/smart-download) | Open on a desktop browser to reach the desktop-client branch. |
+| `iOS` | [TestFlight](https://testflight.apple.com/join/RrYdeDUv) | Distributed through TestFlight for now. |
+| `Android` | [smart-download](https://www.chekkk.com/smart-download) | Routes through app-market flows first and falls back to APK download. |
 
-You will also need a first-person phone mount. See [Hardware Guide](./docs/hardware.md)
-for buying criteria, setup tradeoffs, search keywords, and direct purchase
-examples including China marketplace links.
+## Why This Is Not Just Video Recording
 
-## Get Step-by-Step Help
+A normal video ends when it is shot. EGO data collection tries to turn a real human task into a governed, reviewable, reusable data asset. That means the workflow also cares about:
 
-If you want guided setup instead of reading long docs, start with:
+- which task and scene the collector is working on;
+- whether the phone or camera recorded a stable first-person view;
+- whether the session has a clear capture, upload, and review flow;
+- whether privacy, consent, quality, and delivery checks are satisfied;
+- whether the resulting data can be searched, reused, and rewarded according to task rules.
 
-- [AGENTS.md](./AGENTS.md)
-- one of the ready-to-use prompts:
-  - [Lite Install Prompt](./prompts/install-lite.md)
-  - [Stereo Install Prompt](./prompts/install-stereo.md)
-  - [Pro Edge Install Prompt](./prompts/install-pro-edge.md)
-  - [Camera Troubleshooting Prompt](./prompts/troubleshoot-camera.md)
+## About Rewards
 
-Recommended flow:
+Public explainers sometimes describe this as data mining because real human actions and experience can become robot-training material. Actual rewards, review rules, and settlement terms depend on the specific task and platform policy. This repository does not promise a fixed hourly income.
 
-1. Tell the assistant which hardware tier you have.
-2. Share your OS and what is already installed.
-3. Ask for one step at a time.
-4. Keep hardware checks, app install, and camera validation in the flow.
+## Repository Boundary
 
-## Before You Install
+The repository name stays `chek-ego-miner`, while the public user-facing name is “CHEK EGO Miner / Qingkong Miker”.
 
-Before a longer install session, run the lightweight host self-check:
+This repository keeps only public documentation:
 
-```bash
-python3 scripts/check_host_basics.py
-```
+- download and install instructions;
+- phone, computer, mount, camera, and IMU guidance;
+- EGO capture workflow;
+- privacy, consent, safety, and public issue boundaries;
+- troubleshooting for ordinary users.
 
-If you plan to share your own fork or public changes, run:
+It does not keep:
 
-```bash
-./scripts/scan_public_safety.sh .
-```
+- source code;
+- internal runtime code;
+- private deployment scripts;
+- old product or temporary validation logic;
+- secrets, accounts, private URLs, or non-public logs.
 
-Or use the CLI:
+## License Boundary
 
-```bash
-./cli/chek-ego-miner doctor
-./cli/chek-ego-miner camera-probe
-./cli/chek-ego-miner readiness --tier lite
-./cli/chek-ego-miner readiness --tier pro
-./cli/chek-ego-miner public-e2e --tier lite
-```
-
-Use `./cli/chek-ego-miner camera-probe --capture-smoke` when you need to
-distinguish "camera is listed by the OS" from "the current terminal session can
-open the camera and read a frame".
-
-`public-e2e` is the single public summary command. It reports host OS, hardware
-tier, camera readiness, VLM policy, local capture result and upload policy. It
-does not upload by default.
-
-## Lite Setup on Linux or macOS
-
-If you want the quickest supported setup path, start here:
-
-```bash
-./cli/chek-ego-miner install \
-  --profile basic \
-  --apply \
-  --system-install \
-  --enable-services
-
-python3 -m pip install --user --break-system-packages -r scripts/edge_phone_vision_requirements.txt
-./cli/chek-ego-miner fetch-phone-vision-models --json
-./scripts/start_edge_phone_vision_service.sh
-
-./cli/chek-ego-miner basic-e2e \
-  --edge-base-url http://127.0.0.1:8080 \
-  --edge-token chek-ego-miner-local-token \
-  --trip-id trip-public-basic-e2e \
-  --session-id sess-public-basic-e2e \
-  --output-dir ./artifacts/basic-e2e \
-  --json
-```
-
-Or run the same local capture flow through the public summary command:
-
-```bash
-./cli/chek-ego-miner public-e2e \
-  --tier lite \
-  --run-basic-e2e \
-  --edge-base-url http://127.0.0.1:8080 \
-  --edge-token chek-ego-miner-local-token \
-  --trip-id trip-public-basic-e2e \
-  --session-id sess-public-basic-e2e \
-  --json
-```
-
-If Homebrew-managed macOS `python3` blocks `pip install --user`, install the
-same requirements into a compatible interpreter such as `python3.10`; the
-start script will auto-select it when available.
-
-After the basic flow finishes, you should see:
-
-- `ok: true`
-- `validation.ok: true`
-- `validation.score_percent: 100.0`
-- `public_download/demo_capture_bundle.json` in your output directory
-
-Notes:
-
-- This path is intended for `Linux x86_64` and `macOS arm64` basic hosts.
-- On macOS, `install --system-install --enable-services` stages the runtime
-  under `~/.chek-edge/runtime/macos/basic`.
-- `time_sync_samples` can stay empty on the single-phone basic path.
-
-## Training Threshold Validation
-
-Raw upload/download success is not the same as training readiness. To check a
-downloaded session bundle against the public SLAM + time-sync candidate gate:
-
-```bash
-python3 scripts/generate_slam_time_sync_benchmark.py \
-  --bundle /path/to/raw_bundle.tar.gz \
-  --tier pro \
-  --output /tmp/slam_time_sync_benchmark.json \
-  --json
-
-python3 scripts/validate_training_thresholds.py \
-  --bundle /path/to/raw_bundle.tar.gz \
-  --tier pro \
-  --slam-benchmark-report /tmp/slam_time_sync_benchmark.json \
-  --json
-```
-
-The validator checks:
-
-- VLM events, segments, fallback usage, and latency
-- time-sync sample count, accepted mapping ratio, per-source RTT, and offset span
-- phone pose, stereo pose, Wi-Fi pose, and fisheye track completeness
-- whether a SLAM benchmark report with drift, reprojection, pose-graph, and
-  body-tracking metrics exists and passes the candidate budgets
-
-The benchmark generator only emits metrics that can be computed from the bundle
-facts. It can compute stereo reprojection error and body-tracking coverage from
-the current raw bundle. It keeps trajectory drift and pose-graph residual as
-explicit blockers until the bundle includes ground truth, loop-closure evidence,
-or a SLAM optimizer report.
-
-It returns exit code `0` only when `training_ready=true`; incomplete or
-candidate-only bundles return exit code `2` and list the blocking checks. Raw
-`clock_offset_ns` values can cross clock domains, so the validator uses per
-source-kind offset span/stability instead of treating the absolute offset as the
-sync error.
-
-It intentionally separates:
-
-- `signal_candidate_ready`: the bundle has enough live signals for a candidate
-  review
-- `training_ready`: the bundle passes frozen thresholds and has required SLAM
-  benchmark metrics
-
-Until `configs/slam_time_sync_training_v1.json` is frozen and real benchmark
-metrics are present, the tool will refuse to claim final training readiness.
-
-## Pro Setup on Jetson
-
-If you want the full `Pro` runtime path on Jetson, bootstrap the machine first.
-This brings in:
-
-- stereo calibration
-- the Wi-Fi sensing model and `sensing-server`
-- `edge-orchestrator`, `ruview-leap-bridge`, and `ruview-unitree-bridge` binaries
-- `RuView/ui-react/dist`
-- an existing Jetson GPU VLM environment plus SmolVLM model cache
-
-```bash
-./cli/chek-ego-miner jetson-professional-bootstrap -- --force
-./cli/chek-ego-miner install \
-  --profile professional \
-  --apply \
-  --system-install \
-  --runtime-edge-root "$PWD"
-```
-
-If you only want the Jetson VLM path, use the bundled sidecar and model fetch
-flow:
-
-```bash
-./cli/chek-ego-miner install \
-  --profile professional \
-  --apply \
-  --system-install \
-  --enable-services
-
-python3 -m pip install --user -r scripts/edge_vlm_requirements.txt
-./cli/chek-ego-miner fetch-vlm-models --json
-./cli/chek-ego-miner vlm-start
-```
-
-If the target Jetson already has a working GPU VLM environment and local model
-cache, you can wire only those VLM assets and enable the sidecar through
-`systemd-user`:
-
-```bash
-./cli/chek-ego-miner jetson-vlm-bootstrap -- --force
-./cli/chek-ego-miner service-install \
-  --profile professional \
-  --service chek-edge-vlm-sidecar \
-  --enable \
-  --runtime-edge-root "$PWD"
-```
-
-Notes:
-
-- `fetch-vlm-models` downloads the core Hugging Face files needed by
-  `transformers`.
-- Default model files are stored under `model-candidates/huggingface/`.
-- A successful Jetson bring-up should look like:
-  - `./cli/chek-ego-miner readiness --tier pro` reports the host is ready
-  - required services reach `active`
-  - `/health`, `/association/hint`, `/api/v1/stream/status`, and `/infer`
-    return live responses on the host
-
-## Dataset Portal
-
-Search and download contributed data from:
-
-- [https://www.chekkk.com/humanoid/ego-dataset](https://www.chekkk.com/humanoid/ego-dataset)
-
-## What You Can Do Today
-
-- onboard a new capture setup
-- choose hardware and accessories
-- use prompts for guided setup
-- run the Lite/basic path on Linux or macOS
-- bring up the Pro Jetson VLM and service path
-- learn how contribution, rewards, and dataset discovery work
-
-## Docs
-
-- [Public Roadmap / TODO](./TODO.md)
-- [Public Validation Matrix](./docs/public-validation-matrix.md)
-- [Public and Private Runtime Boundary](./docs/public-private-boundary.md)
-- [Repo Business Contract](./docs/repo-business-contract.md)
-- [Hardware Guide](./docs/hardware.md)
-- [Quickstart](./docs/quickstart.md)
-- [Stereo Calibration Checklist](./docs/stereo-calibration-checklist.md)
-- [Pro Jetson Diagnostics](./docs/pro-jetson-diagnostics.md)
-- [Hardware/Profile Mapping](./docs/profile-mapping.md)
-- [Diagnostics](./docs/diagnostics.md)
-- [Token Rewards](./docs/token-rewards.md)
-- [Privacy, Consent, and Data License](./docs/privacy-data-license.md)
-- [FAQ](./docs/faq.md)
-- [Codex Guide](./docs/agent-guides/codex.md)
-- [Claude Guide](./docs/agent-guides/claude.md)
-- [OpenClaw Guide](./docs/agent-guides/openclaw.md)
-
-## Contributing
-
-See [CONTRIBUTING.md](./CONTRIBUTING.md).
-
-## Security
-
-See [SECURITY.md](./SECURITY.md).
-
-## License
-
-See [LICENSE](./LICENSE).
+Documentation content is open for use. App binaries, services, hardware protocols, trademarks, and official release materials stay outside that open boundary.

@@ -1,32 +1,30 @@
 ---
-name: Host evidence request
-about: Track live evidence work for a host lane or hardware lane
-title: "[Evidence] "
+name: 设备 / 硬件反馈
+about: 分享公开安全的手机、电脑、支架、相机、IMU 或其他采集硬件反馈。
+title: "[Hardware] "
 labels: enhancement
 assignees: ""
 ---
 
-## Lane to verify
+## 设备信息
 
-- Scope: `Windows / Jetson / Stereo / Pro / other`
-- Profile or tier:
-- Host OS and architecture:
+- 平台: `桌面 / iOS / Android`
+- 操作系统:
+- 硬件型号:
+- 连接方式:
 
-## Goal
+## 想确认什么
 
-Describe the exact public claim that needs live evidence.
+请描述你想验证的硬件兼容性、安装行为或使用结果。
 
-## Acceptance criteria
+## 观察结果
 
-- [ ] install path completes from the public repo
-- [ ] health checks are green
-- [ ] required hardware is visible
-- [ ] evidence is written back to public docs
+写下你实际看到了什么。
 
-## Known blockers
+## 对采集有什么影响
 
-List any host access, admin permission, or hardware constraints here.
+例如：预览是否稳定、手机是否容易固定、线材是否影响录制、存储是否够、是否适合普通采集者复用。
 
-## Evidence notes
+## 公开安全说明
 
-Add commands, screenshots, or links as the work progresses.
+如果你贴截图，请只包含公开可分享的信息。

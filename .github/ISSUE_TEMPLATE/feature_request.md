@@ -1,19 +1,26 @@
 ---
-name: Feature request
-about: Suggest an improvement to the public repo or contributor workflow
-title: "[Feature] "
-labels: enhancement
+name: 文档改进
+about: 建议把公开文档讲得更适合普通采集者、传播者或设备合作方。
+title: "[Docs] "
+labels: documentation
 assignees: ""
 ---
 
-## What do you want to improve?
+## 想改哪里
 
-Describe the feature or workflow change.
+请描述你想改进的文档、链接、截图或文案。
 
-## Why does it matter?
+## 为什么重要
 
-Explain how it helps contributors, dataset users, or hardware bring-up.
+说明它会怎样帮助新的用户更快完成下载、安装或使用。
 
-## What would success look like?
+## 主要帮助谁
 
-List the result we should be able to observe after the change lands.
+- [ ] 第一次参与 EGO 数据采集的普通用户
+- [ ] 想理解项目的媒体、社区或传播者
+- [ ] 准备设备或场景的合作方
+- [ ] 文档维护者
+
+## 什么叫“改好了”
+
+列出我们应该能观察到的结果。

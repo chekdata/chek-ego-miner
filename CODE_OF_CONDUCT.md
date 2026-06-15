@@ -2,13 +2,14 @@
 
 ## Our standard
 
-We want `CHEK EGO Miner` to be welcoming to:
+We want **CHEK EGO Miner / 擎控Miker** to be welcoming to:
 
-- first-time contributors
-- hardware hobbyists
-- researchers
-- operators
-- people using AI agents for setup help
+- first-time EGO data collectors
+- people installing phone and desktop clients
+- hardware shoppers and device partners
+- operators following task rules
+- media/community readers trying to understand the project
+- people using AI helpers for setup or troubleshooting
 
 Be respectful, practical, and generous.
 
@@ -17,7 +18,8 @@ Be respectful, practical, and generous.
 - harassment or intimidation
 - gatekeeping beginners
 - posting private infrastructure details
-- posting credentials or unsafe operational information
+- posting credentials, private URLs, or unsafe operational information
+- shaming users for asking about downloads, hardware, capture, rewards, or setup
 
 ## Enforcement
 

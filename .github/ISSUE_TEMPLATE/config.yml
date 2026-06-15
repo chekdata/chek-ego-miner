@@ -1,8 +1,8 @@
 blank_issues_enabled: true
 contact_links:
+  - name: Start EGO data collection
+    url: https://github.com/chekdata/chek-ego-miner/blob/main/docs/download.md
+    about: Start here if you need official download links, install steps, or first-run guidance.
   - name: Security reports
     url: https://github.com/chekdata/chek-ego-miner/security/policy
-    about: Please use the security policy for sensitive reports.
-  - name: Dataset portal
-    url: https://www-dev.chekkk.com/humanoid/ego-dataset
-    about: Browse and download contributed EGO datasets here.
+    about: Use the private security flow for sensitive reports.

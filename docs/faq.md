@@ -1,32 +1,59 @@
-# FAQ
+# 常见问题
 
-## Can I start with just a computer and my own camera?
+## CHEK EGO Miner 是什么？
 
-Yes. Start with the `Lite` tier.
+它是面向具身智能 EGO 数据采集的公开入口。你可以把它理解成：用手机和电脑记录普通人的第一视角动作，再通过平台流程完成采集、上传、审核和任务结算。
 
-## Do I need an edge machine on day one?
+## EGO 数据是什么？
 
-No. Start with `Lite`, then move to `Stereo` or `Pro` when you need more.
+EGO 是 egocentric data，也就是第一人称视角数据。它记录的不是旁观者看到某个人在做事，而是“我正在做这件事”时看到的画面、动作顺序、手和物体变化、现场判断和小调整。
 
-## Which agent should I use?
+## 普通人真的可以参与吗？
 
-- Use Codex if you want more code-oriented help.
-- Use Claude if you want more conversational guidance.
-- Use OpenClaw if you want a strict operator-style checklist.
+可以。这个项目的重点就是把原本昂贵、专业的具身智能数据采集入口往下拉，让普通人先用手机和电脑开始参与。
 
-## What if I do not have a stereo camera yet?
+## 一定能赚钱吗？
 
-Start with `Lite`. Move to `Stereo` later when you need better spatial quality.
+不应该这样理解。公开讲解里常用“数据挖矿”来解释这件事，因为真实动作和经验可能变成机器人训练素材。但具体是否有奖励、奖励多少、如何审核和结算，都以你参与的任务和平台规则为准。
 
-## Can I use Windows?
+## 只用手机可以吗？
 
-Yes, but hardware and camera behavior still need to be validated on your
-specific setup. Start with `doctor` and `readiness`.
+第一次理解流程时，手机是核心设备；正式任务通常还需要电脑端配合完成下载、任务、上传、审核或管理流程。某些任务还会要求真实产品相机、IMU、深度相机或其他设备。
 
-## Is every host already a one-command install?
+## 这个仓库里有源码吗？
 
-No. Check the README and quickstart for the supported setup paths.
+没有。这个仓库只放 CHEK EGO Miner / 擎控Miker 的公开下载、使用、硬件、隐私和支持文档。
 
-## Where do I download contributed datasets?
+## 桌面客户端真的有吗？
 
-Use the dataset portal linked from the README.
+有。桌面端官方入口是 [`smart-download`](https://www.chekkk.com/smart-download)。
+
+## iOS 是 App Store 还是 TestFlight？
+
+当前是 TestFlight：
+
+<https://testflight.apple.com/join/RrYdeDUv>
+
+## Android 是什么分发方式？
+
+当前先走官方 `smart-download` 入口，再按页面提示进入应用市场或 APK 下载。
+
+## 录制前为什么要先确认契约？
+
+因为本次要保存什么，应该由真实设备能力、用户选择和预检结果共同决定，不能偷偷改。用户确认后，录制、恢复、验收和上传都应该按这次确认的内容执行。
+
+## 录制过程中能换设备吗？
+
+不建议。设备变化后应该重新预检并重新确认。新增设备不能自动加入当前合同，缺失的必需设备或轨道也不能被静默忽略。
+
+## 一个真实产品相机够不够？
+
+够不够要看这次任务怎么定义。最低产品门槛通常是至少一台用户选择的真实产品相机参与；IMU、深度、红外、点云、音频等是否需要，由具体任务和本次确认内容决定。
+
+## 预览没画面怎么办？
+
+先看 [故障排查](./troubleshooting.md)。不要把没有画面的预览直接当成可交付采集。
+
+## 我可以把截图和日志直接发到 issue 吗？
+
+可以发公开安全的最小信息。不要贴账号、密钥、私有链接、设备完整序列号、身份证件、住址、无关人员人脸或内部地址。
