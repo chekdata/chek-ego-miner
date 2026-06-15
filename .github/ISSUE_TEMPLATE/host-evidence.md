@@ -6,10 +6,13 @@ labels: enhancement
 assignees: ""
 ---
 
+CHEK EGO Miner 是擎控科技团队带来的 EGO 数据采集工具链。手机端叫 CHEK，桌面端叫擎控Miker。硬件反馈请说明它影响的是手机端采集、桌面端管理，还是两者配合。
+
 ## 设备信息
 
 - 平台: `桌面 / iOS / Android`
 - 操作系统:
+- 产品: `CHEK 手机端 / 擎控Miker 桌面端 / 两者配合`
 - 硬件型号:
 - 连接方式:
 

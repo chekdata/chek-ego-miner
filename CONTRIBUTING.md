@@ -2,6 +2,8 @@
 
 This repository is written for public EGO data collectors first. Before changing docs, ask whether a non-technical person with a phone, a computer, and a task page can understand the next action.
 
+CHEK EGO Miner is brought by the Qingkong Technology team. The mobile app is called CHEK, and the desktop app is called Qingkong Miker. Keep that naming clear across every public page.
+
 ## What belongs in this repo
 
 Use this repo for:
@@ -10,6 +12,7 @@ Use this repo for:
 - first-time EGO data collection guidance
 - hardware guidance
 - troubleshooting and FAQ updates
+- clear explanations of why first-person human action data matters for robot training
 - screenshots, diagrams, and copy edits that are safe to publish
 - link fixes and wording improvements
 
@@ -36,6 +39,7 @@ By opening a pull request here, you confirm that:
 
 - improving download instructions
 - making the “phone + computer” first-run flow easier to understand
+- clarifying the relationship between CHEK EGO Miner, CHEK mobile, and Qingkong Miker desktop
 - clarifying hardware buying guidance
 - tightening troubleshooting steps
 - improving public screenshots and diagrams

@@ -2,6 +2,8 @@
 
 这是一条给第一次参与 EGO 数据采集的人看的最短路径。你不需要先懂机器人，也不需要先买昂贵头显；先准备一台手机和一台电脑，把第一条真实动作流程跑通。
 
+CHEK EGO Miner 是擎控科技团队带来的 EGO 数据采集工具链和众包入口。手机端叫 **CHEK**，桌面端叫 **擎控Miker**。第一次上手时，请把它理解成“CHEK 负责移动采集，擎控Miker 负责桌面任务和管理流程”。
+
 ## 1. 先理解你要做什么
 
 EGO 数据不是普通自拍，也不是随手拍一段视频。它要记录的是“我正在做这件事”的第一视角：
@@ -13,11 +15,11 @@ EGO 数据不是普通自拍，也不是随手拍一段视频。它要记录的�
 
 这些动作和经验，未来可能成为机器人学习真实世界任务的训练素材。
 
-## 2. 下载手机端和桌面端
+## 2. 下载 CHEK 和擎控Miker
 
-- 桌面端：[`smart-download`](https://www.chekkk.com/smart-download)
-- iOS：[`TestFlight`](https://testflight.apple.com/join/RrYdeDUv)
-- Android：[`smart-download`](https://www.chekkk.com/smart-download)
+- 擎控Miker 桌面端：[`smart-download`](https://www.chekkk.com/smart-download)
+- CHEK iOS 手机端：[`TestFlight`](https://testflight.apple.com/join/RrYdeDUv)
+- CHEK Android 手机端：[`smart-download`](https://www.chekkk.com/smart-download)
 
 建议用电脑浏览器打开桌面端下载入口，用手机打开对应移动端入口。如果在微信里打不开下载页，先点“在浏览器中打开”。
 
@@ -35,7 +37,9 @@ EGO 数据不是普通自拍，也不是随手拍一段视频。它要记录的�
 
 ## 4. 登录并选择任务
 
-打开擎控Miker 后，先确认自己登录的是正确账号，再进入采集任务。不同任务可能要求不同场景、动作、时长、视角和硬件，不要把一个任务的要求套到另一个任务上。
+打开 CHEK 和擎控Miker 后，先确认自己登录的是正确账号，再进入采集任务。不同任务可能要求不同场景、动作、时长、视角和硬件，不要把一个任务的要求套到另一个任务上。
+
+手机端 CHEK 主要帮助你进入移动采集和第一视角记录；桌面端擎控Miker 主要帮助你看任务、检查设备、管理采集、上传和等待审核。具体分工以任务页面为准。
 
 ## 5. 开始前先检查
 

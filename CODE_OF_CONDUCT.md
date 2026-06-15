@@ -2,10 +2,12 @@
 
 ## Our standard
 
-We want **CHEK EGO Miner / 擎控Miker** to be welcoming to:
+CHEK EGO Miner is brought by the Qingkong Technology team. The mobile app is CHEK, and the desktop app is Qingkong Miker.
+
+We want **CHEK EGO Miner** to be welcoming to:
 
 - first-time EGO data collectors
-- people installing phone and desktop clients
+- people installing CHEK mobile and Qingkong Miker desktop
 - hardware shoppers and device partners
 - operators following task rules
 - media/community readers trying to understand the project
