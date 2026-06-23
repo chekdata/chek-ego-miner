@@ -6,7 +6,7 @@ Ordinary people training robots is becoming a concrete workflow.
 
 Robotics data collection used to depend on labs, expensive devices, and specialized teams. CHEK EGO Miner lowers that entry point: with a phone, a computer, and a stable mount, a collector can record real first-person work or daily actions and enter an embodied-AI EGO data task flow.
 
-**CHEK EGO Miner is brought by the Qingkong Technology team. The mobile app is called CHEK, and the desktop app is called Qingkong Miker.**
+**CHEK EGO Miner is brought by the CHEK Robot（擎控机器人） team. The mobile app is called CHEK, and the desktop app is called Qingkong Miker.**
 
 The goal is not to create another video-recording tool. The goal is to organize real human actions, viewpoints, decisions, and operating experience into a data supply network that robots can learn from.
 
@@ -45,7 +45,7 @@ CHEK EGO Miner turns scattered daily action experience into robot-training data 
 
 When you participate in CHEK EGO Miner, you will see three names:
 
-- **CHEK EGO Miner**: the EGO data collection project started by the Qingkong Technology team. Its goal is to organize first-person human action into a data supply network that robots can learn from.
+- **CHEK EGO Miner**: the EGO data collection project started by the CHEK Robot（擎控机器人） team. Its goal is to organize first-person human action into a data supply network that robots can learn from.
 - **CHEK**: the mobile app. You use it to enter mobile capture flows, record first-person footage, and follow task requirements.
 - **Qingkong Miker**: the desktop app. You use it for task coordination, device checks, capture management, upload, and review flow.
 
@@ -77,8 +77,19 @@ The rest of the docs use those names consistently so you can tell which client t
 | Product | Platform | Official entry | Notes |
 | --- | --- | --- | --- |
 | Qingkong Miker desktop app | `macOS / Windows / Linux` | [smart-download](https://www.chekkk.com/smart-download) | Open on a desktop browser to reach the desktop-client branch. |
-| CHEK mobile app | `iOS` | [TestFlight](https://testflight.apple.com/join/RrYdeDUv) | Distributed through TestFlight for now. |
+| CHEK mobile app | `iOS` | [App Store](https://apps.apple.com/us/app/%E8%BD%A6%E6%8E%A7chek/id6748735539) / [TestFlight](https://testflight.apple.com/join/RrYdeDUv) | Use the App Store for the public iOS build. TestFlight remains available for testing builds when requested. |
 | CHEK mobile app | `Android` | [smart-download](https://www.chekkk.com/smart-download) | Routes through app-market flows first and falls back to APK download. |
+
+## Roadmap
+
+CHEK EGO Miner will keep making the data task flow easier to understand and complete. The product path is simple:
+
+- **Record the task**: use CHEK on the phone and Qingkong Miker on the desktop to capture real first-person work.
+- **Check the recording**: review whether the media, timing, devices, and task requirements look usable before upload.
+- **Review for robot learning**: for tasks that need deeper review, add a workspace where suggested labels, human approval, pose and trajectory evidence, QA freeze, and LeRobot output can be handled step by step.
+- **Upload the result**: upload only the task-approved result, then track upload, reward review, settlement, and training-data approval as separate statuses.
+
+LeRobot support belongs to the robot-learning review step. It does not replace recording or uploading, and a LeRobot export does not automatically mean that a task has passed settlement or training-data approval.
 
 ## About Rewards
 

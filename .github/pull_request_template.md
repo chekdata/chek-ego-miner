@@ -3,7 +3,7 @@
 - what changed
 - why it changed
 - which audience this helps: collectors, media/community readers, device partners, or documentation maintainers
-- whether the wording keeps the naming clear: CHEK EGO Miner is the Qingkong Technology project, CHEK is the mobile app, and Qingkong Miker / 擎控Miker is the desktop app
+- whether the wording keeps the naming clear: CHEK EGO Miner is the CHEK Robot（擎控机器人） project, CHEK is the mobile app, and Qingkong Miker / 擎控Miker is the desktop app
 
 ## Validation
 

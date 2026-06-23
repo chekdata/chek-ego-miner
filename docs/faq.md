@@ -2,7 +2,7 @@
 
 ## CHEK EGO Miner 是什么？
 
-CHEK EGO Miner 是擎控科技团队带来的 EGO 数据采集工具链和众包入口。你可以把它理解成：用手机和电脑记录普通人的第一视角动作，再通过平台流程完成采集、上传、审核和任务结算。
+CHEK EGO Miner 是 CHEK Robot（擎控机器人）团队带来的 EGO 数据采集工具链和众包入口。你可以把它理解成：用手机和电脑记录普通人的第一视角动作，再通过平台流程完成采集、上传、审核和任务结算。
 
 手机端产品叫 **CHEK**，桌面端产品叫 **擎控Miker**。CHEK EGO Miner 是项目和数据网络入口，不是某一个单独 App 的名字。
 
@@ -38,11 +38,15 @@ EGO 是 egocentric data，也就是第一人称视角数据。它记录的不是
 
 ## 手机客户端叫什么？
 
-手机端叫 CHEK。iOS 当前通过 TestFlight 分发，Android 通过官方 `smart-download` 入口进入应用市场或 APK 下载。
+手机端叫 CHEK。iOS 有 App Store 正式版，同时保留 TestFlight 测试版；Android 通过官方 `smart-download` 入口进入应用市场或 APK 下载。
 
 ## iOS 是 App Store 还是 TestFlight？
 
-当前是 TestFlight：
+普通用户优先使用 App Store 正式版：
+
+<https://apps.apple.com/us/app/%E8%BD%A6%E6%8E%A7chek/id6748735539>
+
+如果任务或测试说明要求测试版，也可以使用 TestFlight：
 
 <https://testflight.apple.com/join/RrYdeDUv>
 

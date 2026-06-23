@@ -2,7 +2,7 @@
 
 This repository is written for public EGO data collectors first. Before changing docs, ask whether a non-technical person with a phone, a computer, and a task page can understand the next action.
 
-CHEK EGO Miner is brought by the Qingkong Technology team. The mobile app is called CHEK, and the desktop app is called Qingkong Miker. Keep that naming clear across every public page.
+CHEK EGO Miner is brought by the CHEK Robot（擎控机器人） team. The mobile app is called CHEK, and the desktop app is called Qingkong Miker. Keep that naming clear across every public page.
 
 ## What belongs in this repo
 

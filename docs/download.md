@@ -2,14 +2,14 @@
 
 这个页面帮你找到 CHEK 手机端和擎控Miker 桌面端的官方入口。下载时优先使用这里列出的链接，避免从陌生网盘、转发安装包或不明镜像安装。
 
-CHEK EGO Miner 是擎控科技团队带来的 EGO 数据采集工具链和众包入口。普通采集者通常需要同时准备两个客户端：手机端叫 **CHEK**，桌面端叫 **擎控Miker**。
+CHEK EGO Miner 是 CHEK Robot（擎控机器人）团队带来的 EGO 数据采集工具链和众包入口。普通采集者通常需要同时准备两个客户端：手机端叫 **CHEK**，桌面端叫 **擎控Miker**。
 
 ## 下载入口
 
 | 产品 | 平台 | 官方入口 | 说明 |
 | --- | --- | --- | --- |
 | 擎控Miker 桌面端 | `macOS / Windows / Linux` | [smart-download](https://www.chekkk.com/smart-download) | 在电脑浏览器里打开，会自动识别桌面系统并进入对应客户端下载分支。 |
-| CHEK 手机端 | `iOS` | [TestFlight](https://testflight.apple.com/join/RrYdeDUv) | 目前通过 TestFlight 分发。 |
+| CHEK 手机端 | `iOS` | [App Store](https://apps.apple.com/us/app/%E8%BD%A6%E6%8E%A7chek/id6748735539) / [TestFlight](https://testflight.apple.com/join/RrYdeDUv) | 普通用户优先使用 App Store 正式版；TestFlight 保留给需要测试版的用户。 |
 | CHEK 手机端 | `Android` | [smart-download](https://www.chekkk.com/smart-download) | 先走应用市场分发，失败后会回落到 APK 下载。 |
 
 ## 你需要知道的事
@@ -24,7 +24,7 @@ CHEK EGO Miner 是擎控科技团队带来的 EGO 数据采集工具链和众包
 ## 建议的打开方式
 
 - 擎控Miker 桌面端：直接在电脑浏览器打开 `smart-download`
-- CHEK iPhone 手机端：从 `TestFlight` 安装
+- CHEK iPhone 手机端：普通用户从 `App Store` 安装；如果任务或测试说明要求测试版，再使用 `TestFlight`
 - CHEK Android 手机端：先打开 `smart-download`，再按页面提示走应用市场或 APK
 
 ## 下载之后做什么

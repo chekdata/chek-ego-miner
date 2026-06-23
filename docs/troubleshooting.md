@@ -8,7 +8,7 @@
 
 - 先确认你打开的是官方入口
 - 擎控Miker 桌面端请用电脑浏览器打开 `smart-download`
-- CHEK 手机端请用手机打开 TestFlight 或 `smart-download`
+- CHEK 手机端请用手机打开 App Store、TestFlight 或 `smart-download`
 - 微信里请先点“在浏览器中打开”
 
 ## 2. 桌面端没有开始下载

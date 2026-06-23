@@ -2,7 +2,7 @@
 
 ## Our standard
 
-CHEK EGO Miner is brought by the Qingkong Technology team. The mobile app is CHEK, and the desktop app is Qingkong Miker.
+CHEK EGO Miner is brought by the CHEK Robot（擎控机器人） team. The mobile app is CHEK, and the desktop app is Qingkong Miker.
 
 We want **CHEK EGO Miner** to be welcoming to:
 

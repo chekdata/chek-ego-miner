@@ -6,7 +6,7 @@
 - Do not reintroduce source code, build scripts, generated bundles, or removed runtime logic.
 - Keep `README.md` and `README.zh-CN.md` as the public-facing home pages.
 - Keep the repository name `chek-ego-miner`, and use CHEK EGO Miner for public-facing project positioning.
-- Naming rule: CHEK EGO Miner is brought by the Qingkong Technology team; the mobile app is CHEK; the desktop app is Qingkong Miker / 擎控Miker.
+- Naming rule: CHEK EGO Miner is brought by the CHEK Robot（擎控机器人） team; the mobile app is CHEK; the desktop app is Qingkong Miker / 擎控Miker.
 - When changing download links, verify that they still point to official product entry points.
 
 ## Editing guidance

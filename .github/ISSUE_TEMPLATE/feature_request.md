@@ -6,7 +6,7 @@ labels: documentation
 assignees: ""
 ---
 
-CHEK EGO Miner 是擎控科技团队带来的项目和数据网络入口；手机端叫 CHEK，桌面端叫擎控Miker。文档建议请尽量保持这个命名关系清楚。
+CHEK EGO Miner 是 CHEK Robot（擎控机器人）团队带来的项目和数据网络入口；手机端叫 CHEK，桌面端叫擎控Miker。文档建议请尽量保持这个命名关系清楚。
 
 ## 想改哪里
 
