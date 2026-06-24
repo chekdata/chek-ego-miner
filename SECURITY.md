@@ -1,6 +1,6 @@
 # Security Policy
 
-CHEK EGO Miner is brought by the Qingkong Technology team. The mobile app is CHEK, and the desktop app is Qingkong Miker. This repository is only the public documentation entry point for those products and the EGO data collection workflow.
+CHEK EGO Miner is brought by the CHEK Robot（擎控机器人） team. The mobile app is CHEK, and the desktop app is Qingkong Miker. This repository is only the public documentation entry point for those products and the EGO data collection workflow.
 
 ## How to report a security issue
 

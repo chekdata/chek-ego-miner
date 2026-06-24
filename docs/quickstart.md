@@ -2,7 +2,7 @@
 
 这是一条给第一次参与 EGO 数据采集的人看的最短路径。你不需要先懂机器人，也不需要先买昂贵头显；先准备一台手机和一台电脑，把第一条真实动作流程跑通。
 
-CHEK EGO Miner 是擎控科技团队带来的 EGO 数据采集工具链和众包入口。手机端叫 **CHEK**，桌面端叫 **擎控Miker**。第一次上手时，请把它理解成“CHEK 负责移动采集，擎控Miker 负责桌面任务和管理流程”。
+CHEK EGO Miner 是 CHEK Robot（擎控机器人）团队带来的 EGO 数据采集工具链和众包入口。手机端叫 **CHEK**，桌面端叫 **擎控Miker**。第一次上手时，请把它理解成“CHEK 负责移动采集，擎控Miker 负责桌面任务和管理流程”。
 
 ## 1. 先理解你要做什么
 
@@ -18,7 +18,7 @@ EGO 数据不是普通自拍，也不是随手拍一段视频。它要记录的�
 ## 2. 下载 CHEK 和擎控Miker
 
 - 擎控Miker 桌面端：[`smart-download`](https://www.chekkk.com/smart-download)
-- CHEK iOS 手机端：[`TestFlight`](https://testflight.apple.com/join/RrYdeDUv)
+- CHEK iOS 手机端：[`App Store`](https://apps.apple.com/us/app/%E8%BD%A6%E6%8E%A7chek/id6748735539)，测试版保留 [`TestFlight`](https://testflight.apple.com/join/RrYdeDUv)
 - CHEK Android 手机端：[`smart-download`](https://www.chekkk.com/smart-download)
 
 建议用电脑浏览器打开桌面端下载入口，用手机打开对应移动端入口。如果在微信里打不开下载页，先点“在浏览器中打开”。

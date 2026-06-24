@@ -6,7 +6,7 @@
 
 过去，采集机器人能用的真实世界数据，通常依赖实验室、昂贵设备和专业团队。现在，一台手机、一台电脑、一个稳定支架，就可以把真实工作和生活里的第一视角动作采下来，进入具身智能 EGO 数据任务流程。
 
-**CHEK EGO Miner 是擎控科技团队带来的 EGO 数据采集工具链和众包入口。手机端产品叫 CHEK，桌面端产品叫擎控Miker。**
+**CHEK EGO Miner 是 CHEK Robot（擎控机器人）团队带来的 EGO 数据采集工具链和众包入口。手机端产品叫 CHEK，桌面端产品叫擎控Miker。**
 
 它想做的不是再造一个“拍视频工具”，而是把普通人的真实动作、视角、判断和操作经验，组织成机器人可以学习的数据供给网络。
 
@@ -45,7 +45,7 @@ CHEK EGO Miner 的价值，就是把这些原本分散在日常生活里的动�
 
 参与 CHEK EGO Miner 时，你会遇到三个名字：
 
-- **CHEK EGO Miner**：擎控科技团队发起的 EGO 数据采集项目，目标是把普通人的第一视角动作组织成机器人可以学习的数据供给网络。
+- **CHEK EGO Miner**：CHEK Robot（擎控机器人）团队发起的 EGO 数据采集项目，目标是把普通人的第一视角动作组织成机器人可以学习的数据供给网络。
 - **CHEK**：手机端 App。你用它进入移动采集流程，记录第一视角画面，并按任务要求完成采集。
 - **擎控Miker**：桌面端 App。你用它配合任务管理、设备检查、采集管理、上传和审核流程。
 
@@ -77,8 +77,19 @@ CHEK EGO Miner 的价值，就是把这些原本分散在日常生活里的动�
 | 产品 | 平台 | 官方入口 | 说明 |
 | --- | --- | --- | --- |
 | 擎控Miker 桌面端 | `macOS / Windows / Linux` | [smart-download](https://www.chekkk.com/smart-download) | 在电脑浏览器里打开，会自动进入桌面客户端下载分支。 |
-| CHEK 手机端 | `iOS` | [TestFlight](https://testflight.apple.com/join/RrYdeDUv) | 当前通过 TestFlight 分发。 |
+| CHEK 手机端 | `iOS` | [App Store](https://apps.apple.com/us/app/%E8%BD%A6%E6%8E%A7chek/id6748735539) / [TestFlight](https://testflight.apple.com/join/RrYdeDUv) | 普通用户优先使用 App Store 正式版；TestFlight 保留给需要测试版的用户。 |
 | CHEK 手机端 | `Android` | [smart-download](https://www.chekkk.com/smart-download) | 先走应用市场分发，失败后回落到 APK 下载。 |
+
+## 后续规划
+
+CHEK EGO Miner 接下来会把整条数据任务流程做得更清楚、更好完成。用户看到的主路径很简单：
+
+- **录制任务**：用手机端 CHEK 和桌面端擎控Miker，采集真实第一视角任务。
+- **检查录制**：上传前先确认画面、声音、时间、设备和任务要求是否可用。
+- **机器人学习审阅**：对需要深度处理的任务，逐步加入建议标注、人工确认、姿态和轨迹证据、QA freeze，以及 LeRobot 输出等能力。
+- **上传结果**：只上传任务认可的结果；上传、奖励审核、结算和可训练数据批准会继续保持为独立状态。
+
+LeRobot 支持属于“机器人学习审阅”这一步。它不会替代录制或上传；生成 LeRobot 输出，也不等于任务已经通过结算或可训练数据批准。
 
 ## 关于收益
 
