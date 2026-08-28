@@ -2,6 +2,8 @@
 
 # CHEK EGO Miner
 
+[![#23 Rust Repository Of The Day](https://trendshift.io/api/badge/trendshift/repositories/28477/daily?language=Rust)](https://trendshift.io/repositories/28477)
+
 Ordinary people training robots is becoming a concrete workflow.
 
 Robotics data collection used to depend on labs, expensive devices, and specialized teams. CHEK EGO Miner lowers that entry point: with a phone, a computer, and a stable mount, a collector can record real first-person work or daily actions and enter an embodied-AI EGO data task flow.
