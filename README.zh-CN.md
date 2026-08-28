@@ -2,6 +2,8 @@
 
 # CHEK EGO Miner
 
+[![#23 Rust Repository Of The Day](https://trendshift.io/api/badge/trendshift/repositories/28477/daily?language=Rust)](https://trendshift.io/repositories/28477)
+
 普通人训练机器人这件事，正在变得具体。
 
 过去，采集机器人能用的真实世界数据，通常依赖实验室、昂贵设备和专业团队。现在，一台手机、一台电脑、一个稳定支架，就可以把真实工作和生活里的第一视角动作采下来，进入具身智能 EGO 数据任务流程。
